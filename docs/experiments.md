@@ -81,3 +81,22 @@ Fixes from this run:
 **Takeaway:** gemma is the interactive default (fast, good enough, AI output is violet and
 correctable anyway). qwen is better for a background "enrich" pass where 30 s per item doesn't
 matter. Idea: let tasks pick a model per role (interactive vs background).
+
+## 2026-11-14 · suggest-thing on Claude Haiku 5.5
+
+Same 8 inputs and prompt. Quoted est $0.0033 (worst case $0.0135); **actual $0.00199** for all 8
+(~1,845 in + 110–150 out tokens each). First call 4.9 s (connection set-up), then **1.0–2.1 s**.
+
+- Kinds 8/8 sensible (the cable as `thing`, like qwen's first run), maker/model only for ESP32-CAM and
+  LAGAN, same places as the local models (Kitchen, Bathroom).
+- Best descriptions of the three: specific and useful ("built-in flicker circuit, giving a
+  candle-like glow… sold in red, white and orange variants"; "integrated camera module and microSD
+  slot").
+- Weak spots: tags stuffed from the existing HomeBox list where they don't fit (`display` on
+  ESP32-CAM, `audio` on LEDs, `adapter` on a cable). Gemma did the same. One detail may be invented:
+  LAGAN called "freestanding" (IKEA sells LAGAN in both freestanding and integrated versions).
+
+**Overall so far** (8 items): Haiku is the fastest (1–2 s), has the best prose and costs ~$0.00025
+per item. qwen is the most careful but takes 12–45 s. gemma is a free 3–8 s default with a few more
+slips. The prompt's "reuse existing tags" rule pushes every model to borrow ill-fitting tags; next
+prompt iteration: show tags with usage counts and say "only if it truly describes the item".

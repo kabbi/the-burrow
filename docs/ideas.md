@@ -50,6 +50,9 @@ Loosely ordered. ✓ = done in some form.
 
 - Model per role: fast local model for interactive suggestions (gemma-4-31b), a slower, more
   careful one (qwen3.8-27b) for a background enrich pass over Needs details.
+- Tag reuse: every model borrows ill-fitting existing tags (`display` on an ESP32-CAM). Try showing
+  tags with counts plus a stricter rule, and score tag fit in the eval.
+- Haiku 5.5 as the interactive default once costs are acceptable (~$0.00025/item, 1–2 s).
 - Grow the eval set (`ai:eval`) with real items as the library fills, and score answers automatically
   (kind valid, no invented maker, tags reused…).
 
