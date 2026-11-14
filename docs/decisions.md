@@ -227,3 +227,45 @@ cropped and flat-fielded, with the bottom mirrored. It wrote to HomeBox, and Bur
   tool (two clicks → mm). Links to both originals.
 - Next (Part 2, when the rig moves off HomeBox): an API for the rig that upserts things and assets by
   key, resolves place paths, and records the rig as the actor.
+
+## D-019 · Telegram photo bot: add things from a photo (2026-11-14)
+
+Send the bot a photo (or an album: several photos of one thing). After ~7 s it answers
+with one menu:
+
+- **🎯 "Looks like your X"** (with where it lives) when one thing clearly matches, else **🆕 the AI's
+  name, kind, description and tags**. Up to 3 "already in Burrow?" candidates, shown as a numbered
+  contact sheet of their covers.
+- Buttons: **📎 add the photo to it** (then ⭐ make it the cover / ↩️ undo), **🔎 show it** (its cover,
+  path, link), **➕ new thing** with the AI's details (fields marked AI; the photo becomes the cover),
+  **✏️ new, I'll name it** (reply with a name), **✖ discard**.
+- After adding: **📍 place** (the AI's guess as a button, never applied by itself; recent places and
+  rooms; or reply "IVAR shelf, shelf 3" for a spot), **✏️ rename**, **↩️ undo** (archives it, back to
+  the menu).
+- Text without a photo searches ("glue gun" → where it is). A caption helps (name, or `B-0042`).
+
+How it matches:
+
+- **By looks first**: `vision.ts` turns pictures into DINOv2-small vectors (24 MB ONNX, pinned HF
+  revision, downloaded once into `data/models`) with `onnxruntime-web` (WASM) **on the server's CPU**
+  (no GPU box, no cloud). ~0.2 s a picture, cached per media file in `image_vectors`; the new photo
+  is compared four ways up (0/90/180/270°). Rig bottoms are indexed un-mirrored. Shown when cosine
+  ≥ 0.5; 🎯 needs ≥ 0.85 **and** a 0.04 lead over the runner-up (similar objects shot alike, e.g.
+  PCBs on white, all score ~0.9).
+- **Then by the AI's words** (`photo-thing` task: the local vision model names the thing and gives
+  search words). A name match whose pictures look nothing like the photo is dropped.
+- Dropped: a second "is it the same?" AI pass over the candidates (30 s, and text-only recall was the
+  real problem).
+
+AI and cost: `photo-thing` runs on LM Studio (gemma-4-31b) with **thinking off** (`noThinking` →
+`reasoning_effort: "none"`: ~6-9 s instead of 30-60 s; good enough for a name). Prompts can carry
+pictures now (`Prompt.images` = media file names; the gateway loads them as ≤1024 px JPEG at send
+time, so `ai_requests` stays small). If the local model is unavailable the bot shows Claude's quoted
+price as a button ("🤖 Ask Claude · $0.012") next to "save without AI"; nothing paid runs without
+that tap (D-007).
+
+Plumbing: long polling (no public URL needed), plain `fetch` (no bot library). Only chats in
+`TG_ADMIN_CHAT_ID` / `TG_ALLOWED_CHAT_IDS` get answers; others are logged with their id. Menu state
+lives in `tg_sessions` (survives restarts; buttons keep working). **One process per token**: the bot
+runs wherever `TG_BOT_TOKEN` is set unless `TG_BOT=0`; a second poller gets 409 and backs off.
+Links use `BURROW_PUBLIC_URL`.

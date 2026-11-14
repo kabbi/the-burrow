@@ -62,6 +62,15 @@ Loosely ordered. ✓ = done in some form.
 - Configure a real inbox tag in paperless and file faster with keyboard-only flows (j/k, Enter).
 - Expiry dates from paperless custom fields (`Expiry date`) → heads-up cards.
 
+## Telegram bot (D-019)
+
+- "Where is it?" with the LED locator (when places get lights): 🔎 Show → blink the shelf.
+- Voice notes: "this goes to the garage, top shelf" → place + spot (local whisper).
+- Several things in one photo (a drawer): detect objects, one menu per crop.
+- Things without photos can't be found by looks: fetch shop pictures for them (from-url) so they can.
+- Inline mode (`@bot glue` in any chat) for quick lookups; a daily "things without a place" nudge.
+- Use the photo's EXIF/time to suggest "the place you were adding things to 5 minutes ago".
+
 ## PCB rig (D-018)
 
 - Part 2: Burrow API for pcb-photo-maker (replace its HomeBox catalog): things + fields + tags under

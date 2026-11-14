@@ -9,8 +9,21 @@ export const config = {
   db: env.BURROW_DB ?? new URL("../../../data/burrow.sqlite", import.meta.url).pathname,
   /** Photos and other files Burrow owns (content-addressed). Served at /media. */
   mediaDir: env.BURROW_MEDIA ?? new URL("../../../data/media", import.meta.url).pathname,
+  /** Downloaded model files (the image matcher, D-019). */
+  modelsDir: env.BURROW_MODELS ?? new URL("../../../data/models", import.meta.url).pathname,
   /** Stable Fast 3D server (photo → textured .glb). Empty = off. */
   sf3dUrl: strip(env.SF3D_URL),
+  /** Where people open Burrow (links in Telegram messages). */
+  publicUrl: strip(env.BURROW_PUBLIC_URL ?? "http://localhost:5180"),
+  /** Telegram photo bot (D-019). Runs when a token is set, unless TG_BOT=0. Only one instance may poll a token. */
+  telegram: {
+    token: env.TG_BOT_TOKEN ?? "",
+    enabled: Boolean(env.TG_BOT_TOKEN) && env.TG_BOT !== "0",
+    /** Chats allowed to use the bot: TG_ADMIN_CHAT_ID plus TG_ALLOWED_CHAT_IDS (comma-separated). */
+    chats: [env.TG_ADMIN_CHAT_ID ?? "", ...(env.TG_ALLOWED_CHAT_IDS ?? "").split(",")]
+      .map((s) => s.trim())
+      .filter(Boolean),
+  },
   /** Only used by the one-time import script (D-010). */
   homebox: {
     url: strip(env.HOMEBOX_URL),

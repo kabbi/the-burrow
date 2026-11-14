@@ -31,8 +31,15 @@ pnpm prod:logs             # follow the container logs
 pnpm prod:migrate-assets   # one-time: old imageUrl fields → assets (D-015), backs up first
 ```
 
-Data lives in `~/dev/apps/burrow/data` (`burrow.sqlite`, `media/`, `backups/`). Without Docker:
+Data lives in `~/dev/apps/burrow/data` (`burrow.sqlite`, `media/`, `models/`, `backups/`). Without Docker:
 `pnpm build && pnpm start` (the API serves `apps/web/dist`).
+
+## Telegram bot
+
+Send a photo to the bot: it says whether you already have that thing (by looks, on the CPU, plus the
+local vision model's guess) and lets you add the photo to it, see where it is, or add it as new
+(D-019). Needs `TG_BOT_TOKEN` and `TG_ADMIN_CHAT_ID`; only one Burrow may run the bot (`TG_BOT=0` on
+the other).
 
 ## Scripts
 

@@ -29,6 +29,7 @@ ENV NODE_ENV=production \
     PORT=4100 \
     BURROW_DB=/data/burrow.sqlite \
     BURROW_MEDIA=/data/media \
+    BURROW_MODELS=/data/models \
     BURROW_VERSION=$BURROW_VERSION
 VOLUME /data
 USER node

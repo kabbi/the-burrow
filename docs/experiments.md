@@ -117,3 +117,24 @@ nothing. X-ray on the 1.8" TFT (B-0002): holes and headers line up with no turn.
 image width gives 64.2 mm = 58.2 mm board + 2 × 3 mm margin, so the scale holds. Some bottoms
 report a different board size than their top (e.g. B-0001: top 26.75 mm wide, bottom 13.5 mm, a
 shrink-wrapped board), so Width/Height come from the top capture only.
+
+## 2026-11-14 · Photo → "is it already in Burrow?" (Telegram bot, D-019)
+
+- **Text-only matching fails.** gemma-4-31b read a BSS138 level shifter's "LV/HV" pads as "LU/HU"
+  and called it a "Sensor Interface PCB"; full-text search on its words never found B-0004.
+- **LM Studio vision**: needs JPEG (rejects webp data URLs). Schema mode with an image loops
+  ("owne owne owne…"); prompted JSON is fine. Thinking dominates time: default 32-70 s (700-1600
+  reasoning tokens), `reasoning_effort: "low"` is ignored (55-62 s), `"none"` 5-9 s. Names are a bit
+  worse without thinking (both are often wrong on small PCBs). Kept: `"none"` for photos.
+- **Image vectors.** `@huggingface/transformers` couldn't be installed: pnpm dies unpacking the
+  300 MB `onnxruntime-node` ("invalid array length"). Used `onnxruntime-web` (WASM) directly instead.
+  The DINOv2 ONNX export only outputs `last_hidden_state`: the first try flattened the whole token
+  matrix (everything matched B-0049); the CLS token is right (near-identical 0.96, other board 0.33,
+  axe 0.03; int8 ≈ fp32).
+- **Retrieval test** (25 random rig captures; query = centre 40 % of the uncropped camera original,
+  i.e. not the indexed picture, different framing/rotation; against all 97 boards' photos): CLS
+  12/25 top-1, 15/25 top-3; querying 4 rotations 14-16 top-1, 15-21 top-3 (samples differ per
+  run); un-mirroring rig bottoms helped a little. Similar boards shot alike score ~0.9 against each
+  other, hence the "lead over runner-up" rule for 🎯. Everyday objects should separate far better.
+- Speed (6 cores, WASM, 2 threads): ~0.2 s a picture, ~0.8 s a query (4 rotations); indexing the dev
+  library (192 pictures + 94 mirrored) ≈ 40 s once. End to end in the bot: ~7 s, mostly the VLM.

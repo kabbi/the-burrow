@@ -9,7 +9,7 @@ import { PaperlessMock } from "./adapters/paperless-mock.ts";
 import { UpstreamError } from "./adapters/http.ts";
 import { AiError, AiGateway, aiMigrations } from "./ai/gateway.ts";
 import { AnthropicProvider, LmStudioProvider, OllamaProvider } from "./ai/providers.ts";
-import { suggestThingTask } from "./ai/tasks.ts";
+import { photoThingTask, suggestThingTask } from "./ai/tasks.ts";
 import { thingRoutes } from "./routes/things.ts";
 import { paperRoutes } from "./routes/papers.ts";
 import { aiRoutes } from "./routes/ai.ts";
@@ -18,6 +18,8 @@ import { schemaRoutes } from "./routes/schema.ts";
 import { assetRoutes } from "./routes/assets.ts";
 import { Media } from "./media.ts";
 import { Sf3d } from "./adapters/sf3d.ts";
+import { telegramMigrations } from "./telegram/bot.ts";
+import { ImageIndex, visionMigrations, type VisualMatcher } from "./vision.ts";
 
 export interface Deps {
   config: Config;
@@ -30,17 +32,22 @@ export interface Deps {
   anthropic: AnthropicProvider;
   media: Media;
   sf3d: Sf3d;
+  vision: VisualMatcher;
 }
 
 export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
-  const store = overrides.store ?? Store.open(config.db, aiMigrations);
+  const store =
+    overrides.store ?? Store.open(config.db, [...aiMigrations, ...telegramMigrations, ...visionMigrations]);
   const ollama = new OllamaProvider(config.ai.ollamaUrl);
   const lmstudio = new LmStudioProvider(config.ai.lmstudioUrl);
   const anthropic = new AnthropicProvider(config.ai.anthropicKey);
+  const media = overrides.media ?? new Media(config.mediaDir);
   const ai = new AiGateway(store.db, [lmstudio, ollama, anthropic], {
     autoApproveUsd: config.ai.autoApproveUsd,
+    loadImage: (file) => media.forModel(file),
   });
   ai.register(suggestThingTask(store));
+  ai.register(photoThingTask(store));
   const p = config.paperless;
   const paperless: PaperlessApi = p.mock
     ? new PaperlessMock()
@@ -56,8 +63,9 @@ export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps 
     ollama,
     lmstudio,
     anthropic,
-    media: new Media(config.mediaDir),
+    media,
     sf3d: new Sf3d(config.sf3dUrl),
+    vision: new ImageIndex(store, config.mediaDir, config.modelsDir),
     ...overrides,
   };
 }

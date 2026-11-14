@@ -1,5 +1,7 @@
 import { config } from "./config.ts";
 import { createApp, createDeps } from "./app.ts";
+import { TelegramApi } from "./telegram/api.ts";
+import { startTelegramBot } from "./telegram/bot.ts";
 
 const deps = createDeps(config);
 const app = createApp(deps);
@@ -12,3 +14,9 @@ app.listen(config.port, () => {
     `  ai: lmstudio ${deps.lmstudio.configured ? "on" : "off"}, ollama ${deps.ollama.configured ? "on" : "off"}, anthropic ${deps.anthropic.configured ? "on" : "off"}`,
   );
 });
+
+const tg = config.telegram;
+if (tg.enabled && tg.chats.length) {
+  startTelegramBot(deps, new TelegramApi(tg.token));
+  console.log(`  telegram: on (${tg.chats.length} chat${tg.chats.length === 1 ? "" : "s"} allowed)`);
+} else if (tg.enabled) console.warn("  telegram: token set but no TG_ADMIN_CHAT_ID: bot off");
