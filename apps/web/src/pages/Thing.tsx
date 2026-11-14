@@ -10,6 +10,7 @@ import { PathView, StatusLine, ThingCard, Thumb } from "../components/ThingCard.
 import { AiSuggest } from "../components/AiSuggest.tsx";
 import { TagEditor } from "../components/Tags.tsx";
 import { Relations } from "../components/Relations.tsx";
+import { Assets, ROLE_LABEL } from "../components/Assets.tsx";
 
 export function Thing() {
   const { id = "" } = useParams();
@@ -123,6 +124,16 @@ export function Thing() {
         </div>
       </section>
 
+      {!isTag && (
+        <Assets
+          thingId={t.id}
+          thingName={t.name}
+          assets={data.assets}
+          coverId={data.coverId}
+          shownId={t.cover?.id ?? null}
+        />
+      )}
+
       {isTag && (
         <section className="stack">
           <h2 className="eyebrow">Tagged · {data.tagged.length} (including nested tags)</h2>
@@ -232,6 +243,18 @@ function label(e: BurrowEvent): string {
       return b.edgeType === "tagged" ? "Tagged" : `Linked (${b.edgeType.replace(/_/g, " ")})`;
     case "edge.removed":
       return b.edgeType === "tagged" ? "Untagged" : `Unlinked (${b.edgeType.replace(/_/g, " ")})`;
+    case "asset.added":
+      return `Added ${ROLE_LABEL[b.asset.role].toLowerCase()}`;
+    case "asset.changed":
+      return b.to.thumb !== undefined && Object.keys(b.to).length === 1
+        ? "New picture for a 3D model"
+        : b.to.role
+          ? `Picture is now: ${ROLE_LABEL[b.to.role].toLowerCase()}`
+          : "Picture changed";
+    case "asset.removed":
+      return b.undo ? "Picture restored" : "Picture removed";
+    case "asset.cover":
+      return b.to ? "Cover changed" : "Cover automatic";
     default:
       return b.type;
   }

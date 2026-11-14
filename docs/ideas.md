@@ -62,6 +62,17 @@ Loosely ordered. ✓ = done in some form.
 - Configure a real inbox tag in paperless and file faster with keyboard-only flows (j/k, Enter).
 - Expiry dates from paperless custom fields (`Expiry date`) → heads-up cards.
 
+## Assets (D-015)
+
+- Sprite generation: a local image model (ComfyUI / SDXL on the GPU box) that turns a photo or icon
+  into stylized 2D inventory art, stored as `sprite` with `source: ai`.
+- AI picks an icon: give the model the icon names that match the item's words and let it choose.
+- Background removal for our photos (rembg is already in the SF3D env) → clean cut-outs as covers.
+- Per-lens cover: the Hoard lens prefers sprite/model, the Ledger lens prefers photo.
+- Media GC: delete files no live or removed asset references, after a grace period.
+- More 3D formats (`.3mf`, `.obj`), and STL → GLB conversion for printed parts.
+- Photo EXIF (date taken) as the "seen here" time for location history.
+
 ## Core / platform
 
 - Delete / retire kinds and link types (with a check that nothing uses them), and rename field keys.

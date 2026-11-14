@@ -1,4 +1,7 @@
 import type {
+  Asset,
+  AssetRef,
+  AssetRole,
   BurrowEvent,
   Kind,
   KindField,
@@ -8,7 +11,30 @@ import type {
   ThingView,
 } from "@burrow/core/types";
 
-export type { BurrowEvent, Kind, KindField, RelationType, RelationView, ThingView };
+export type { AssetRole, BurrowEvent, Kind, KindField, RelationType, RelationView, ThingView };
+
+/** An asset plus the URLs to draw it. */
+export type AssetView = Asset & AssetRef;
+
+/** Asset writes answer with the thing's assets, its cover and the event (for Undo). */
+export interface AssetsReply {
+  assets: AssetView[];
+  cover: AssetRef | null;
+  asset?: AssetView;
+  event?: BurrowEvent;
+}
+
+/** Send a file as the raw request body (no multipart). */
+export async function upload<T = AssetsReply>(path: string, file: Blob, query: Record<string, string> = {}) {
+  const res = await fetch(`/api${path}?${new URLSearchParams(query)}`, {
+    method: "POST",
+    headers: { "content-type": file.type || "application/octet-stream" },
+    body: file,
+  });
+  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) throw new ApiError(res.status, json.error ?? `HTTP ${res.status}`);
+  return json;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -66,6 +92,9 @@ export interface ThingDetail {
   children: ThingView[];
   relations: (RelationView & { paperlessId: string | null })[];
   tagged: ThingView[];
+  assets: AssetView[];
+  /** The cover someone chose (null: automatic). */
+  coverId: string | null;
   paperlessId: string | null;
   events: (BurrowEvent & { undoable: boolean })[];
 }

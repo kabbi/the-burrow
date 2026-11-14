@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { get, post, type BurrowEvent, type Preview, type ThingDetail, type ThingView } from "../lib/api.ts";
+import {
+  get,
+  post,
+  upload,
+  type BurrowEvent,
+  type Preview,
+  type ThingDetail,
+  type ThingView,
+} from "../lib/api.ts";
 import { useDebounced, useRefresh, useUndo } from "../lib/hooks.ts";
 import { useToast } from "../lib/toast.tsx";
 import { PlacePicker } from "../components/PlacePicker.tsx";
@@ -53,6 +61,7 @@ export function Add() {
   const [kind, setKind] = useState("thing");
   const [placeId, setPlaceId] = useState<string | null>(storedPlace);
   const [qty, setQty] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<Saved[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -103,10 +112,9 @@ export function Add() {
         sources.url = "you";
       }
       if (page) {
-        if (page.image) data.imageUrl = page.image;
         if (page.brand) data.maker = page.brand;
         Object.assign(data, parsePrice(page.price));
-        for (const k of ["imageUrl", "maker", "price", "currency"]) if (k in data) sources[k] = "page";
+        for (const k of ["maker", "price", "currency"]) if (k in data) sources[k] = "page";
         if (page.title && page.title === finalName) sources.name = "page";
       }
       if (qty.trim()) data.quantity = Number(qty);
@@ -118,6 +126,15 @@ export function Add() {
         source: "you",
         sources,
       });
+      // The shop's picture becomes a "product" asset, downloaded so it never breaks (D-015).
+      if (page?.image)
+        await post(`/things/${r.thing.id}/assets/from-url`, { url: page.image, role: "product" }).catch(
+          (e: Error) => toast({ text: `Couldn't keep the shop picture: ${e.message}`, error: true }),
+        );
+      if (photo)
+        await upload(`/things/${r.thing.id}/assets`, photo, { role: "photo", filename: photo.name }).catch(
+          (e: Error) => toast({ text: `Photo not saved: ${e.message}`, error: true }),
+        );
       const aiInput = {
         name: finalName,
         ...(url ? { url } : {}),
@@ -137,6 +154,7 @@ export function Add() {
       setText("");
       setName(null);
       setQty("");
+      setPhoto(null);
       await refresh();
       inputRef.current?.focus();
     } catch (e) {
@@ -230,6 +248,18 @@ export function Add() {
             />
           </label>
         </div>
+
+        <label className="field">
+          <span>Photo (optional) — on a phone this opens the camera</span>
+          <input
+            key={photo ? "has" : "none"}
+            className="input"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+          />
+        </label>
 
         <div className="field">
           <span>Kind</span>

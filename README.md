@@ -28,6 +28,7 @@ Runs in Docker from `~/dev/apps/burrow` at https://burrow.example.com (D-014).
 pnpm prod:deploy           # checks → build burrow:<sha> → back up live DB → restart → health check
 SKIP_CHECKS=1 pnpm prod:deploy
 pnpm prod:logs             # follow the container logs
+pnpm prod:migrate-assets   # one-time: old imageUrl fields → assets (D-015), backs up first
 ```
 
 Data lives in `~/dev/apps/burrow/data` (`burrow.sqlite`, `media/`, `backups/`). Without Docker:

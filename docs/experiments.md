@@ -100,3 +100,11 @@ Same 8 inputs and prompt. Quoted est $0.0033 (worst case $0.0135); **actual $0.0
 per item. qwen is the most careful but takes 12–45 s. gemma is a free 3–8 s default with a few more
 slips. The prompt's "reuse existing tags" rule pushes every model to borrow ill-fitting tags; next
 prompt iteration: show tags with usage counts and say "only if it truly describes the item".
+
+## 2026-11-14 · Stable Fast 3D from a photo
+
+`server.py` from `~/dev/tools/stable-fast-3d` on fedora (:8765, CUDA). Input: the repo's
+`demo_files/examples/axe.png` uploaded as a photo of a dev test thing (B-0182). Background
+removal on, 1024 px texture, no remesh: **5.1 s**, 367 KB `.glb` with a good texture. The browser
+rendered the poster (three.js, off-screen) and posted it back as the thumb. Real phone photos with
+clutter are the next test: rembg should cope, but expect odd backs on single-view guesses.

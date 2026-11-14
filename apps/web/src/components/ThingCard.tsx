@@ -3,13 +3,15 @@ import type { ThingView } from "../lib/api.ts";
 import { post } from "../lib/api.ts";
 import { useAction } from "../lib/hooks.ts";
 
-export function Thumb({ thing, big }: { thing: Pick<ThingView, "name" | "data">; big?: boolean }) {
-  const src = (thing.data.thumbUrl ?? thing.data.imageUrl) as string | undefined;
-  if (src)
+/** The thing's cover picture (D-015), or its initial. Icons and sprites are drawn whole. */
+export function Thumb({ thing, big }: { thing: Pick<ThingView, "name" | "cover">; big?: boolean }) {
+  const c = thing.cover;
+  const src = big ? (c?.imageUrl ?? c?.thumbUrl) : (c?.thumbUrl ?? c?.imageUrl);
+  if (c && src)
     return (
       <img
-        className={`thumb${big ? " big" : ""}`}
-        src={big ? ((thing.data.imageUrl as string) ?? src) : src}
+        className={`thumb${big ? " big" : ""}${c.role === "icon" || c.role === "sprite" ? " contain" : ""}`}
+        src={src}
         alt=""
         loading="lazy"
       />

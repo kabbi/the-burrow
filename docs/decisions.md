@@ -147,3 +147,31 @@ paperless tags stay paperless'. The old `data.tags` lists were converted by `mig
   all), so production uses FQDNs (`fedora.example.com`, `worky.<tailnet>.ts.net`).
 - No login: `burrow.example.com` resolves to the tailnet address, like the other apps. A tinyauth
   middleware line is ready in the compose file for when tinyauth runs (it isn't deployed today).
+
+## D-015 · Assets: many pictures and models per thing, one cover (2026-11-14)
+
+A thing can have any number of **assets**, each with a role: `photo` (our own, in place), `product`
+(shop/marketing photo), `icon` (from an open icon set), `sprite` (stylized 2D art for inventory-style
+screens), `model` (3D: `.glb` or `.stl`) and `other`. One of them is the **cover** the UI shows.
+
+- Assets are core data with their own events (`asset.added`, `asset.changed`, `asset.removed`,
+  `asset.cover`), all undoable and replayed by `rebuild()`. Projection: `assets` table plus
+  `things.cover_id`. Ids are `A-0001` (their own sequence, so item numbers aren't affected).
+- **Cover**: the one you chose, else the first that can be drawn in the order photo → product →
+  sprite → icon → other → model. `ThingView.cover` carries `fileUrl` / `imageUrl` / `thumbUrl`.
+- **Files** stay content-addressed in the media dir (`<sha256[:32]>.<ext>`, written once). Removing
+  an asset keeps its file so undo works; a GC can come later. `/media` is served with a strict CSP
+  and `nosniff` so an uploaded SVG can't run scripts.
+- The server sniffs file types (sharp for images, magic bytes for glb/stl), records the size, and makes
+  a 480 px webp thumb for big pictures. **3D posters** are rendered in the browser (three.js) and
+  posted back as the model's thumb, because the server has no GPU renderer. A model without a poster
+  gets one rendered off-screen the next time its thing is opened.
+- Uploads are the raw request body (`POST /things/:id/assets?role=…&filename=…`), not multipart.
+  Shop pictures are downloaded (`/assets/from-url`) rather than hot-linked, so they never break.
+- **Icons**: Tabler (MIT) and Lucide (ISC) bundled as Iconify JSON and searched by name on the server.
+  Item names never leave the box. The SVG is stored as a normal asset, with the license in `data`.
+- **3D generation**: Stable Fast 3D (`~/dev/tools/stable-fast-3d/server.py`, fedora:8765, CUDA) via
+  `SF3D_URL`. Local and free, about 5 s per model. One request at a time from Burrow. The result is a
+  `model` asset with `source: ai` and `data.generator` / `data.fromAssetId`.
+- The old `data.imageUrl` / `data.thumbUrl` fields were converted by `migrate:0004` (HomeBox photos →
+  `photo` assets).

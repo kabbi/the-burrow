@@ -13,7 +13,8 @@
 │        │      adapters/paperless   ai/gateway ── providers ──────┼──► Anthropic API (paid, quoted)
 │        │      (metadata only)      (quote→run)  lmstudio/ollama ─┼──► LM Studio @ worky, ollama @ fedora
 │        │              └──────────────────────────────────────────┼──► paperless-ngx (source of truth for docs)
-│  routes/schema · routes/db · /media (data/media)                 │
+│  routes/schema · routes/db · routes/assets ── sf3d ──────────────┼──► Stable Fast 3D @ fedora:8765
+│  /media (data/media, content-addressed)                          │
 │  packages/core: Store ──► data/burrow.sqlite                     │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -34,6 +35,8 @@ with inheritance and typed fields, relation types, tags as things (D-013).
     `has_document`, `accessory_of`, `part_of`, `replaces`, `related`, plus your own).
   - `relation_types`: name / inverse, allowed kinds per end, one-or-many, symmetric.
   - `external_refs`: thing ↔ service + remote id (HomeBox uuid + asset id, …).
+  - `assets` (D-015): photos, shop pictures, icons, 2D art, 3D models per thing, with role, file,
+    thumb, provenance; `things.cover_id` is the chosen cover (else derived).
   - `kinds`: parent kind, `isPlace`, `physical`, typed fields (add "plant" without code).
   - `things_fts`: FTS5 over name / body (every text field, tag names with their parent tags, refs,
     id) / path. A tag rename or move reindexes everything tagged under it.
@@ -63,6 +66,9 @@ fields HomeBox still owns.
 - `ai/`: `AiGateway` with registered **tasks** (prompt builder + zod schema), providers
   (Anthropic via SDK structured outputs + server-side fallback; LM Studio and ollama with a JSON
   schema), price table, `ai_requests` log (D-007).
+- `media.ts`: content-addressed files, type sniffing, thumbnails (sharp). `icons.ts`: bundled
+  Tabler/Lucide search. `routes/assets.ts`: upload, from-url, icon, cover, poster, 3D generation via
+  `adapters/sf3d.ts` (Stable Fast 3D on the local GPU).
 - `link-preview.ts`: OpenGraph / JSON-LD product reading (free, no AI).
 - `routes/*`: thin HTTP layer; zod validates input; errors map to status codes in `app.ts`.
 
@@ -77,6 +83,8 @@ CSS with tokens in `styles.css`. Self-hosted fonts (Inter, Space Grotesk).
 - `AiSuggest`: quote → show price → run → apply (accepted by default) → violet facts.
 - `Facts`: the kind's declared fields (typed editors) plus extra per-thing fields, with provenance and
   Right / Wrong on AI guesses.
+- `Assets`: the pictures & models panel (upload, camera, link, icon picker, Make 3D model, cover).
+  `ModelViewer`: three.js, lazy-loaded; also renders posters for models.
 - `TagEditor` (chips, autocomplete, create, confirm AI tags), `Relations` (typed links both ways),
   `ThingSearch` (shared finder).
 - Pages: Schema (kinds, fields, link types), Tags (tree), Database (D-009).
