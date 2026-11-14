@@ -196,3 +196,12 @@ describe("link preview", () => {
     });
   });
 });
+
+describe("extractJson", async () => {
+  const { extractJson } = await import("../src/ai/providers.ts");
+  it("finds JSON in prose and fences", () => {
+    expect(JSON.parse(extractJson('\n\n{"a":1}'))).toEqual({ a: 1 });
+    expect(JSON.parse(extractJson('Sure!\n```json\n{"a":{"b":[1]}}\n```\nDone'))).toEqual({ a: { b: [1] } });
+    expect(() => extractJson("no json here")).toThrow(/no JSON/);
+  });
+});

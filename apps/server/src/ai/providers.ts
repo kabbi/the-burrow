@@ -203,44 +203,73 @@ export class LmStudioProvider implements Provider {
     return { tokens: Math.ceil(chars / 3.5), exact: false };
   }
 
+  /** Models whose LM Studio runtime drops the connection on json_schema output (seen with qwen3.8). */
+  private noSchema = new Set<string>();
+
   complete<O>(p: Prompt, model: string, schema: z.ZodType<O>, maxTokens: number): Promise<Completion<O>> {
     const run = async () => {
       const m = (await this.models()).find((x) => x.name === model);
       if (!m?.loaded) throw new Error(`LM Studio model "${model}" is not loaded (Burrow never loads models)`);
-      const r = await fetch(`${this.url}/v1/chat/completions`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        signal: AbortSignal.timeout(300_000),
-        body: JSON.stringify({
-          model,
-          temperature: 0.2,
-          max_tokens: maxTokens,
-          stream: false,
-          response_format: {
+      const jsonSchema = z.toJSONSchema(schema);
+      if (!this.noSchema.has(model)) {
+        try {
+          const r = await this.chat(model, maxTokens, p, {
             type: "json_schema",
-            json_schema: { name: "answer", strict: true, schema: z.toJSONSchema(schema) },
-          },
-          messages: [
-            { role: "system", content: p.system },
-            { role: "user", content: p.user },
-          ],
-        }),
-      });
-      if (!r.ok) throw new Error(`lmstudio HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
-      const j = (await r.json()) as {
-        choices: { message: { content: string } }[];
-        usage?: { prompt_tokens?: number; completion_tokens?: number };
+            json_schema: { name: "answer", strict: true, schema: jsonSchema },
+          });
+          return { output: schema.parse(JSON.parse(r.content)), model, ...r.usage };
+        } catch {
+          // Fall through to prompt-only JSON and remember for next time.
+          this.noSchema.add(model);
+        }
+      }
+      const prompted: Prompt = {
+        system: `${p.system}\n\nAnswer with ONLY a JSON object matching this JSON Schema, no prose, no code fences:\n${JSON.stringify(jsonSchema)}`,
+        user: p.user,
       };
-      const output = schema.parse(JSON.parse(j.choices[0]?.message.content ?? "null"));
-      return {
-        output,
-        model,
-        inputTokens: j.usage?.prompt_tokens ?? 0,
-        outputTokens: j.usage?.completion_tokens ?? 0,
-      };
+      const r = await this.chat(model, maxTokens, prompted, null);
+      return { output: schema.parse(JSON.parse(extractJson(r.content))), model, ...r.usage };
     };
     const next = this.queue.then(run, run);
     this.queue = next.catch(() => {});
     return next;
   }
+
+  private async chat(model: string, maxTokens: number, p: Prompt, responseFormat: unknown) {
+    const r = await fetch(`${this.url}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      signal: AbortSignal.timeout(300_000),
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        max_tokens: maxTokens,
+        stream: false,
+        ...(responseFormat ? { response_format: responseFormat } : {}),
+        messages: [
+          { role: "system", content: p.system },
+          { role: "user", content: p.user },
+        ],
+      }),
+    });
+    if (!r.ok) throw new Error(`lmstudio HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const j = (await r.json()) as {
+      choices: { message: { content: string | null } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    return {
+      content: j.choices[0]?.message.content ?? "",
+      usage: { inputTokens: j.usage?.prompt_tokens ?? 0, outputTokens: j.usage?.completion_tokens ?? 0 },
+    };
+  }
+}
+
+/** Pull the first JSON object out of a model reply (tolerates prose and ``` fences). */
+export function extractJson(text: string): string {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(text);
+  const body = fenced?.[1] ?? text;
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("The model reply contained no JSON object");
+  return body.slice(start, end + 1);
 }

@@ -6,7 +6,8 @@
     "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env --watch src/main.ts",
     "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/main.ts",
     "sync:homebox": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/sync-homebox.ts",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "ai:eval": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/ai-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.107.0",

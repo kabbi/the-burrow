@@ -67,7 +67,7 @@ export function suggestThingTask(store: Store): AiTask<SuggestThingInput, ThingS
         "- quantity: only when the input states a count, else null.",
         "- placeId: an id from the places list only if the name clearly implies where it lives (e.g. a dishwasher → kitchen), else null.",
         "- question: null unless one multiple-choice question would remove an important ambiguity.",
-        'Example: typed "moka pot" → {"name":"Moka pot","kind":"thing","description":"Stovetop espresso maker that brews strong coffee by pushing steam-pressured water through ground coffee.","tags":["coffee","kitchen","cookware"],"maker":null,"model":null,"quantity":null,"placeId":null,"question":null}',
+        'Example: typed "hot glue gun" → {"name":"Hot glue gun","kind":"tool","description":"Electric tool that melts glue sticks for quick bonding of plastic, wood, fabric and craft materials.","tags":["glue","crafts","workshop"],"maker":null,"model":null,"quantity":null,"placeId":null,"question":null}',
         `Kinds: ${kinds}.`,
         `Existing tags: ${tags || "(none yet)"}.`,
         `Places (id: path):\n${places || "(none yet)"}`,
