@@ -46,6 +46,13 @@ Loosely ordered. ✓ = done in some form.
 - Duplicate detection before saving ("you already have 2 ESP32-CAMs").
 - Quantity +/- on an existing thing instead of a duplicate.
 
+## AI
+
+- Model per role: fast local model for interactive suggestions (gemma-4-31b), a slower, more
+  careful one (qwen3.8-27b) for a background enrich pass over Needs details.
+- Grow the eval set (`ai:eval`) with real items as the library fills, and score answers automatically
+  (kind valid, no invented maker, tags reused…).
+
 ## Papers
 
 - Link papers to things from the thing page too (search papers by title).

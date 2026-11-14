@@ -213,14 +213,21 @@ export class LmStudioProvider implements Provider {
       const jsonSchema = z.toJSONSchema(schema);
       if (!this.noSchema.has(model)) {
         try {
-          const r = await this.chat(model, maxTokens, p, {
+          // Schema-mode answers are short; a cap stops a degenerate repetition loop early.
+          const r = await this.chat(model, Math.min(maxTokens, 1200), p, {
             type: "json_schema",
             json_schema: { name: "answer", strict: true, schema: jsonSchema },
           });
           return { output: schema.parse(JSON.parse(r.content)), model, ...r.usage };
-        } catch {
-          // Fall through to prompt-only JSON and remember for next time.
-          this.noSchema.add(model);
+        } catch (e) {
+          // Connection dropped / empty body = this runtime can't do schema mode for the model:
+          // remember it. Anything else (timeout, bad JSON once) only falls back this time.
+          const msg = (e as Error).message;
+          const structural = /fetch failed|Unexpected end of JSON|socket|ECONNRESET/i.test(msg);
+          if (structural) this.noSchema.add(model);
+          console.warn(
+            `lmstudio ${model}: schema mode failed (${msg}); prompt-only JSON${structural ? " from now on" : " this time"}`,
+          );
         }
       }
       const prompted: Prompt = {

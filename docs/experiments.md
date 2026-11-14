@@ -58,5 +58,26 @@ extract the JSON + zod-validate" and remembers per model that schema mode fails.
   example is now "hot glue gun" (not in the eval set). Re-run: its own description, kind
   `appliance`, placed in Kitchen.
 
-**google/gemma-4-31b:** only one data point so far (metal calipers, prompt v2: good description,
-4 tags, ~5 s). A full run needs LM Studio to switch models; waiting for the owner's go-ahead.
+**Head to head (same prompt, both loaded, 2026-11-14 afternoon):**
+
+|             | gemma-4-31b (schema mode)                                                                                              | qwen3.8-27b (prompt mode, thinks)                                                      |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| time / item | **3–8 s** (~80–110 out tokens)                                                                                         | 12–45 s (380–1430 out tokens)                                                          |
+| kinds       | 6/8 right; once invented `"thing own"`, and once called LEDs `thing`                                                   | 8/8 right                                                                              |
+| maker/model | ESP32-CAM, LAGAN ✓                                                                                                     | ESP32-CAM, LAGAN ✓                                                                     |
+| places      | Kitchen for moka pot + dishwasher, Bathroom for clippers                                                               | same                                                                                   |
+| facts       | generic but correct; one junk tag (`distance-lighting`), wrong tags `display, usb` on ESP32-CAM, qty 3 for "3 colours" | more specific and correct (mentions the ESP32-CAM's OV2640 sensor), no invented values |
+| failures    | 1 of 13 runs fell into a repetition loop in schema mode (10 KB of JSON, 140 s) → recovered by the fallback             | none                                                                                   |
+
+Fixes from this run:
+
+- The fallback no longer sticks after any error: only connection-level failures (dropped socket,
+  empty body) mark a model as "no schema mode"; other errors fall back for that call only, with a
+  console warning.
+- Schema-mode attempts are capped at 1,200 output tokens, so a runaway loop dies in seconds.
+- The first gemma pass was unfair (one failure flipped the remaining items to prompt mode, where
+  gemma also starts thinking). The table uses the clean re-run.
+
+**Takeaway:** gemma is the interactive default (fast, good enough, AI output is violet and
+correctable anyway). qwen is better for a background "enrich" pass where 30 s per item doesn't
+matter. Idea: let tasks pick a model per role (interactive vs background).
