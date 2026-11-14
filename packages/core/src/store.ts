@@ -1,7 +1,12 @@
 import { openDb, tx, type Db, type Migration } from "./db.ts";
 import { formatId, parseId } from "./ids.ts";
 import { builtinKinds, builtinRelations } from "./kinds.ts";
+import { ASSET_ROLES } from "./types.ts";
 import type {
+  Asset,
+  AssetPatch,
+  AssetRef,
+  AssetRole,
   BurrowEvent,
   Edge,
   EventBody,
@@ -67,7 +72,27 @@ export const UNDOABLE = new Set([
   "ref.unlinked",
   "edge.added",
   "edge.removed",
+  "asset.added",
+  "asset.changed",
+  "asset.removed",
+  "asset.cover",
 ]);
+
+export interface AddAssetInput {
+  role: AssetRole;
+  file: string;
+  mime: string;
+  bytes: number;
+  width?: number;
+  height?: number;
+  thumb?: string;
+  label?: string;
+  source?: FieldSource;
+  data?: Record<string, unknown>;
+}
+
+/** Cover fallback order when nobody picked one. Models only count once they have a poster. */
+const COVER_ORDER: AssetRole[] = ["photo", "product", "sprite", "icon", "other", "model"];
 
 /**
  * The Burrow core: an append-only event log plus projections (things, edges,
@@ -269,6 +294,107 @@ export class Store {
       if (active) return this.toggleUndo(active.seq, actor);
       return this.append(this.inverse(e.body), actor, seq);
     });
+  }
+
+  // ------------------------------------------------------------ assets (D-015)
+
+  addAsset(thingId: ThingId, input: AddAssetInput, actor = "you"): Asset {
+    this.mustGetRaw(thingId);
+    const r = this.db.prepare("select value from kv where key = 'next_asset'").get() as Row | undefined;
+    const id = `A-${String(r ? Number(r.value) : 1).padStart(4, "0")}`;
+    const asset = {
+      id,
+      thingId,
+      role: input.role,
+      file: input.file,
+      mime: input.mime,
+      bytes: input.bytes,
+      ...(input.width ? { width: input.width } : {}),
+      ...(input.height ? { height: input.height } : {}),
+      ...(input.thumb ? { thumb: input.thumb } : {}),
+      ...(input.label?.trim() ? { label: input.label.trim() } : {}),
+      source: input.source ?? "you",
+      data: input.data ?? {},
+    };
+    this.append({ type: "asset.added", thingId, asset }, actor);
+    return this.mustGetAsset(id);
+  }
+
+  changeAsset(assetId: string, patch: AssetPatch, actor = "you"): Asset {
+    const a = this.mustGetAsset(assetId);
+    const from: AssetPatch = {};
+    const to: AssetPatch = {};
+    for (const k of ["role", "label", "thumb"] as const) {
+      if (!(k in patch)) continue;
+      const next = patch[k] === "" ? null : (patch[k] ?? null);
+      const prev = a[k] ?? null;
+      if (prev === next) continue;
+      (from as Record<string, unknown>)[k] = prev;
+      (to as Record<string, unknown>)[k] = next;
+    }
+    if (Object.keys(to).length)
+      this.append({ type: "asset.changed", thingId: a.thingId, assetId, from, to }, actor);
+    return this.mustGetAsset(assetId);
+  }
+
+  /** Soft removal (undoable). The file stays on disk. */
+  removeAsset(assetId: string, actor = "you"): void {
+    const a = this.mustGetAsset(assetId);
+    if (a.removedAt) return;
+    this.append({ type: "asset.removed", thingId: a.thingId, assetId }, actor);
+  }
+
+  /** Pick the asset the UI shows for a thing; null goes back to automatic. */
+  setCover(thingId: ThingId, assetId: string | null, actor = "you"): ThingView {
+    const t = this.mustGetRaw(thingId);
+    const from = this.coverId(t.id);
+    if (from !== assetId) this.append({ type: "asset.cover", thingId: t.id, from, to: assetId }, actor);
+    return this.mustGet(t.id);
+  }
+
+  asset(id: string): Asset | null {
+    const r = this.db.prepare("select * from assets where id = ?").get(id) as Row | undefined;
+    return r ? toAsset(r) : null;
+  }
+
+  mustGetAsset(id: string): Asset {
+    const a = this.asset(id);
+    if (!a) throw new BurrowError(`No asset ${id}`, 404);
+    return a;
+  }
+
+  /** A thing's assets, oldest first. Removed ones only with `removed`. */
+  assets(thingId: ThingId, opts: { removed?: boolean; role?: AssetRole } = {}): Asset[] {
+    const where = ["thing_id = ?"];
+    const args: string[] = [thingId];
+    if (!opts.removed) where.push("removed_at is null");
+    if (opts.role) {
+      where.push("role = ?");
+      args.push(opts.role);
+    }
+    return (
+      this.db.prepare(`select * from assets where ${where.join(" and ")} order by seq`).all(...args) as Row[]
+    ).map(toAsset);
+  }
+
+  /** The explicitly chosen cover, if any (and still there). */
+  coverId(thingId: ThingId): string | null {
+    const r = this.db
+      .prepare(
+        `select a.id from things t join assets a on a.id = t.cover_id and a.removed_at is null where t.id = ?`,
+      )
+      .get(thingId) as Row | undefined;
+    return r ? String(r.id) : null;
+  }
+
+  /** What the UI shows: the chosen cover, else the first asset by COVER_ORDER that can be drawn. */
+  cover(thingId: ThingId): AssetRef | null {
+    const all = this.assets(thingId).filter((a) => assetRef(a).imageUrl);
+    const chosen = this.coverId(thingId);
+    const pick =
+      all.find((a) => a.id === chosen) ??
+      all.toSorted((a, b) => COVER_ORDER.indexOf(a.role) - COVER_ORDER.indexOf(b.role))[0];
+    return pick ? assetRef(pick) : null;
   }
 
   // ------------------------------------------------------------ read side
@@ -617,7 +743,7 @@ export class Store {
   rebuild(): void {
     tx(this.db, () => {
       this.db.exec(
-        "delete from things_fts; delete from external_refs; delete from edges; delete from things; delete from kinds where builtin = 0; delete from relation_types where builtin = 0; delete from kv where key = 'next_seq';",
+        "delete from things_fts; delete from assets; delete from external_refs; delete from edges; delete from things; delete from kinds where builtin = 0; delete from relation_types where builtin = 0; delete from kv where key in ('next_seq', 'next_asset');",
       );
       this.db.exec("pragma defer_foreign_keys = on");
       const rows = this.db.prepare("select * from events order by seq").all() as Row[];
@@ -680,6 +806,7 @@ export class Store {
       gaps: this.gaps(t),
       childCount,
       tags: this.tagsOf(t.id),
+      cover: this.cover(t.id),
     };
   }
 
@@ -787,6 +914,32 @@ export class Store {
           throw new BurrowError(`${from.name} already ${rt.name} something`);
         break;
       }
+      case "asset.added":
+        needThing(b.thingId);
+        if (!ASSET_ROLES.includes(b.asset.role))
+          throw new BurrowError(`Unknown asset role "${b.asset.role}"`);
+        if (this.asset(b.asset.id)) throw new BurrowError(`${b.asset.id} already exists`, 409);
+        if (!/^[\w.-]+$/.test(b.asset.file)) throw new BurrowError("Bad asset file name");
+        break;
+      case "asset.changed":
+      case "asset.removed": {
+        const a = this.mustGetAsset(b.assetId);
+        if (a.thingId !== b.thingId) throw new BurrowError(`${b.assetId} belongs to ${a.thingId}`);
+        if (b.type === "asset.changed") {
+          if (b.to.role && !ASSET_ROLES.includes(b.to.role))
+            throw new BurrowError(`Unknown asset role "${b.to.role}"`);
+          if (b.to.thumb && !/^[\w.-]+$/.test(b.to.thumb)) throw new BurrowError("Bad thumb file name");
+        }
+        break;
+      }
+      case "asset.cover":
+        needThing(b.thingId);
+        if (b.to) {
+          const a = this.mustGetAsset(b.to);
+          if (a.thingId !== b.thingId) throw new BurrowError(`${b.to} belongs to ${a.thingId}`);
+          if (a.removedAt) throw new BurrowError(`${b.to} was removed`);
+        }
+        break;
       case "kind.defined": {
         const k = b.kind;
         if (!/^[a-z][a-z0-9_-]{0,40}$/.test(k.id)) throw new BurrowError(`Bad kind id "${k.id}"`);
@@ -918,6 +1071,56 @@ export class Store {
           .run(b.edgeType, b.fromId, b.toId);
         this.reindex(b.fromId);
         break;
+      case "asset.added": {
+        const a = b.asset;
+        const seq = Number(a.id.replace(/^A-0*/, ""));
+        this.db
+          .prepare(
+            `insert into assets (id, seq, thing_id, role, file, mime, bytes, width, height, thumb, label, source, data, added_at)
+             values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            a.id,
+            seq,
+            b.thingId,
+            a.role,
+            a.file,
+            a.mime,
+            a.bytes,
+            a.width ?? null,
+            a.height ?? null,
+            a.thumb ?? null,
+            a.label ?? null,
+            a.source,
+            json(a.data),
+            at,
+          );
+        this.db
+          .prepare(
+            `insert into kv (key, value) values ('next_asset', ?)
+             on conflict(key) do update set value = max(cast(value as integer), excluded.value)`,
+          )
+          .run(String(seq + 1));
+        touch(b.thingId);
+        break;
+      }
+      case "asset.changed":
+        for (const [k, v] of Object.entries(b.to))
+          if (k === "role" || k === "label" || k === "thumb")
+            this.db
+              .prepare(`update assets set ${k} = ? where id = ?`)
+              .run((v as string | null) ?? null, b.assetId);
+        touch(b.thingId);
+        break;
+      case "asset.removed":
+        this.db.prepare("update assets set removed_at = ? where id = ?").run(b.undo ? null : at, b.assetId);
+        touch(b.thingId);
+        break;
+      case "asset.cover":
+        this.db
+          .prepare("update things set cover_id = ?, updated_at = ? where id = ?")
+          .run(b.to, at, b.thingId);
+        break;
       case "kind.defined":
         // A definition with a builtin id overrides the seed (and stays user-owned).
         this.db
@@ -1012,6 +1215,25 @@ export class Store {
         const data = prev ? ((parse(prev.body, {}) as { data?: Record<string, unknown> }).data ?? {}) : {};
         return { type: "edge.added", edgeType: b.edgeType, fromId: b.fromId, toId: b.toId, data };
       }
+      case "asset.added":
+        return { type: "asset.removed", thingId: b.thingId, assetId: b.asset.id };
+      case "asset.removed":
+        return { type: "asset.removed", thingId: b.thingId, assetId: b.assetId, undo: !b.undo };
+      case "asset.changed": {
+        const a = this.mustGetAsset(b.assetId);
+        const from = Object.fromEntries(
+          Object.keys(b.to).map((k) => [k, (a as unknown as Record<string, unknown>)[k] ?? null]),
+        ) as AssetPatch;
+        return { type: "asset.changed", thingId: b.thingId, assetId: b.assetId, from, to: b.from };
+      }
+      case "asset.cover":
+        return {
+          type: "asset.cover",
+          thingId: b.thingId,
+          from: (this.db.prepare("select cover_id from things where id = ?").get(b.thingId) as Row)
+            .cover_id as string | null,
+          to: b.from,
+        };
       default:
         throw new BurrowError(`${b.type} can't be undone`);
     }
@@ -1109,6 +1331,33 @@ export function ftsQuery(q: string, any = false): string | null {
     .slice(0, 12);
   if (!words.length) return null;
   return words.map((w) => `"${w}"*`).join(any ? " OR " : " ");
+}
+
+function toAsset(r: Row): Asset {
+  return {
+    id: String(r.id),
+    thingId: String(r.thing_id),
+    role: r.role as AssetRole,
+    file: String(r.file),
+    mime: String(r.mime),
+    bytes: Number(r.bytes),
+    ...(r.width != null ? { width: Number(r.width) } : {}),
+    ...(r.height != null ? { height: Number(r.height) } : {}),
+    ...(r.thumb != null ? { thumb: String(r.thumb) } : {}),
+    ...(r.label != null ? { label: String(r.label) } : {}),
+    source: r.source as FieldSource,
+    data: parse(r.data, {}),
+    addedAt: String(r.added_at),
+    removedAt: (r.removed_at as string | null) ?? null,
+  };
+}
+
+/** How to draw an asset. Images draw themselves; models and other files need a thumb (poster). */
+export function assetRef(a: Asset): AssetRef {
+  const fileUrl = `/media/${a.file}`;
+  const thumbUrl = a.thumb ? `/media/${a.thumb}` : null;
+  const imageUrl = a.mime.startsWith("image/") ? fileUrl : thumbUrl;
+  return { id: a.id, role: a.role, mime: a.mime, fileUrl, imageUrl, thumbUrl: thumbUrl ?? imageUrl };
 }
 
 function toThing(r: Row): Thing {

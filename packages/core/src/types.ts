@@ -12,7 +12,8 @@ export type FieldSource =
   | "file" // read from a file (3D model, photo EXIF, ...)
   | "homebox"
   | "paperless"
-  | "import";
+  | "import"
+  | "icons"; // picked from an open-source icon set
 
 export interface FieldMeta {
   source: FieldSource;
@@ -127,6 +128,53 @@ export interface ThingView extends Thing {
   gaps: string[];
   childCount: number;
   tags: TagRef[];
+  /** The picture the UI shows for this thing (chosen, or the best available). */
+  cover: AssetRef | null;
+}
+
+// ---------------------------------------------------------------- assets (D-015)
+
+/**
+ * What an asset represents. One thing can have many of each; one of them is the cover.
+ * photo: our own photo, in place · product: marketing / shop photo · icon: from an open icon set ·
+ * sprite: stylized 2D art (inventory screens) · model: 3D (glb, stl) · other: drawings, scans…
+ */
+export const ASSET_ROLES = ["photo", "product", "icon", "sprite", "model", "other"] as const;
+export type AssetRole = (typeof ASSET_ROLES)[number];
+
+export interface Asset {
+  /** "A-0001". */
+  id: string;
+  thingId: ThingId;
+  role: AssetRole;
+  /** Content-addressed file name in the media dir ("<sha>.jpg"), served at /media/<file>. */
+  file: string;
+  mime: string;
+  bytes: number;
+  width?: number;
+  height?: number;
+  /** Small preview file (resized photo, rendered poster of a 3D model). */
+  thumb?: string;
+  label?: string;
+  /** Who made it: you (upload), page (shop), ai (generated), homebox, import… */
+  source: FieldSource;
+  /** Provenance: origin url, icon set + license, generator + input asset, original file name. */
+  data: Record<string, unknown>;
+  addedAt: string;
+  removedAt: string | null;
+}
+
+/** The bits of an asset needed to draw it. */
+export interface AssetRef {
+  id: string;
+  role: AssetRole;
+  mime: string;
+  /** The file itself (an image, a .glb…). */
+  fileUrl: string;
+  /** A picture to show at full size: the image, or a model's poster. null if none yet. */
+  imageUrl: string | null;
+  /** A small picture for lists (the thumb, else imageUrl). */
+  thumbUrl: string | null;
 }
 
 export interface TagRef {
@@ -212,8 +260,25 @@ export type EventBody =
       data: Record<string, unknown>;
     }
   | { type: "edge.removed"; edgeType: string; fromId: string; toId: string }
+  | { type: "asset.added"; thingId: ThingId; asset: Omit<Asset, "addedAt" | "removedAt"> }
+  | {
+      type: "asset.changed";
+      thingId: ThingId;
+      assetId: string;
+      from: AssetPatch;
+      to: AssetPatch;
+    }
+  | { type: "asset.removed"; thingId: ThingId; assetId: string; undo?: boolean }
+  | { type: "asset.cover"; thingId: ThingId; from: string | null; to: string | null }
   | { type: "kind.defined"; kind: Omit<Kind, "builtin"> }
   | { type: "relation.defined"; relation: Omit<RelationType, "builtin"> };
+
+/** Editable asset fields; null clears. */
+export interface AssetPatch {
+  role?: AssetRole;
+  label?: string | null;
+  thumb?: string | null;
+}
 
 export type EventType = EventBody["type"];
 

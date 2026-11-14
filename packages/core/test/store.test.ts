@@ -319,3 +319,95 @@ describe("list filters", () => {
     expect(s.list({ physical: true }).map((x) => x.name)).toEqual(["Calipers"]);
   });
 });
+
+describe("assets", () => {
+  const img = { mime: "image/jpeg", bytes: 1000, width: 800, height: 600 };
+
+  it("adds, picks a cover automatically, and lets you choose one", () => {
+    const s = store();
+    const t = s.createThing({ name: "Soldering iron", kind: "tool" });
+    expect(s.mustGet(t.id).cover).toBeNull();
+    const icon = s.addAsset(t.id, { role: "icon", file: "aaa.svg", mime: "image/svg+xml", bytes: 300 });
+    expect(icon.id).toBe("A-0001");
+    expect(s.mustGet(t.id).cover?.id).toBe(icon.id);
+    const photo = s.addAsset(t.id, { role: "photo", file: "bbb.jpg", thumb: "bbb-t.webp", ...img });
+    // A real photo beats an icon when nobody chose.
+    expect(s.mustGet(t.id).cover).toMatchObject({
+      id: photo.id,
+      imageUrl: "/media/bbb.jpg",
+      thumbUrl: "/media/bbb-t.webp",
+    });
+    s.setCover(t.id, icon.id);
+    expect(s.mustGet(t.id).cover?.id).toBe(icon.id);
+    s.removeAsset(icon.id);
+    expect(s.mustGet(t.id).cover?.id).toBe(photo.id); // falls back
+    expect(s.assets(t.id).map((a) => a.id)).toEqual([photo.id]);
+    expect(s.assets(t.id, { removed: true })).toHaveLength(2);
+  });
+
+  it("a 3D model is only a cover once it has a poster", () => {
+    const s = store();
+    const t = s.createThing({ name: "Raspberry Pi case" });
+    const m = s.addAsset(t.id, { role: "model", file: "m.glb", mime: "model/gltf-binary", bytes: 5 });
+    expect(s.mustGet(t.id).cover).toBeNull();
+    s.changeAsset(m.id, { thumb: "m-poster.webp" });
+    expect(s.mustGet(t.id).cover).toMatchObject({
+      fileUrl: "/media/m.glb",
+      imageUrl: "/media/m-poster.webp",
+    });
+  });
+
+  it("validates", () => {
+    const s = store();
+    const a = s.createThing({ name: "A" });
+    const b = s.createThing({ name: "B" });
+    const x = s.addAsset(a.id, { role: "photo", file: "x.jpg", ...img });
+    expect(() => s.setCover(b.id, x.id)).toThrow(/belongs to/);
+    expect(() => s.addAsset(a.id, { role: "hologram" as "photo", file: "y.jpg", ...img })).toThrow(/role/);
+    expect(() => s.addAsset(a.id, { role: "photo", file: "../etc/passwd", ...img })).toThrow(/file name/);
+    expect(() => s.changeAsset(x.id, { role: "nope" as "photo" })).toThrow(/role/);
+    s.removeAsset(x.id);
+    expect(() => s.setCover(a.id, x.id)).toThrow(/removed/);
+  });
+
+  it("every asset change undoes, redoes and survives a rebuild", () => {
+    const s = store();
+    const t = s.createThing({ name: "Kettle", kind: "appliance" });
+    const p = s.addAsset(t.id, {
+      role: "product",
+      file: "p.jpg",
+      ...img,
+      source: "page",
+      data: { url: "https://x" },
+    });
+    const q = s.addAsset(t.id, { role: "photo", file: "q.jpg", ...img });
+    s.changeAsset(p.id, { role: "photo", label: "box art" });
+    s.setCover(t.id, p.id);
+    const snap = (x: Store) => ({
+      ...snapshot(x),
+      assets: x.db.prepare("select * from assets order by id").all(),
+    });
+    const before = snap(s);
+    s.rebuild();
+    expect(snap(s)).toEqual(before);
+
+    const ev = s.events({ thingId: t.id, types: ["asset.cover", "asset.changed", "asset.added"] });
+    const [cover, changed] = ev;
+    s.toggleUndo(cover!.seq);
+    expect(s.coverId(t.id)).toBeNull(); // automatic again (both are photos now, the older wins)
+    expect(s.mustGet(t.id).cover?.id).toBe(p.id);
+    s.toggleUndo(changed!.seq);
+    expect(s.mustGetAsset(p.id)).toMatchObject({ role: "product" });
+    expect(s.mustGetAsset(p.id).label).toBeUndefined();
+    s.toggleUndo(changed!.seq); // redo
+    expect(s.mustGetAsset(p.id)).toMatchObject({ role: "photo", label: "box art" });
+    const added = ev.find((e) => e.body.type === "asset.added" && e.body.asset.id === q.id)!;
+    s.toggleUndo(added.seq);
+    expect(s.assets(t.id).map((a) => a.id)).toEqual([p.id]);
+    s.toggleUndo(added.seq);
+    expect(s.assets(t.id).map((a) => a.id)).toEqual([p.id, q.id]);
+    const live = snap(s);
+    s.rebuild();
+    expect(snap(s)).toEqual(live);
+  });
+});

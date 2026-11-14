@@ -2,4 +2,13 @@ export * from "./types.ts";
 export { openDb, migrate, tx, type Db, type Migration } from "./db.ts";
 export { formatId, parseId } from "./ids.ts";
 export { builtinKinds, builtinRelations } from "./kinds.ts";
-export { Store, BurrowError, ftsQuery, UNDOABLE, type CreateThingInput, type ChangeInput } from "./store.ts";
+export {
+  Store,
+  BurrowError,
+  ftsQuery,
+  assetRef,
+  UNDOABLE,
+  type CreateThingInput,
+  type ChangeInput,
+  type AddAssetInput,
+} from "./store.ts";

@@ -108,6 +108,30 @@ export const coreMigrations: Migration[] = [
       where type in ('edge.added', 'edge.removed') and thing_id is null;
     `,
   },
+  {
+    id: "core/004-assets",
+    sql: `
+      create table assets (
+        id text primary key,
+        seq integer not null unique,
+        thing_id text not null references things(id),
+        role text not null,
+        file text not null,
+        mime text not null,
+        bytes integer not null,
+        width integer,
+        height integer,
+        thumb text,
+        label text,
+        source text not null,
+        data text not null default '{}',
+        added_at text not null,
+        removed_at text
+      );
+      create index assets_thing on assets(thing_id, role);
+      alter table things add column cover_id text;
+    `,
+  },
 ];
 
 export function openDb(path: string, extra: Migration[] = []): Db {
