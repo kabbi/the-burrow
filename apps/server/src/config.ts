@@ -4,6 +4,8 @@ const strip = (u: string | undefined) => (u ?? "").replace(/\/+$/, "").replace(/
 
 export const config = {
   port: Number(env.PORT ?? 4100),
+  /** Built-in database browser at /db (D-009). On unless BURROW_DB_ADMIN=0. */
+  dbAdmin: env.BURROW_DB_ADMIN !== "0",
   db: env.BURROW_DB ?? new URL("../../../data/burrow.sqlite", import.meta.url).pathname,
   homebox: {
     url: strip(env.HOMEBOX_URL),

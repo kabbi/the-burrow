@@ -205,3 +205,50 @@ describe("extractJson", async () => {
     expect(() => extractJson("no json here")).toThrow(/no JSON/);
   });
 });
+
+describe("db browser API", () => {
+  it("lists tables with roles and counts", async () => {
+    const r = await call<{ tables: { name: string; role: string; rows: number }[] }>("GET", "/db/tables");
+    const byName = Object.fromEntries(r.body.tables.map((t) => [t.name, t]));
+    expect(byName.events?.role).toBe("log");
+    expect(byName.things?.role).toBe("projection");
+    expect(byName.things?.rows).toBeGreaterThan(0);
+    expect(r.body.tables.some((t) => t.name.startsWith("things_fts_"))).toBe(false);
+  });
+
+  it("pages, searches and edits rows; rebuild restores projections", async () => {
+    const page = await call<{ rows: { __rowid: number; id: string; name: string }[]; total: number }>(
+      "GET",
+      "/db/tables/things?search=B-0001",
+    );
+    expect(page.body.total).toBe(2); // the room itself + the moka pot whose parent_id is B-0001
+    const row = page.body.rows.find((r) => r.id === "B-0001")!;
+    const upd = await call<{ changes: number }>("PATCH", `/db/tables/things/rows/${row.__rowid}`, {
+      name: "Kitchen (edited in db)",
+      nope: 1,
+    });
+    expect(upd.body.changes).toBe(1);
+    expect((await call<{ thing: { name: string } }>("GET", `/things/${row.id}`)).body.thing.name).toBe(
+      "Kitchen (edited in db)",
+    );
+    await call("POST", "/db/rebuild");
+    expect((await call<{ thing: { name: string } }>("GET", `/things/${row.id}`)).body.thing.name).toBe(
+      "Kitchen",
+    );
+  });
+
+  it("guards writes in the SQL console and rejects unknown tables", async () => {
+    const read = await call<{ columns: string[]; rows: unknown[] }>("POST", "/db/query", {
+      sql: "select id, name from things order by seq limit 2",
+    });
+    expect(read.body.columns).toEqual(["id", "name"]);
+    expect((await call("POST", "/db/query", { sql: "delete from kv" })).status).toBe(400);
+    expect((await call("POST", "/db/query", { sql: "selec nonsense" })).status).toBe(400);
+    expect((await call("GET", '/db/tables/things"; drop table things; --')).status).toBe(404);
+    const w = await call<{ changes: number }>("POST", "/db/query", {
+      sql: "insert into kv (key, value) values ('test', '1')",
+      write: true,
+    });
+    expect(w.body.changes).toBe(1);
+  });
+});

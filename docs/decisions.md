@@ -74,3 +74,15 @@ shown violet, and each line has Right / Wrong. Fields a person set are never ove
 From the brainstorm's "Approach A + a bit of C": one web app (a PWA later), screens as routes, a
 shared item card and colour code across screens. Search-first home ("Where's my…") with a small
 dashboard under it, since search is the most common question.
+
+## D-009 · Built-in database browser instead of an external tool (2026-11-14)
+
+`/db` in the app: tables with row counts and their role (log / derived / index / meta), paging,
+search across columns, sort, a cell editor (JSON pretty-printed, NULL toggle), row delete, a SQL
+console (reads by default; writes need an explicit "allow writes" tick), and "Rebuild from events".
+It uses the server's own connection, so edits show up in the app immediately, and nothing extra has
+to run. sqlite-web / Datasette were the alternatives (to run alongside via `uvx`). Not used for now:
+an extra process and a third-party download. Easy to add later if the built-in one falls short.
+Caveat shown in the UI: tables derived from the log lose direct edits on rebuild. Lasting fixes go
+through the app or the `events` table. Turn off with `BURROW_DB_ADMIN=0`. There is no auth: Burrow
+is a LAN app for now (ideas: auth before exposing it beyond the LAN).

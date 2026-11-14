@@ -40,7 +40,7 @@ export function AiSuggest({
 
   if (!prov) return null;
   const options = [
-    ...(prov.lmstudio.configured
+    ...(prov.lmstudio?.configured
       ? prov.lmstudio.models.map((m) => ({
           key: `lmstudio:${m.name}`,
           label: `${m.name} · LM Studio, local`,
@@ -59,7 +59,7 @@ export function AiSuggest({
   if (!options.length)
     return <p className="muted small">No AI configured (set ANTHROPIC_API_KEY or OLLAMA_URL).</p>;
   // Default to the free, already-loaded local model; paid models are opt-in.
-  const preferred = prov.lmstudio.models.some((m) => m.name === prov.lmstudio.defaultModel)
+  const preferred = prov.lmstudio?.models.some((m) => m.name === prov.lmstudio.defaultModel)
     ? `lmstudio:${prov.lmstudio.defaultModel}`
     : prov.anthropic.configured
       ? `anthropic:${prov.anthropic.defaultModel}`

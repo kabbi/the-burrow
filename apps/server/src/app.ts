@@ -13,6 +13,7 @@ import { suggestThingTask } from "./ai/tasks.ts";
 import { thingRoutes } from "./routes/things.ts";
 import { paperRoutes } from "./routes/papers.ts";
 import { aiRoutes } from "./routes/ai.ts";
+import { dbRoutes } from "./routes/db.ts";
 
 export interface Deps {
   config: Config;
@@ -98,6 +99,7 @@ export function createApp(deps: Deps) {
   api.use(thingRoutes(deps));
   api.use(paperRoutes(deps));
   api.use(aiRoutes(deps));
+  if (deps.config.dbAdmin) api.use(dbRoutes(deps));
   api.use((_req, res) => res.status(404).json({ error: "Not found" }));
   app.use("/api", api);
 
@@ -109,6 +111,9 @@ export function createApp(deps: Deps) {
   }
 
   const onError: ErrorRequestHandler = (err, _req, res, _next) => {
+    // Bad SQL typed into the DB browser is the caller's mistake, not a server error.
+    if ((err as { code?: string }).code === "ERR_SQLITE_ERROR")
+      return res.status(400).json({ error: (err as Error).message });
     if (err instanceof ZodError)
       return res.status(400).json({ error: "Invalid request", issues: err.issues });
     if (err instanceof BurrowError || err instanceof AiError || err instanceof UpstreamError)

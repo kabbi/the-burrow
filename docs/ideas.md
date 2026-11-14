@@ -70,4 +70,5 @@ Loosely ordered. ✓ = done in some form.
 - PWA + offline read-only cache for the phone.
 - Websocket/SSE live updates when readers start producing events.
 - Dark mode (tokens are ready for it).
+- Auth (at least for /db and writes) before Burrow is reachable outside the LAN.
 - Telegram bot: "where's my…" and "add from photo" from the phone.

@@ -768,3 +768,134 @@ button.tile:hover {
   border: 1px dashed var(--line-2);
   border-radius: var(--radius);
 }
+
+/* ---------------------------------------------------------------- database browser */
+
+.dbgrid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .dbgrid {
+    grid-template-columns: 1fr;
+  }
+}
+.dbnote {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-s);
+  background: var(--sunk);
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.dbnote.projection,
+.dbnote.index {
+  background: #fbf3dc;
+  color: var(--warn);
+}
+.dbnote.log {
+  background: var(--bad-tint);
+  color: var(--bad);
+}
+.dbtable-wrap {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.dbtable {
+  border-collapse: collapse;
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  width: max-content;
+  min-width: 100%;
+}
+.dbtable th {
+  position: sticky;
+  top: 0;
+  background: var(--tint);
+  border-bottom: 1px solid var(--line-2);
+  text-align: left;
+  z-index: 1;
+}
+.dbtable th button {
+  background: none;
+  border: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dbtable td {
+  border-bottom: 1px solid var(--line-3);
+  padding: 0;
+  vertical-align: top;
+}
+.dbtable td > button,
+.dbtable td > span {
+  display: block;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 10px;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+  color: inherit;
+}
+.dbtable td > button {
+  cursor: text;
+}
+.dbtable td > button:hover {
+  background: var(--sunk);
+}
+.dbtable td.null {
+  color: var(--muted);
+  font-style: italic;
+}
+.dbtable td.num {
+  text-align: right;
+}
+.dbtable tr:hover td {
+  background: var(--tint);
+}
+.dbtable td.dbactions button {
+  padding: 6px 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.dbtable td.dbactions button:hover {
+  color: var(--bad);
+}
+.dbschema {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--radius-s);
+  overflow: auto;
+  font-size: 12.5px;
+}
+.dbdialog {
+  border: 1px solid var(--ink);
+  border-radius: 16px;
+  padding: 18px;
+  width: min(720px, calc(100vw - 32px));
+  box-shadow: var(--shadow);
+}
+.dbdialog::backdrop {
+  background: rgba(28, 27, 25, 0.35);
+}
+.dbdialog textarea {
+  min-height: 90px;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
