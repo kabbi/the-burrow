@@ -1,0 +1,13 @@
+{
+  "plugins": ["typescript", "unicorn", "react", "react-perf", "vitest", "import"],
+  "categories": { "correctness": "error", "suspicious": "warn" },
+  "rules": {
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "react/react-in-jsx-scope": "off",
+    "react-perf/jsx-no-new-function-as-prop": "off",
+    "react-perf/jsx-no-new-object-as-prop": "off",
+    "react-perf/jsx-no-new-array-as-prop": "off",
+    "import/no-unassigned-import": "off"
+  },
+  "ignorePatterns": ["dist", "data", "node_modules"]
+}
