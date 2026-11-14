@@ -120,7 +120,9 @@ export class AiGateway {
       tokensExact: exact,
       estCostUsd: local ? null : est,
       maxCostUsd: local ? null : max,
-      autoApprove: !local && (max ?? Infinity) <= this.autoApproveUsd,
+      // Local models are free: run right away (owner's call). Paid ones wait for a yes
+      // unless their worst case is under AI_AUTO_APPROVE_USD.
+      autoApprove: local || (max ?? Infinity) <= this.autoApproveUsd,
       expiresAt: new Date(Date.now() + QUOTE_TTL_MS).toISOString(),
     };
     this.db

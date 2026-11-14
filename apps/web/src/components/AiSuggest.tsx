@@ -105,7 +105,7 @@ export function AiSuggest({
       {(step.s === "idle" || step.s === "error" || step.s === "quoting") && (
         <div className="row">
           <button type="button" className="btn ai" onClick={getQuote} disabled={step.s === "quoting"}>
-            {step.s === "quoting" ? "Pricing…" : "Suggest details"}
+            {step.s === "quoting" ? (provider === "anthropic" ? "Pricing…" : "Starting…") : "Suggest details"}
           </button>
           <label className="row small muted" style={{ gap: 6 }}>
             with
@@ -122,7 +122,11 @@ export function AiSuggest({
               ))}
             </select>
           </label>
-          <span className="muted small">You’ll see the price before anything is spent.</span>
+          <span className="muted small">
+            {provider === "anthropic"
+              ? "You’ll see the price before anything is spent."
+              : "Local model: free, runs right away."}
+          </span>
         </div>
       )}
       {step.s === "error" && (

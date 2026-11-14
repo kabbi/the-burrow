@@ -11,8 +11,9 @@ park ideas in `docs/ideas.md`.
   `fields=` allowlist in `apps/server/src/adapters/paperless.ts`. Use `PAPERLESS_MOCK=1` for UI work
   and browser tests so real titles don't land in screenshots.
 - **AI costs money.** Every model call goes through `AiGateway` (quote → run). Never run an Anthropic
-  request without showing the person the quoted price first. Local models (LM Studio, ollama) are
-  shared GPU boxes: use already-loaded models only, never pull or load models, one request at a time.
+  request without showing the person the quoted price first. Local models (LM Studio, ollama) run
+  without confirmation in the app (free; still quoted and logged), but they are shared GPU boxes:
+  use already-loaded models only, never pull or load models, one request at a time.
 - Burrow is the system of record for physical things; HomeBox is retired (D-010). paperless remains
   the source of truth for documents; Burrow only links and enriches (D-011).
 - All writes to the core go through `Store` methods (they append events). Never `UPDATE` projection

@@ -490,3 +490,21 @@ describe("places tree and spots", () => {
     expect(detail.body.spots).toEqual(["shelf 3"]);
   });
 });
+
+describe("local models skip confirmation (D-017)", () => {
+  it("quotes a local model as auto-approved, a paid one not", async () => {
+    const store = Store.open(":memory:", aiMigrations);
+    const local: Provider = {
+      id: "lmstudio",
+      configured: true,
+      countTokens: async () => ({ tokens: 500, exact: false }),
+      complete: fake.complete.bind(fake) as Provider["complete"],
+    } as Provider;
+    const gw = new AiGateway(store.db, [local, new FakeAnthropic()]);
+    gw.register(suggestThingTask(store));
+    const lq = await gw.quote("suggest-thing", { name: "kettle" }, "lmstudio", "google/gemma-4-31b");
+    expect(lq).toMatchObject({ autoApprove: true, estCostUsd: null });
+    const pq = await gw.quote("suggest-thing", { name: "kettle" }, "anthropic", "claude-haiku-5-5");
+    expect(pq.autoApprove).toBe(false);
+  });
+});

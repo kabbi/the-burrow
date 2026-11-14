@@ -195,3 +195,11 @@ things with their own B-number.
   numbers in order, showing nested and direct item counts. Opening a place lists the things directly
   in it (loaded lazily). Drag a place or a thing onto another place to move it, or onto "take it out"
   to unplace it. Which nodes are open is remembered per browser.
+
+## D-017 · Local AI runs without confirmation (2026-11-14)
+
+Amends D-007. Quotes for local models (LM Studio, ollama) come back with `autoApprove: true`, so
+"Suggest details" runs right away. They're free, and waiting for a click added nothing. They are
+still quoted and logged in `ai_requests` (tokens, timing, result), and confidential tasks are still
+local-only. Anthropic requests still show the price and wait for a yes unless the worst case is
+under `AI_AUTO_APPROVE_USD` (0 = always ask).
