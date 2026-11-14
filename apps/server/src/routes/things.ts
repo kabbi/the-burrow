@@ -227,7 +227,12 @@ function thingName(store: Store, body: { type: string } & Record<string, unknown
   return { id: t.id, name: t.name, from: nameOf(body.from), to: nameOf(body.to) };
 }
 
-export function applySuggestion(store: Store, id: string, s: ThingSuggestion, reject: Set<string>) {
+export function applySuggestion(
+  store: Store,
+  id: string,
+  s: Omit<ThingSuggestion, "question">,
+  reject: Set<string>,
+) {
   const t = store.mustGet(id);
   const mine = (k: string) => t.meta[k]?.source === "you" && k !== "name";
   const data: Record<string, unknown> = {};

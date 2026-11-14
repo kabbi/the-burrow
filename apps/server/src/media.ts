@@ -81,6 +81,17 @@ export class Media {
     return out;
   }
 
+  /** A picture for a vision model: upright JPEG, at most `max` px on its long side. */
+  async forModel(file: string, max = 1024): Promise<{ mime: string; base64: string }> {
+    const buf = await sharp(this.path(file), { animated: false })
+      .rotate()
+      .resize(max, max, { fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return { mime: "image/jpeg", base64: buf.toString("base64") };
+  }
+
   /** A small webp preview (rotated upright). Also used for 3D model posters. */
   async thumbnail(buf: Buffer): Promise<string> {
     const small = await sharp(buf, { animated: false })

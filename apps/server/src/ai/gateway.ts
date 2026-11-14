@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import type { Db, Migration } from "@burrow/core";
 import type { z } from "zod";
 import { costUsd } from "./pricing.ts";
-import { LOCAL_PROVIDERS, type Prompt, type Provider, type ProviderId } from "./providers.ts";
+import {
+  LOCAL_PROVIDERS,
+  type Prompt,
+  type PromptImage,
+  type Provider,
+  type ProviderId,
+  type SendPrompt,
+} from "./providers.ts";
 
 export const aiMigrations: Migration[] = [
   {
@@ -86,11 +93,24 @@ export class AiGateway {
   private providers: Record<ProviderId, Provider>;
   private tasks = new Map<string, AiTask<unknown, unknown>>();
   private autoApproveUsd: number;
+  private loadImage: ((file: string) => Promise<PromptImage>) | undefined;
 
-  constructor(db: Db, providers: Provider[], opts: { autoApproveUsd?: number } = {}) {
+  constructor(
+    db: Db,
+    providers: Provider[],
+    opts: { autoApproveUsd?: number; loadImage?: (file: string) => Promise<PromptImage> } = {},
+  ) {
     this.db = db;
     this.providers = Object.fromEntries(providers.map((p) => [p.id, p])) as Record<ProviderId, Provider>;
     this.autoApproveUsd = opts.autoApproveUsd ?? 0;
+    this.loadImage = opts.loadImage;
+  }
+
+  /** Pictures are stored in the log by file name only; their bytes are loaded when sending. */
+  private async resolve(p: Prompt): Promise<SendPrompt> {
+    if (!p.images?.length) return p;
+    if (!this.loadImage) throw new AiError("This task needs pictures, but no media store is set", 500);
+    return { ...p, imageData: await Promise.all(p.images.map((f) => this.loadImage!(f))) };
   }
 
   register<I, O>(task: AiTask<I, O>) {
@@ -105,7 +125,11 @@ export class AiGateway {
     if (task.confidential && !local)
       throw new AiError("This task reads private documents: only local models are allowed", 403);
     const prompt = await task.build(input);
-    const { tokens, exact } = await p.countTokens(prompt, model, task.schema);
+    const { tokens, exact } = await p.countTokens(
+      provider === "anthropic" ? await this.resolve(prompt) : prompt,
+      model,
+      task.schema,
+    );
     const est = costUsd(model, tokens, task.expectedOutputTokens);
     const max = costUsd(model, tokens, task.maxTokens);
     if (provider === "anthropic" && est === null) throw new AiError(`No price known for ${model}`, 400);
@@ -167,7 +191,12 @@ export class AiGateway {
     const row = this.db.prepare("select prompt from ai_requests where id = ?").get(id) as { prompt: string };
     const prompt = JSON.parse(row.prompt) as Prompt;
     try {
-      const out = await this.providers[rec.provider].complete(prompt, rec.model, task.schema, task.maxTokens);
+      const out = await this.providers[rec.provider].complete(
+        await this.resolve(prompt),
+        rec.model,
+        task.schema,
+        task.maxTokens,
+      );
       const cost = LOCAL_PROVIDERS.has(rec.provider)
         ? null
         : costUsd(out.model, out.inputTokens, out.outputTokens);

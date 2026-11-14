@@ -441,12 +441,19 @@ export class Store {
 
   /** What the UI shows: the chosen cover, else the first asset by COVER_ORDER that can be drawn. */
   cover(thingId: ThingId): AssetRef | null {
+    const pick = this.coverAsset(thingId);
+    return pick ? assetRef(pick) : null;
+  }
+
+  /** The asset behind `cover()`. */
+  coverAsset(thingId: ThingId): Asset | null {
     const all = this.assets(thingId).filter((a) => assetRef(a).imageUrl);
     const chosen = this.coverId(thingId);
-    const pick =
+    return (
       all.find((a) => a.id === chosen) ??
-      all.toSorted((a, b) => COVER_ORDER.indexOf(a.role) - COVER_ORDER.indexOf(b.role))[0];
-    return pick ? assetRef(pick) : null;
+      all.toSorted((a, b) => COVER_ORDER.indexOf(a.role) - COVER_ORDER.indexOf(b.role))[0] ??
+      null
+    );
   }
 
   // ------------------------------------------------------------ read side

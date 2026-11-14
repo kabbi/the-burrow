@@ -117,3 +117,58 @@ export function topTags(store: Store, n: number): string[] {
     .all(n) as { tag: string }[];
   return rows.map((r) => r.tag);
 }
+
+// ------------------------------------------------------------ photo-thing (Telegram, D-019)
+
+export const PhotoThingInput = z.object({
+  /** Media file names of the photos (1-3 are sent). */
+  images: z
+    .array(z.string().regex(/^[\w.-]+$/))
+    .min(1)
+    .max(3),
+  caption: z.string().max(1000).optional(),
+});
+export type PhotoThingInput = z.infer<typeof PhotoThingInput>;
+
+export const PhotoSuggestion = ThingSuggestion.omit({ question: true }).extend({
+  lookFor: z
+    .array(z.string())
+    .describe(
+      "4-8 search words or short phrases to find this thing in the inventory: generic nouns, synonyms, brand, model, text printed on it",
+    ),
+});
+export type PhotoSuggestion = z.infer<typeof PhotoSuggestion>;
+
+export function photoThingTask(store: Store): AiTask<PhotoThingInput, PhotoSuggestion> {
+  const text = suggestThingTask(store);
+  return {
+    id: "photo-thing",
+    confidential: false,
+    schema: PhotoSuggestion,
+    maxTokens: 3000,
+    expectedOutputTokens: 500,
+    async build(raw) {
+      const input = PhotoThingInput.parse(raw);
+      // Same catalogue rules and lists as typed names, with the photo as the input.
+      const base = await text.build({ name: input.caption?.trim() || "(see photo)" });
+      const system = [
+        base.system
+          .replace(
+            "A person typed a short name (maybe with a product page summary).",
+            "A person took a photo of one thing (sometimes with a short caption).",
+          )
+          .replace(/\n- question:[^\n]*/, ""),
+        "- Name what is in the photo, using text printed on it (brand, model) when readable. If several objects are shown, catalogue the main one in focus.",
+        "- lookFor: words that would find this same thing if it is already catalogued: the generic noun and synonyms, brand, model, printed text. Lowercase.",
+      ].join("\n");
+      const user = [
+        input.images.length > 1
+          ? `${input.images.length} photos of the same thing.`
+          : "A photo of the thing.",
+        input.caption?.trim() ? `Caption: ${input.caption.trim()}` : "No caption.",
+      ].join("\n");
+      // Thinking makes gemma-4 take 30-60 s on a photo instead of ~8 (2026-11-14); a name is enough here.
+      return { system, user, images: input.images, noThinking: true };
+    },
+  };
+}

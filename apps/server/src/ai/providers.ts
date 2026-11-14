@@ -6,7 +6,22 @@ import { FALLBACK_FOR } from "./pricing.ts";
 export interface Prompt {
   system: string;
   user: string;
+  /** Pictures for vision models, by media file name (resolved by the gateway at send time). */
+  images?: string[];
+  /** Ask local models to answer without a thinking phase (much faster; for simple tasks). */
+  noThinking?: boolean;
 }
+
+/** A picture ready to send: JPEG, downscaled (Media.forModel). */
+export interface PromptImage {
+  mime: string;
+  base64: string;
+}
+/** What providers get: the prompt plus its pictures' bytes. */
+export type SendPrompt = Prompt & { imageData?: PromptImage[] };
+
+/** Rough prompt cost of one picture for local models (no tokenizer endpoint). */
+const IMAGE_TOKENS = 800;
 
 export type ProviderId = "anthropic" | "ollama" | "lmstudio";
 /** Local providers cost no money and may see confidential input. */
@@ -23,8 +38,17 @@ export interface Provider {
   readonly id: ProviderId;
   readonly configured: boolean;
   /** Exact (anthropic, free endpoint) or estimated (ollama) prompt tokens. */
-  countTokens(prompt: Prompt, model: string, schema: z.ZodType): Promise<{ tokens: number; exact: boolean }>;
-  complete<O>(prompt: Prompt, model: string, schema: z.ZodType<O>, maxTokens: number): Promise<Completion<O>>;
+  countTokens(
+    prompt: SendPrompt,
+    model: string,
+    schema: z.ZodType,
+  ): Promise<{ tokens: number; exact: boolean }>;
+  complete<O>(
+    prompt: SendPrompt,
+    model: string,
+    schema: z.ZodType<O>,
+    maxTokens: number,
+  ): Promise<Completion<O>>;
 }
 
 export class AiRefusal extends Error {}
@@ -46,13 +70,13 @@ export class AnthropicProvider implements Provider {
     return this.client;
   }
 
-  async countTokens(p: Prompt, model: string, schema: z.ZodType) {
+  async countTokens(p: SendPrompt, model: string, schema: z.ZodType) {
     // count_tokens is free; it includes the structured-output schema overhead.
     try {
       const r = await this.must().beta.messages.countTokens({
         model,
         system: p.system,
-        messages: [{ role: "user", content: p.user }],
+        messages: [{ role: "user", content: anthropicContent(p) }],
         output_config: { format: betaZodOutputFormat(schema) },
       });
       return { tokens: r.input_tokens, exact: true };
@@ -66,7 +90,7 @@ export class AnthropicProvider implements Provider {
   }
 
   async complete<O>(
-    p: Prompt,
+    p: SendPrompt,
     model: string,
     schema: z.ZodType<O>,
     maxTokens: number,
@@ -76,7 +100,7 @@ export class AnthropicProvider implements Provider {
       model,
       max_tokens: maxTokens,
       system: p.system,
-      messages: [{ role: "user", content: p.user }],
+      messages: [{ role: "user", content: anthropicContent(p) }],
       output_config: { format: betaZodOutputFormat(schema), effort: "low" },
       ...(fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: [{ model: fallback }] } : {}),
     });
@@ -122,13 +146,11 @@ export class OllamaProvider implements Provider {
     }));
   }
 
-  async countTokens(p: Prompt, _model: string, schema: z.ZodType) {
-    // No tokenizer endpoint; ~3.5 chars per token is close enough for a quote.
-    const chars = p.system.length + p.user.length + JSON.stringify(z.toJSONSchema(schema)).length;
-    return { tokens: Math.ceil(chars / 3.5), exact: false };
+  async countTokens(p: SendPrompt, _model: string, schema: z.ZodType) {
+    return estimateTokens(p, schema);
   }
 
-  complete<O>(p: Prompt, model: string, schema: z.ZodType<O>, maxTokens: number): Promise<Completion<O>> {
+  complete<O>(p: SendPrompt, model: string, schema: z.ZodType<O>, maxTokens: number): Promise<Completion<O>> {
     const run = async () => {
       const installed = await this.models();
       if (!installed.some((m) => m.name === model))
@@ -146,7 +168,11 @@ export class OllamaProvider implements Provider {
           options: { temperature: 0.2, num_predict: maxTokens, num_ctx: 8192 },
           messages: [
             { role: "system", content: p.system },
-            { role: "user", content: p.user },
+            {
+              role: "user",
+              content: p.user,
+              ...(p.imageData?.length ? { images: p.imageData.map((i) => i.base64) } : {}),
+            },
           ],
         }),
       });
@@ -198,20 +224,20 @@ export class LmStudioProvider implements Provider {
       }));
   }
 
-  async countTokens(p: Prompt, _model: string, schema: z.ZodType) {
-    const chars = p.system.length + p.user.length + JSON.stringify(z.toJSONSchema(schema)).length;
-    return { tokens: Math.ceil(chars / 3.5), exact: false };
+  async countTokens(p: SendPrompt, _model: string, schema: z.ZodType) {
+    return estimateTokens(p, schema);
   }
 
   /** Models whose LM Studio runtime drops the connection on json_schema output (seen with qwen3.8). */
   private noSchema = new Set<string>();
 
-  complete<O>(p: Prompt, model: string, schema: z.ZodType<O>, maxTokens: number): Promise<Completion<O>> {
+  complete<O>(p: SendPrompt, model: string, schema: z.ZodType<O>, maxTokens: number): Promise<Completion<O>> {
     const run = async () => {
       const m = (await this.models()).find((x) => x.name === model);
       if (!m?.loaded) throw new Error(`LM Studio model "${model}" is not loaded (Burrow never loads models)`);
       const jsonSchema = z.toJSONSchema(schema);
-      if (!this.noSchema.has(model)) {
+      // With pictures, schema mode loops on gemma-4 ("owne owne…"); prompted JSON is fine (2026-11-14).
+      if (!this.noSchema.has(model) && !p.imageData?.length) {
         try {
           // Schema-mode answers are short; a cap stops a degenerate repetition loop early.
           const r = await this.chat(model, Math.min(maxTokens, 1200), p, {
@@ -230,9 +256,9 @@ export class LmStudioProvider implements Provider {
           );
         }
       }
-      const prompted: Prompt = {
+      const prompted: SendPrompt = {
+        ...p,
         system: `${p.system}\n\nAnswer with ONLY a JSON object matching this JSON Schema, no prose, no code fences:\n${JSON.stringify(jsonSchema)}`,
-        user: p.user,
       };
       const r = await this.chat(model, maxTokens, prompted, null);
       return { output: schema.parse(JSON.parse(extractJson(r.content))), model, ...r.usage };
@@ -242,7 +268,7 @@ export class LmStudioProvider implements Provider {
     return next;
   }
 
-  private async chat(model: string, maxTokens: number, p: Prompt, responseFormat: unknown) {
+  private async chat(model: string, maxTokens: number, p: SendPrompt, responseFormat: unknown) {
     const r = await fetch(`${this.url}/v1/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -252,10 +278,22 @@ export class LmStudioProvider implements Provider {
         temperature: 0.2,
         max_tokens: maxTokens,
         stream: false,
+        ...(p.noThinking ? { reasoning_effort: "none" } : {}),
         ...(responseFormat ? { response_format: responseFormat } : {}),
         messages: [
           { role: "system", content: p.system },
-          { role: "user", content: p.user },
+          {
+            role: "user",
+            content: p.imageData?.length
+              ? [
+                  ...p.imageData.map((i) => ({
+                    type: "image_url",
+                    image_url: { url: `data:${i.mime};base64,${i.base64}` },
+                  })),
+                  { type: "text", text: p.user },
+                ]
+              : p.user,
+          },
         ],
       }),
     });
@@ -269,6 +307,23 @@ export class LmStudioProvider implements Provider {
       usage: { inputTokens: j.usage?.prompt_tokens ?? 0, outputTokens: j.usage?.completion_tokens ?? 0 },
     };
   }
+}
+
+function estimateTokens(p: SendPrompt, schema: z.ZodType) {
+  // No tokenizer endpoint; ~3.5 chars per token is close enough for a quote.
+  const chars = p.system.length + p.user.length + JSON.stringify(z.toJSONSchema(schema)).length;
+  return { tokens: Math.ceil(chars / 3.5) + (p.images?.length ?? 0) * IMAGE_TOKENS, exact: false };
+}
+
+function anthropicContent(p: SendPrompt) {
+  if (!p.imageData?.length) return p.user;
+  return [
+    ...p.imageData.map((i) => ({
+      type: "image" as const,
+      source: { type: "base64" as const, media_type: i.mime as "image/jpeg", data: i.base64 },
+    })),
+    { type: "text" as const, text: p.user },
+  ];
 }
 
 /** Pull the first JSON object out of a model reply (tolerates prose and ``` fences). */
