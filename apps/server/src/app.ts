@@ -61,7 +61,7 @@ export function createApp(deps: Deps) {
   app.use(express.json({ limit: "2mb" }));
 
   const api = express.Router();
-  api.get("/health", (_req, res) => res.json({ ok: true }));
+  api.get("/health", (_req, res) => res.json({ ok: true, version: process.env.BURROW_VERSION ?? "dev" }));
 
   api.get("/overview", async (_req, res) => {
     const { store, paperless } = deps;

@@ -11,7 +11,10 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
+    "prod:deploy": "scripts/deploy.sh",
+    "prod:logs": "docker logs -f --tail 100 burrow",
+    "prod:import-homebox": "docker exec burrow node --disable-warning=ExperimentalWarning apps/server/src/scripts/import-homebox.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
