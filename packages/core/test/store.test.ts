@@ -140,7 +140,9 @@ describe("Store", () => {
     s.defineKind({
       id: "plant",
       name: "Plant",
+      parent: null,
       isPlace: false,
+      physical: true,
       fields: [{ key: "water", label: "Watering", type: "text", wanted: true }],
     });
     const m = s.createThing({ name: "Monstera", kind: "plant" });
@@ -157,8 +159,19 @@ describe("Store", () => {
     s.change(esp.id, { data: { maker: "Espressif" } }, "ai");
     s.confirm(esp.id, ["maker"]);
     s.link(esp.id, "homebox", "abc", { assetId: "000-001" });
-    s.addEdge("documents", esp.id, "paperless:12");
-    s.defineKind({ id: "plant", name: "Plant", isPlace: false, fields: [] });
+    s.setTags(esp.id, ["wifi", "esp32"], "ai");
+    const doc = s.createThing({ name: "ESP32 invoice", kind: "document" });
+    s.relate("has_document", esp.id, doc.id);
+    s.defineKind({ id: "plant", name: "Plant", parent: "thing", isPlace: false, physical: true, fields: [] });
+    s.defineRelation({
+      id: "waters",
+      name: "waters",
+      inverse: "watered by",
+      fromKinds: [],
+      toKinds: ["plant"],
+      cardinality: "many",
+      symmetric: false,
+    });
     const ev = s.events({ thingId: esp.id, types: ["thing.moved"] })[0]!;
     s.toggleUndo(ev.seq);
     s.toggleUndo(ev.seq);
@@ -167,6 +180,131 @@ describe("Store", () => {
     const before = snapshot(s);
     s.rebuild();
     expect(snapshot(s)).toEqual(before);
-    expect(s.createThing({ name: "next" }).id).toBe("B-0004");
+    expect(s.createThing({ name: "next" }).id).toBe("B-0007"); // 3 things + 2 tags + 1 document before
+  });
+});
+
+describe("schema as data", () => {
+  it("inherits fields and traits through parent kinds", () => {
+    const s = store();
+    s.defineKind({
+      id: "plant",
+      name: "Plant",
+      parent: "thing",
+      isPlace: false,
+      physical: true,
+      fields: [
+        { key: "water", label: "Watering", type: "select", options: ["weekly", "monthly"], wanted: true },
+        { key: "maker", label: "Nursery", type: "text" },
+      ],
+    });
+    const keys = s.fieldsOf("plant").map((f) => f.key);
+    expect(keys).toContain("description"); // from thing
+    expect(keys).toContain("water");
+    expect(s.fieldsOf("plant").find((f) => f.key === "maker")?.label).toBe("Nursery"); // child overrides
+    expect(s.kindIs("plant", "thing")).toBe(true);
+    expect(() =>
+      s.defineKind({
+        id: "thing",
+        name: "Thing",
+        parent: "plant",
+        isPlace: false,
+        physical: true,
+        fields: [],
+      }),
+    ).toThrow(/extend themselves/);
+    // non-physical kinds have no "where" gap
+    expect(s.createThing({ name: "Taxes 2025", kind: "document" }).gaps).toEqual([]);
+  });
+
+  it("validates relations: kinds, cardinality, symmetry", () => {
+    const s = store();
+    const phone = s.createThing({ name: "Pixel 9", kind: "electronics" });
+    const caseT = s.createThing({ name: "Pixel 9 case" });
+    const old = s.createThing({ name: "Pixel 7" });
+    const older = s.createThing({ name: "Pixel 5" });
+    s.relate("accessory_of", caseT.id, phone.id);
+    expect(s.relations(phone.id)).toMatchObject([
+      { type: "accessory_of", direction: "in", label: "accessories", other: { id: caseT.id } },
+    ]);
+    expect(() => s.relate("tagged", phone.id, caseT.id)).toThrow(/can't link/); // tagged → tag only
+    expect(() => s.relate("nope", phone.id, caseT.id)).toThrow(/Unknown relation/);
+    expect(() => s.relate("related", phone.id, phone.id)).toThrow(/itself/);
+
+    // "one": relating again replaces the old link
+    s.relate("replaces", phone.id, old.id);
+    s.relate("replaces", phone.id, older.id);
+    expect(s.edges({ type: "replaces", fromId: phone.id }).map((e) => e.toId)).toEqual([older.id]);
+
+    // symmetric: stored once, visible from both sides, removable from either
+    s.relate("related", old.id, older.id);
+    s.relate("related", older.id, old.id);
+    expect(s.edges({ type: "related" })).toHaveLength(1);
+    expect(s.relations(older.id).find((r) => r.type === "related")?.label).toBe("related to");
+    s.unrelate("related", older.id, old.id);
+    expect(s.edges({ type: "related" })).toHaveLength(0);
+  });
+
+  it("tags are things: nesting, aliases, search through parents, undo", () => {
+    const s = store();
+    const esp = s.createThing({ name: "ESP32 DevKit", kind: "electronics" });
+    s.setTags(esp.id, ["sensors", "WiFi"], "ai");
+    const wifi = s.findTag("wifi")!;
+    expect(s.mustGet(esp.id).tags.map((t) => t.name)).toEqual(["sensors", "WiFi"]);
+    expect(s.mustGet(esp.id).tags[0]?.source).toBe("ai");
+
+    // nest "sensors" under "electronics" → searching the parent finds the thing
+    const elec = s.ensureTag("electronics");
+    s.move(s.findTag("sensors")!, elec);
+    expect(s.mustGet(esp.id).tags.find((t) => t.name === "sensors")?.path).toEqual(["electronics"]);
+    expect(s.search("electronics").map((h) => h.thing.id)).toContain(esp.id);
+    expect(s.taggedWith(elec).map((t) => t.id)).toEqual([esp.id]);
+
+    // rename a tag → things re-indexed
+    s.change(wifi, { name: "wireless" });
+    expect(s.search("wireless").map((h) => h.thing.id)).toContain(esp.id);
+
+    // aliases resolve to the same tag
+    s.change(wifi, { data: { aliases: ["wi-fi"] } });
+    expect(s.findTag("Wi-Fi")).toBe(wifi);
+
+    // removing a tag is undoable, with its provenance
+    s.setTags(esp.id, ["sensors"]);
+    const removed = s.events({ types: ["edge.removed"], limit: 1 })[0]!;
+    s.toggleUndo(removed.seq);
+    expect(s.mustGet(esp.id).tags.find((t) => t.id === wifi)?.source).toBe("ai");
+    // tags are not physical: no "Needs details" for them
+    expect(s.needsDetails().map((t) => t.id)).not.toContain(wifi);
+  });
+});
+
+describe("field types", () => {
+  it("checks declared fields, leaves extra fields free-form", () => {
+    const s = store();
+    const room = s.createThing({ name: "Kitchen", kind: "room" });
+    s.defineKind({
+      id: "plant",
+      name: "Plant",
+      parent: "thing",
+      isPlace: false,
+      physical: true,
+      fields: [
+        { key: "water", label: "Watering", type: "select", options: ["weekly", "monthly"] },
+        { key: "toxic", label: "Toxic to pets", type: "boolean" },
+        { key: "spot", label: "Best spot", type: "ref", refKind: "room" },
+      ],
+    });
+    const p = s.createThing({
+      name: "Monstera",
+      kind: "plant",
+      data: { water: "weekly", toxic: true, spot: room.id },
+    });
+    expect(() => s.change(p.id, { data: { water: "daily" } })).toThrow(/one of weekly, monthly/);
+    expect(() => s.change(p.id, { data: { toxic: "yes" } })).toThrow(/yes or no/);
+    expect(() => s.change(p.id, { data: { quantity: "two" } })).toThrow(/number/); // inherited from thing
+    expect(() => s.change(p.id, { data: { spot: p.id } })).toThrow(/must point to a room/);
+    expect(() => s.change(p.id, { data: { purchaseDate: "last week" } })).toThrow(/date/);
+    s.change(p.id, { data: { potSize: "24 cm", water: null } }); // free-form extra field; clearing is always fine
+    expect(s.mustGet(p.id).data).toMatchObject({ potSize: "24 cm", toxic: true });
   });
 });

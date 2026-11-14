@@ -1,6 +1,6 @@
 import { openDb, tx, type Db, type Migration } from "./db.ts";
 import { formatId, parseId } from "./ids.ts";
-import { builtinKinds } from "./kinds.ts";
+import { builtinKinds, builtinRelations } from "./kinds.ts";
 import type {
   BurrowEvent,
   Edge,
@@ -10,7 +10,11 @@ import type {
   FieldMeta,
   FieldSource,
   Kind,
+  KindField,
   PathSegment,
+  RelationType,
+  RelationView,
+  TagRef,
   SearchHit,
   Thing,
   ThingId,
@@ -170,16 +174,84 @@ export class Store {
     this.append({ type: "ref.linked", thingId, service, remoteId, data }, actor);
   }
 
-  addEdge(edgeType: string, fromId: string, toId: string, data: Record<string, unknown> = {}, actor = "you") {
-    this.append({ type: "edge.added", edgeType, fromId, toId, data }, actor);
+  /** Link two things with a relation type. A "one" relation replaces the previous link. */
+  relate(
+    type: string,
+    fromId: ThingId,
+    toId: ThingId,
+    data: Record<string, unknown> = {},
+    actor = "you",
+  ): void {
+    tx(this.db, () => {
+      const rt = this.relationType(type);
+      if (rt?.cardinality === "one") {
+        for (const e of this.edges({ type, fromId }))
+          if (e.toId !== toId)
+            this.append({ type: "edge.removed", edgeType: type, fromId, toId: e.toId }, actor);
+      }
+      if (rt?.symmetric && this.edges({ type, fromId: toId, toId: fromId }).length) return;
+      this.append({ type: "edge.added", edgeType: type, fromId, toId, data }, actor);
+    });
   }
 
-  removeEdge(edgeType: string, fromId: string, toId: string, actor = "you") {
-    this.append({ type: "edge.removed", edgeType, fromId, toId }, actor);
+  unrelate(type: string, fromId: ThingId, toId: ThingId, actor = "you"): void {
+    const rt = this.relationType(type);
+    // Symmetric links are stored once, in whichever direction they were made.
+    if (
+      rt?.symmetric &&
+      !this.edges({ type, fromId, toId }).length &&
+      this.edges({ type, fromId: toId, toId: fromId }).length
+    )
+      this.append({ type: "edge.removed", edgeType: type, fromId: toId, toId: fromId }, actor);
+    else this.append({ type: "edge.removed", edgeType: type, fromId, toId }, actor);
   }
 
   defineKind(kind: Omit<Kind, "builtin">, actor = "you"): void {
     this.append({ type: "kind.defined", kind }, actor);
+  }
+
+  defineRelation(relation: Omit<RelationType, "builtin">, actor = "you"): void {
+    this.append({ type: "relation.defined", relation }, actor);
+  }
+
+  /** Find a tag by name or alias (case-insensitive), or create it. */
+  ensureTag(name: string, actor = "you", parentId: ThingId | null = null): ThingId {
+    const clean = name.trim().replace(/\s+/g, " ");
+    if (!clean) throw new BurrowError("A tag needs a name");
+    const found = this.findTag(clean);
+    if (found) return found;
+    return this.createThing(
+      { name: clean, kind: "tag", parentId, source: actor === "you" ? "you" : "ai" },
+      actor,
+    ).id;
+  }
+
+  findTag(name: string): ThingId | null {
+    const n = name.trim().toLowerCase();
+    const rows = this.db
+      .prepare(
+        `select id, name, data from things where archived_at is null and kind in (${this.kindAndDescendantsSql("tag")})`,
+      )
+      .all() as { id: string; name: string; data: string }[];
+    const hit =
+      rows.find((r) => r.name.toLowerCase() === n) ??
+      rows.find((r) =>
+        ((parse(r.data, {}) as { aliases?: string[] }).aliases ?? []).some((a) => a.toLowerCase() === n),
+      );
+    return hit?.id ?? null;
+  }
+
+  /** Make a thing's tags exactly `names` (created if new). Returns the thing. */
+  setTags(id: ThingId, names: string[], source: FieldSource = "you", actor = "you"): ThingView {
+    return tx(this.db, () => {
+      const t = this.mustGetRaw(id);
+      const want = new Set(names.filter((n) => n.trim()).map((n) => this.ensureTag(n, actor)));
+      const have = this.edges({ type: "tagged", fromId: t.id });
+      for (const e of have) if (!want.has(e.toId)) this.unrelate("tagged", t.id, e.toId, actor);
+      for (const tagId of want)
+        if (!have.some((e) => e.toId === tagId)) this.relate("tagged", t.id, tagId, { source }, actor);
+      return this.mustGet(t.id);
+    });
   }
 
   /**
@@ -327,6 +399,101 @@ export class Store {
     return r ? toKind(r) : null;
   }
 
+  /** The kind and its ancestors, nearest first. */
+  kindChain(id: string): Kind[] {
+    const out: Kind[] = [];
+    for (let k = this.kind(id); k && out.length < 16; k = k.parent ? this.kind(k.parent) : null) {
+      if (out.some((x) => x.id === k!.id)) break;
+      out.push(k);
+    }
+    return out;
+  }
+
+  /** True if `kind` is `ancestor` or extends it. */
+  kindIs(kind: string, ancestor: string): boolean {
+    return this.kindChain(kind).some((k) => k.id === ancestor);
+  }
+
+  /** Effective fields: inherited first, a child's field overrides a parent's with the same key. */
+  fieldsOf(kindId: string): KindField[] {
+    const byKey = new Map<string, KindField>();
+    for (const k of this.kindChain(kindId).toReversed()) for (const f of k.fields) byKey.set(f.key, f);
+    return [...byKey.values()];
+  }
+
+  private kindAndDescendantsSql(id: string): string {
+    const ids = this.kinds()
+      .filter((k) => this.kindIs(k.id, id))
+      .map((k) => `'${k.id.replace(/'/g, "''")}'`);
+    return ids.length ? ids.join(",") : "''";
+  }
+
+  relationTypes(): RelationType[] {
+    return (this.db.prepare("select * from relation_types order by builtin desc, name").all() as Row[]).map(
+      toRelation,
+    );
+  }
+
+  relationType(id: string): RelationType | null {
+    const r = this.db.prepare("select * from relation_types where id = ?").get(id) as Row | undefined;
+    return r ? toRelation(r) : null;
+  }
+
+  /** All typed links of a thing, both directions, labelled from its side. */
+  relations(id: ThingId): RelationView[] {
+    const rows = this.db
+      .prepare(
+        `select e.*, 'out' dir, t.id oid, t.name oname, t.kind okind from edges e join things t on t.id = e.to_id where e.from_id = ?
+         union all
+         select e.*, 'in' dir, t.id oid, t.name oname, t.kind okind from edges e join things t on t.id = e.from_id where e.to_id = ?
+         order by 1`,
+      )
+      .all(id, id) as Row[];
+    return rows.map((r) => {
+      const rt = this.relationType(String(r.type));
+      const dir = r.dir as "out" | "in";
+      return {
+        edgeId: Number(r.id),
+        type: String(r.type),
+        direction: dir,
+        label: rt ? (dir === "out" || rt.symmetric ? rt.name : rt.inverse) : String(r.type),
+        other: { id: String(r.oid), name: String(r.oname), kind: String(r.okind) },
+        data: parse(r.data, {}),
+      };
+    });
+  }
+
+  tagsOf(id: ThingId): TagRef[] {
+    const rows = this.db
+      .prepare(
+        `select t.id, t.name, e.data from edges e join things t on t.id = e.to_id
+         where e.type = 'tagged' and e.from_id = ? and t.archived_at is null order by t.name collate nocase`,
+      )
+      .all(id) as { id: string; name: string; data: string }[];
+    return rows.map((r) => {
+      const src = (parse(r.data, {}) as { source?: FieldSource }).source;
+      return {
+        id: r.id,
+        name: r.name,
+        path: this.path(r.id).map((p) => p.name),
+        ...(src ? { source: src } : {}),
+      };
+    });
+  }
+
+  /** Things tagged with `tagId` or any tag nested under it. */
+  taggedWith(tagId: ThingId, limit = 500): ThingView[] {
+    const rows = this.db
+      .prepare(
+        `with recursive sub(id) as (select ? union all select t.id from things t join sub on t.parent_id = sub.id)
+         select distinct th.* from edges e join things th on th.id = e.from_id
+         where e.type = 'tagged' and e.to_id in (select id from sub) and th.archived_at is null
+         order by th.name collate nocase limit ?`,
+      )
+      .all(tagId, limit) as Row[];
+    return rows.map((r) => this.view(toThing(r)));
+  }
+
   refsOf(thingId: ThingId): ExternalRef[] {
     return (this.db.prepare("select * from external_refs where thing_id = ?").all(thingId) as Row[]).map(
       toRef,
@@ -410,7 +577,7 @@ export class Store {
     const rows = this.db
       .prepare(
         `select t.* from things t join kinds k on k.id = t.kind
-         where t.archived_at is null and k.is_place = 0 order by t.seq desc`,
+         where t.archived_at is null and k.is_place = 0 and k.physical = 1 order by t.seq desc`,
       )
       .all() as Row[];
     for (const r of rows) {
@@ -425,12 +592,18 @@ export class Store {
     const one = (sql: string) => Number((this.db.prepare(sql).get() as Row).n);
     return {
       things: one(
-        "select count(*) n from things where archived_at is null and kind not in (select id from kinds where is_place = 1)",
+        "select count(*) n from things where archived_at is null and kind in (select id from kinds where is_place = 0 and physical = 1)",
       ),
       places: one(
         "select count(*) n from things where archived_at is null and kind in (select id from kinds where is_place = 1)",
       ),
       missing: one("select count(*) n from things where archived_at is null and status = 'missing'"),
+      tags: one(
+        `select count(*) n from things where archived_at is null and kind in (${this.kindAndDescendantsSql("tag")})`,
+      ),
+      documents: one(
+        `select count(*) n from things where archived_at is null and kind in (${this.kindAndDescendantsSql("document")})`,
+      ),
       events: one("select count(*) n from events"),
     };
   }
@@ -439,7 +612,7 @@ export class Store {
   rebuild(): void {
     tx(this.db, () => {
       this.db.exec(
-        "delete from things_fts; delete from external_refs; delete from edges; delete from things; delete from kinds where builtin = 0; delete from kv where key = 'next_seq';",
+        "delete from things_fts; delete from external_refs; delete from edges; delete from things; delete from kinds where builtin = 0; delete from relation_types where builtin = 0; delete from kv where key = 'next_seq';",
       );
       this.db.exec("pragma defer_foreign_keys = on");
       const rows = this.db.prepare("select * from events order by seq").all() as Row[];
@@ -451,11 +624,29 @@ export class Store {
 
   private seedKinds() {
     const ins = this.db.prepare(
-      `insert into kinds (id, name, is_place, fields, builtin) values (?, ?, ?, ?, 1)
-       on conflict(id) do update set name = excluded.name, is_place = excluded.is_place,
-         fields = excluded.fields where kinds.builtin = 1`,
+      `insert into kinds (id, name, parent, is_place, physical, fields, builtin) values (?, ?, ?, ?, ?, ?, 1)
+       on conflict(id) do update set name = excluded.name, parent = excluded.parent, is_place = excluded.is_place,
+         physical = excluded.physical, fields = excluded.fields where kinds.builtin = 1`,
     );
-    for (const k of builtinKinds) ins.run(k.id, k.name, k.isPlace ? 1 : 0, JSON.stringify(k.fields));
+    for (const k of builtinKinds)
+      ins.run(k.id, k.name, k.parent, k.isPlace ? 1 : 0, k.physical ? 1 : 0, JSON.stringify(k.fields));
+    const rel = this.db.prepare(
+      `insert into relation_types (id, name, inverse, from_kinds, to_kinds, cardinality, symmetric, builtin)
+       values (?, ?, ?, ?, ?, ?, ?, 1)
+       on conflict(id) do update set name = excluded.name, inverse = excluded.inverse, from_kinds = excluded.from_kinds,
+         to_kinds = excluded.to_kinds, cardinality = excluded.cardinality, symmetric = excluded.symmetric
+       where relation_types.builtin = 1`,
+    );
+    for (const r of builtinRelations)
+      rel.run(
+        r.id,
+        r.name,
+        r.inverse,
+        JSON.stringify(r.fromKinds),
+        JSON.stringify(r.toKinds),
+        r.cardinality,
+        r.symmetric ? 1 : 0,
+      );
   }
 
   private nextSeq(): number {
@@ -477,16 +668,59 @@ export class Store {
           .get(t.id) as Row
       ).n,
     );
-    return { ...t, path: this.path(t.id), refs: this.refsOf(t.id), gaps: this.gaps(t), childCount };
+    return {
+      ...t,
+      path: this.path(t.id),
+      refs: this.refsOf(t.id),
+      gaps: this.gaps(t),
+      childCount,
+      tags: this.tagsOf(t.id),
+    };
   }
 
   private gaps(t: Thing): string[] {
     const kind = this.kind(t.kind);
     if (!kind || kind.isPlace || t.archivedAt || t.data.tier === 0) return [];
     const gaps: string[] = [];
-    if (!t.parentId) gaps.push("where");
-    for (const f of kind.fields) if (f.wanted && isEmpty(t.data[f.key])) gaps.push(f.key);
+    if (kind.physical && !t.parentId) gaps.push("where");
+    for (const f of this.fieldsOf(kind.id)) if (f.wanted && isEmpty(t.data[f.key])) gaps.push(f.key);
     return gaps;
+  }
+
+  /** A value for a field the kind declares must match its type. Undeclared fields are free-form. */
+  private checkField(kind: string, key: string, v: unknown) {
+    const f = this.fieldsOf(kind).find((x) => x.key === key);
+    if (!f || v === null || v === undefined) return;
+    const bad = (why: string): never => {
+      throw new BurrowError(`${f.label}: ${why}`);
+    };
+    switch (f.type) {
+      case "number":
+      case "money":
+        if (typeof v !== "number" || !Number.isFinite(v)) bad("must be a number");
+        break;
+      case "boolean":
+        if (typeof v !== "boolean") bad("must be yes or no");
+        break;
+      case "date":
+        if (typeof v !== "string" || !/^\d{4}-\d{2}(-\d{2})?/.test(v)) bad("must be a date like 2026-11-14");
+        break;
+      case "select":
+        if (typeof v !== "string" || (f.options?.length && !f.options.includes(v)))
+          bad(`must be one of ${f.options?.join(", ")}`);
+        break;
+      case "list":
+        if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) bad("must be a list of text");
+        break;
+      case "ref": {
+        const t = typeof v === "string" ? this.getRaw(v) : null;
+        if (!t) bad("must point to an existing thing");
+        else if (f.refKind && !this.kindIs(t.kind, f.refKind)) bad(`must point to a ${f.refKind}`);
+        break;
+      }
+      default:
+        if (typeof v !== "string") bad("must be text");
+    }
   }
 
   private validate(b: EventBody) {
@@ -498,10 +732,15 @@ export class Store {
         if (this.getRaw(b.id)) throw new BurrowError(`${b.id} already exists`, 409);
         if (!this.kind(b.kind)) throw new BurrowError(`Unknown kind "${b.kind}"`);
         if (b.parentId) needThing(b.parentId);
+        for (const [k, v] of Object.entries(b.data)) this.checkField(b.kind, k, v);
         break;
       case "thing.changed":
         needThing(b.id);
         for (const c of b.changes) {
+          if (c.field.startsWith("data.") && c.to !== null && c.to !== undefined) {
+            const kindChange = b.changes.find((x) => x.field === "kind");
+            this.checkField(String(kindChange?.to ?? this.getRaw(b.id)!.kind), c.field.slice(5), c.to);
+          }
           if (c.field === "kind" && !this.kind(String(c.to)))
             throw new BurrowError(`Unknown kind "${String(c.to)}"`);
           if (c.field === "name" && !String(c.to ?? "").trim()) throw new BurrowError("A thing needs a name");
@@ -524,6 +763,44 @@ export class Store {
       case "ref.linked":
         needThing(b.thingId);
         break;
+      case "edge.added": {
+        const rt = this.relationType(b.edgeType);
+        if (!rt) throw new BurrowError(`Unknown relation "${b.edgeType}"`);
+        const from = this.getRaw(b.fromId);
+        const to = this.getRaw(b.toId);
+        if (!from) throw new BurrowError(`No thing ${b.fromId}`, 404);
+        if (!to) throw new BurrowError(`No thing ${b.toId}`, 404);
+        if (from.id === to.id) throw new BurrowError("A thing can't be linked to itself");
+        const fits = (kind: string, allowed: string[]) =>
+          !allowed.length || allowed.some((a) => this.kindIs(kind, a));
+        if (!fits(from.kind, rt.fromKinds) || !fits(to.kind, rt.toKinds))
+          throw new BurrowError(`“${rt.name}” can't link a ${from.kind} to a ${to.kind}`);
+        if (
+          rt.cardinality === "one" &&
+          this.edges({ type: rt.id, fromId: from.id }).some((e) => e.toId !== to.id)
+        )
+          throw new BurrowError(`${from.name} already ${rt.name} something`);
+        break;
+      }
+      case "kind.defined": {
+        const k = b.kind;
+        if (!/^[a-z][a-z0-9_-]{0,40}$/.test(k.id)) throw new BurrowError(`Bad kind id "${k.id}"`);
+        if (k.parent) {
+          if (!this.kind(k.parent)) throw new BurrowError(`Unknown parent kind "${k.parent}"`);
+          if (k.parent === k.id || this.kindIs(k.parent, k.id))
+            throw new BurrowError("Kinds can't extend themselves");
+        }
+        const keys = k.fields.map((f) => f.key);
+        if (new Set(keys).size !== keys.length) throw new BurrowError("Field keys must be unique");
+        break;
+      }
+      case "relation.defined": {
+        const r = b.relation;
+        if (!/^[a-z][a-z0-9_]{0,40}$/.test(r.id)) throw new BurrowError(`Bad relation id "${r.id}"`);
+        for (const k of [...r.fromKinds, ...r.toKinds])
+          if (!this.kind(k)) throw new BurrowError(`Unknown kind "${k}"`);
+        break;
+      }
     }
   }
 
@@ -628,20 +905,51 @@ export class Store {
              on conflict(type, from_id, to_id) do update set data = excluded.data`,
           )
           .run(b.edgeType, b.fromId, b.toId, json(b.data), at);
+        this.reindex(b.fromId);
         break;
       case "edge.removed":
         this.db
           .prepare("delete from edges where type = ? and from_id = ? and to_id = ?")
           .run(b.edgeType, b.fromId, b.toId);
+        this.reindex(b.fromId);
         break;
       case "kind.defined":
+        // A definition with a builtin id overrides the seed (and stays user-owned).
         this.db
           .prepare(
-            `insert into kinds (id, name, is_place, fields, builtin) values (?, ?, ?, ?, 0)
-             on conflict(id) do update set name = excluded.name, is_place = excluded.is_place, fields = excluded.fields`,
+            `insert into kinds (id, name, parent, is_place, physical, fields, builtin) values (?, ?, ?, ?, ?, ?, 0)
+             on conflict(id) do update set name = excluded.name, parent = excluded.parent, is_place = excluded.is_place,
+               physical = excluded.physical, fields = excluded.fields, builtin = 0`,
           )
-          .run(b.kind.id, b.kind.name, b.kind.isPlace ? 1 : 0, JSON.stringify(b.kind.fields));
+          .run(
+            b.kind.id,
+            b.kind.name,
+            b.kind.parent ?? null,
+            b.kind.isPlace ? 1 : 0,
+            b.kind.physical === false ? 0 : 1,
+            JSON.stringify(b.kind.fields),
+          );
         break;
+      case "relation.defined": {
+        const r = b.relation;
+        this.db
+          .prepare(
+            `insert into relation_types (id, name, inverse, from_kinds, to_kinds, cardinality, symmetric, builtin)
+             values (?, ?, ?, ?, ?, ?, ?, 0)
+             on conflict(id) do update set name = excluded.name, inverse = excluded.inverse, from_kinds = excluded.from_kinds,
+               to_kinds = excluded.to_kinds, cardinality = excluded.cardinality, symmetric = excluded.symmetric, builtin = 0`,
+          )
+          .run(
+            r.id,
+            r.name,
+            r.inverse,
+            JSON.stringify(r.fromKinds),
+            JSON.stringify(r.toKinds),
+            r.cardinality,
+            r.symmetric ? 1 : 0,
+          );
+        break;
+      }
     }
   }
 
@@ -689,8 +997,16 @@ export class Store {
       }
       case "edge.added":
         return { type: "edge.removed", edgeType: b.edgeType, fromId: b.fromId, toId: b.toId };
-      case "edge.removed":
-        return { type: "edge.added", edgeType: b.edgeType, fromId: b.fromId, toId: b.toId, data: {} };
+      case "edge.removed": {
+        const prev = this.db
+          .prepare(
+            `select body from events where type = 'edge.added' and json_extract(body, '$.edgeType') = ?
+             and json_extract(body, '$.fromId') = ? and json_extract(body, '$.toId') = ? order by seq desc limit 1`,
+          )
+          .get(b.edgeType, b.fromId, b.toId) as Row | undefined;
+        const data = prev ? ((parse(prev.body, {}) as { data?: Record<string, unknown> }).data ?? {}) : {};
+        return { type: "edge.added", edgeType: b.edgeType, fromId: b.fromId, toId: b.toId, data };
+      }
       default:
         throw new BurrowError(`${b.type} can't be undone`);
     }
@@ -722,18 +1038,14 @@ export class Store {
     const t = this.getRaw(id);
     this.db.prepare("delete from things_fts where id = ?").run(id);
     if (!t) return;
-    const d = t.data;
+    // Every text-ish field is searchable, custom ones included; tags with their parents.
+    const values = Object.entries(t.data)
+      .filter(([k]) => !NOT_SEARCHED.has(k))
+      .flatMap(([, v]) => (Array.isArray(v) ? v : [v]))
+      .filter((v) => typeof v === "string" || typeof v === "number");
     const refs = this.refsOf(id).map((r) => `${r.service} ${String(r.data.assetId ?? "")}`);
-    const body = [
-      id,
-      d.description,
-      Array.isArray(d.tags) ? d.tags.join(" ") : d.tags,
-      d.maker,
-      d.model,
-      d.serial,
-      d.notes,
-      ...refs,
-    ]
+    const tags = this.tagsOf(id).flatMap((tg) => [tg.name, ...tg.path]);
+    const body = [id, ...values, ...tags, ...refs]
       .filter((x) => x !== undefined && x !== null && x !== "")
       .join(" \n ");
     const path = this.path(id)
@@ -744,13 +1056,17 @@ export class Store {
       .run(id, t.name, body, path);
   }
 
+  /** Reindex a thing, everything inside it, and everything tagged with it (or a tag under it). */
   private reindexTree(id: ThingId) {
     const rows = this.db
       .prepare(
         `with recursive down(id) as (select ? union all select t.id from things t join down on t.parent_id = down.id)
-         select id from down`,
+         select id from down
+         union
+         select e.from_id from edges e where e.type = 'tagged' and e.to_id in (
+           with recursive d2(id) as (select ? union all select t.id from things t join d2 on t.parent_id = d2.id) select id from d2)`,
       )
-      .all(id) as { id: string }[];
+      .all(id, id) as { id: string }[];
     for (const r of rows) this.reindex(r.id);
   }
 }
@@ -806,10 +1122,27 @@ function toThing(r: Row): Thing {
   };
 }
 
+const NOT_SEARCHED = new Set(["imageUrl", "thumbUrl", "url"]);
+
+function toRelation(r: Row): RelationType {
+  return {
+    id: String(r.id),
+    name: String(r.name),
+    inverse: String(r.inverse),
+    fromKinds: parse(r.from_kinds, []),
+    toKinds: parse(r.to_kinds, []),
+    cardinality: r.cardinality === "one" ? "one" : "many",
+    symmetric: Number(r.symmetric) === 1,
+    builtin: Number(r.builtin) === 1,
+  };
+}
+
 function toKind(r: Row): Kind {
   return {
     id: String(r.id),
     name: String(r.name),
+    parent: (r.parent as string | null) ?? null,
+    physical: Number(r.physical ?? 1) === 1,
     isPlace: Number(r.is_place) === 1,
     fields: parse(r.fields, []),
     builtin: Number(r.builtin) === 1,

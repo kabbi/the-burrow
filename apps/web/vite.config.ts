@@ -8,6 +8,6 @@ export default defineConfig({
     strictPort: true,
     allowedHosts: ["fedora", "fedora.example.com"],
     host: true,
-    proxy: { "/api": "http://localhost:4100" },
+    proxy: { "/api": "http://localhost:4100", "/media": "http://localhost:4100" },
   },
 });

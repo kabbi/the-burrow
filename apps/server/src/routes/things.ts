@@ -48,14 +48,59 @@ export function thingRoutes({ store, ai }: Deps): Router {
 
   r.get("/things/:id", (req, res) => {
     const t = store.mustGet(req.params.id);
+    const paperlessOf = (id: string) =>
+      store.refsOf(id).find((x) => x.service === "paperless")?.remoteId ?? null;
     res.json({
       thing: t,
+      fields: store.fieldsOf(t.kind),
       children: store.list({ parentId: t.id, order: "name", limit: 500 }),
+      relations: store.relations(t.id).map((rel) => ({
+        ...rel,
+        paperlessId: rel.type === "has_document" ? paperlessOf(rel.other.id) : null,
+      })),
+      tagged: store.kindIs(t.kind, "tag") ? store.taggedWith(t.id, 500) : [],
+      paperlessId: paperlessOf(t.id),
       events: store
         .events({ thingId: t.id, limit: 50 })
         .map((e) => ({ ...e, undoable: UNDOABLE.has(e.body.type) })),
-      documents: store.edges({ type: "documents", fromId: t.id }),
     });
+  });
+
+  /** Replace a thing's tags with these names (new ones are created). */
+  r.put("/things/:id/tags", (req, res) => {
+    const b = z.object({ names: z.array(z.string().min(1).max(80)).max(100) }).parse(req.body);
+    res.json({ thing: store.setTags(req.params.id, b.names, "you") });
+  });
+
+  /** Mark an AI-attached tag as checked by a person. */
+  r.post("/things/:id/tags/:tagId/confirm", (req, res) => {
+    store.relate("tagged", req.params.id, req.params.tagId, { source: "you" });
+    res.json({ thing: store.mustGet(req.params.id) });
+  });
+
+  const RelBody = z.object({
+    type: z.string(),
+    otherId: z.string(),
+    /** out: this thing → other; in: other → this thing. */
+    direction: z.enum(["out", "in"]).default("out"),
+  });
+
+  r.post("/things/:id/relations", (req, res) => {
+    const b = RelBody.parse(req.body);
+    const me = store.mustGet(req.params.id).id;
+    const other = store.mustGet(b.otherId).id;
+    if (b.direction === "out") store.relate(b.type, me, other);
+    else store.relate(b.type, other, me);
+    res.status(201).json({ relations: store.relations(me), event: store.events({ limit: 1 })[0] });
+  });
+
+  r.delete("/things/:id/relations", (req, res) => {
+    const b = RelBody.parse(req.body);
+    const me = store.mustGet(req.params.id).id;
+    const other = store.mustGet(b.otherId).id;
+    if (b.direction === "out") store.unrelate(b.type, me, other);
+    else store.unrelate(b.type, other, me);
+    res.json({ relations: store.relations(me), event: store.events({ limit: 1 })[0] });
   });
 
   r.post("/things", (req, res) => {
@@ -131,28 +176,6 @@ export function thingRoutes({ store, ai }: Deps): Router {
 
   r.get("/kinds", (_req, res) => res.json({ kinds: store.kinds() }));
 
-  r.post("/kinds", (req, res) => {
-    const b = z
-      .object({
-        id: z.string().regex(/^[a-z][a-z0-9-]{1,40}$/),
-        name: z.string().min(1),
-        isPlace: z.boolean().default(false),
-        fields: z
-          .array(
-            z.object({
-              key: z.string(),
-              label: z.string(),
-              type: z.enum(["text", "number", "tags", "url", "date", "money"]),
-              wanted: z.boolean().optional(),
-            }),
-          )
-          .default([]),
-      })
-      .parse(req.body);
-    store.defineKind(b);
-    res.status(201).json({ kind: store.kind(b.id) });
-  });
-
   r.get("/events", (req, res) => {
     const types = req.query.types ? String(req.query.types).split(",") : undefined;
     res.json({
@@ -202,7 +225,6 @@ export function applySuggestion(store: Store, id: string, s: ThingSuggestion, re
     data[k] = v;
   };
   put("description", s.description);
-  put("tags", s.tags.map((x) => x.toLowerCase().trim()).filter(Boolean));
   put("maker", s.maker);
   put("model", s.model);
   if (s.quantity !== null && s.quantity > 1) put("quantity", s.quantity);
@@ -218,6 +240,14 @@ export function applySuggestion(store: Store, id: string, s: ThingSuggestion, re
     delete data.description;
   const source: FieldSource = "ai";
   store.change(id, patch, source, "ai");
+  if (!reject.has("tags")) {
+    // Add suggested tags (marked as AI) without removing the ones already there.
+    for (const name of s.tags.map((x) => x.toLowerCase().trim()).filter(Boolean)) {
+      const tagId = store.ensureTag(name, "ai");
+      if (!store.edges({ type: "tagged", fromId: id, toId: tagId }).length)
+        store.relate("tagged", id, tagId, { source: "ai" }, "ai");
+    }
+  }
   if (!reject.has("parent") && s.placeId && !t.parentId && store.getRaw(s.placeId)) {
     store.move(id, s.placeId, "ai", "ai");
   }

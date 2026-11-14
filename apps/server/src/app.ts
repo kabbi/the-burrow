@@ -1,9 +1,9 @@
 import express, { type ErrorRequestHandler } from "express";
+import { mkdirSync } from "node:fs";
 import { existsSync } from "node:fs";
 import { ZodError } from "zod";
 import { BurrowError, Store } from "@burrow/core";
 import type { Config } from "./config.ts";
-import { HomeBox, syncFromHomeBox, type SyncReport } from "./adapters/homebox.ts";
 import { Paperless, PaperlessOff, type PaperlessApi } from "./adapters/paperless.ts";
 import { PaperlessMock } from "./adapters/paperless-mock.ts";
 import { UpstreamError } from "./adapters/http.ts";
@@ -14,18 +14,17 @@ import { thingRoutes } from "./routes/things.ts";
 import { paperRoutes } from "./routes/papers.ts";
 import { aiRoutes } from "./routes/ai.ts";
 import { dbRoutes } from "./routes/db.ts";
+import { schemaRoutes } from "./routes/schema.ts";
 
 export interface Deps {
   config: Config;
   store: Store;
-  homebox: HomeBox;
   paperless: PaperlessApi;
   inboxTagNames: string[];
   ai: AiGateway;
   ollama: OllamaProvider;
   lmstudio: LmStudioProvider;
   anthropic: AnthropicProvider;
-  lastSync: { at: string; report: SyncReport } | null;
 }
 
 export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
@@ -46,14 +45,12 @@ export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps 
   return {
     config,
     store,
-    homebox: new HomeBox(config.homebox.url, config.homebox.token),
     paperless,
     inboxTagNames: p.inboxTags.map((s) => s.toLowerCase()),
     ai,
     ollama,
     lmstudio,
     anthropic,
-    lastSync: null,
     ...overrides,
   };
 }
@@ -78,30 +75,24 @@ export function createApp(deps: Deps) {
         .events({ types: ["thing.moved", "thing.status", "thing.created"], limit: 8 })
         .filter((e) => e.actor === "you" || e.actor === "ai"),
       papers: { mode: paperless.mode, inbox: inboxCount },
-      homebox: { configured: deps.homebox.configured, lastSync: deps.lastSync },
       ai: deps.ai.spend(),
     });
   });
 
-  api.post("/homebox/sync", async (_req, res) => {
-    const report = await syncFromHomeBox(deps.store, deps.homebox);
-    deps.lastSync = { at: new Date().toISOString(), report };
-    res.json(deps.lastSync);
-  });
-
-  api.get("/homebox/image/:entityId/:attachmentId", async (req, res) => {
-    const up = await deps.homebox.attachment(req.params.entityId, req.params.attachmentId);
-    res.setHeader("content-type", up.headers.get("content-type") ?? "application/octet-stream");
-    res.setHeader("cache-control", "private, max-age=86400");
-    res.send(Buffer.from(await up.arrayBuffer()));
-  });
-
   api.use(thingRoutes(deps));
+  api.use(schemaRoutes(deps));
   api.use(paperRoutes(deps));
   api.use(aiRoutes(deps));
   if (deps.config.dbAdmin) api.use(dbRoutes(deps));
   api.use((_req, res) => res.status(404).json({ error: "Not found" }));
   app.use("/api", api);
+
+  // Files Burrow owns (photos…), content-addressed so they can be cached forever.
+  mkdirSync(deps.config.mediaDir, { recursive: true });
+  app.use(
+    "/media",
+    express.static(deps.config.mediaDir, { immutable: true, maxAge: "365d", fallthrough: false }),
+  );
 
   // Production: serve the built web app.
   const web = new URL("../../web/dist/", import.meta.url).pathname;

@@ -124,13 +124,15 @@ describe("AI gateway", () => {
         name: string;
         parentId: string;
         data: Record<string, unknown>;
-        meta: Record<string, { source: string }>;
+        tags: { name: string; source?: string }[];
       };
     }>("POST", "/things/B-0002/apply-suggestion", { requestId: q.body.quote.id, reject: ["maker"] });
     expect(applied.body.thing.name).toBe("Moka pot, 6-cup");
     expect(applied.body.thing.data.maker).toBeUndefined();
-    expect(applied.body.thing.data.tags).toEqual(["coffee", "kitchen"]);
-    expect(applied.body.thing.meta.tags?.source).toBe("ai");
+    expect(applied.body.thing.tags.map((t) => [t.name, t.source])).toEqual([
+      ["coffee", "ai"],
+      ["kitchen", "ai"],
+    ]);
     expect(applied.body.thing.parentId).toBe("B-0001");
   });
 
@@ -174,8 +176,26 @@ describe("papers API (mock paperless)", () => {
     expect(filed.body.doc.things.map((t) => t.id)).toEqual(["B-0002"]);
     expect((await call<{ count: number }>("GET", "/papers/inbox")).body.count).toBe(5);
 
-    const thing = await call<{ documents: { toId: string }[] }>("GET", "/things/B-0002");
-    expect(thing.body.documents.map((e) => e.toId)).toEqual(["paperless:101"]);
+    const thing = await call<{ relations: { type: string; paperlessId: string; other: { kind: string } }[] }>(
+      "GET",
+      "/things/B-0002",
+    );
+    const doc = thing.body.relations.find((r) => r.type === "has_document")!;
+    expect(doc.paperlessId).toBe("101");
+    expect(doc.other.kind).toBe("document");
+
+    // physical copy goes into a binder (a place); the document thing moves there
+    const binder = await call<{ thing: { id: string } }>("POST", "/things", {
+      name: "Binder A",
+      kind: "container",
+    });
+    const placed = await call<{ entity: { parentId: string; data: { physicalCopy: boolean } } }>(
+      "POST",
+      "/papers/docs/101/place",
+      { placeId: binder.body.thing.id },
+    );
+    expect(placed.body.entity.parentId).toBe(binder.body.thing.id);
+    expect(placed.body.entity.data.physicalCopy).toBe(true);
   });
 });
 
@@ -250,5 +270,68 @@ describe("db browser API", () => {
       write: true,
     });
     expect(w.body.changes).toBe(1);
+  });
+});
+
+describe("schema, tags and relations API", () => {
+  it("defines a kind with typed fields and validates values", async () => {
+    const k = await call("POST", "/kinds", {
+      id: "plant",
+      name: "Plant",
+      parent: "thing",
+      fields: [{ key: "water", label: "Watering", type: "select", options: ["weekly", "monthly"] }],
+    });
+    expect(k.status).toBe(201);
+    const p = await call<{ thing: { id: string } }>("POST", "/things", { name: "Monstera", kind: "plant" });
+    expect((await call("PATCH", `/things/${p.body.thing.id}`, { data: { water: "daily" } })).status).toBe(
+      400,
+    );
+    expect((await call("PATCH", `/things/${p.body.thing.id}`, { data: { water: "weekly" } })).status).toBe(
+      200,
+    );
+    const schema = await call<{ kinds: { id: string; effectiveFields: { key: string }[] }[] }>(
+      "GET",
+      "/schema",
+    );
+    const plant = schema.body.kinds.find((x) => x.id === "plant")!;
+    expect(plant.effectiveFields.map((f) => f.key)).toContain("description");
+  });
+
+  it("sets tags by name and links things with typed relations", async () => {
+    const a = await call<{ thing: { id: string } }>("POST", "/things", {
+      name: "Pixel 9",
+      kind: "electronics",
+    });
+    const b = await call<{ thing: { id: string } }>("POST", "/things", { name: "Pixel 9 case" });
+    const t = await call<{ thing: { tags: { name: string }[] } }>("PUT", `/things/${a.body.thing.id}/tags`, {
+      names: ["phone", "Phone", "android"],
+    });
+    expect(t.body.thing.tags.map((x) => x.name)).toEqual(["android", "phone"]); // deduped case-insensitively
+    const tags = await call<{ tags: { name: string; uses: number }[] }>("GET", "/tags");
+    expect(tags.body.tags.find((x) => x.name === "phone")?.uses).toBe(1);
+
+    const rel = await call<{ relations: { type: string; label: string; direction: string }[] }>(
+      "POST",
+      `/things/${a.body.thing.id}/relations`,
+      { type: "accessory_of", otherId: b.body.thing.id, direction: "in" },
+    );
+    expect(rel.status).toBe(201);
+    const notTags = (rs: { type: string }[]) => rs.filter((r) => r.type !== "tagged");
+    expect(notTags(rel.body.relations)).toMatchObject([{ label: "accessories", direction: "in" }]);
+    const bad = await call("POST", `/things/${a.body.thing.id}/relations`, {
+      type: "tagged",
+      otherId: b.body.thing.id,
+    });
+    expect(bad.status).toBe(400);
+    const gone = await call<{ relations: { type: string }[] }>(
+      "DELETE",
+      `/things/${a.body.thing.id}/relations`,
+      {
+        type: "accessory_of",
+        otherId: b.body.thing.id,
+        direction: "in",
+      },
+    );
+    expect(notTags(gone.body.relations)).toEqual([]);
   });
 });

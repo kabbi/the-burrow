@@ -83,6 +83,24 @@ export const coreMigrations: Migration[] = [
       create table kv (key text primary key, value text not null);
     `,
   },
+  {
+    id: "core/002-schema-as-data",
+    sql: `
+      alter table kinds add column parent text;
+      alter table kinds add column physical integer not null default 1;
+      create table relation_types (
+        id text primary key,
+        name text not null,
+        inverse text not null,
+        from_kinds text not null default '[]',
+        to_kinds text not null default '[]',
+        cardinality text not null default 'many',
+        symmetric integer not null default 0,
+        builtin integer not null default 0
+      );
+      create index edges_from on edges(from_id, type);
+    `,
+  },
 ];
 
 export function openDb(path: string, extra: Migration[] = []): Db {

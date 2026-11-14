@@ -7,11 +7,12 @@ export const config = {
   /** Built-in database browser at /db (D-009). On unless BURROW_DB_ADMIN=0. */
   dbAdmin: env.BURROW_DB_ADMIN !== "0",
   db: env.BURROW_DB ?? new URL("../../../data/burrow.sqlite", import.meta.url).pathname,
+  /** Photos and other files Burrow owns (content-addressed). Served at /media. */
+  mediaDir: env.BURROW_MEDIA ?? new URL("../../../data/media", import.meta.url).pathname,
+  /** Only used by the one-time import script (D-010). */
   homebox: {
     url: strip(env.HOMEBOX_URL),
     token: env.HOMEBOX_TOKEN ?? "",
-    /** Off by default: Burrow only reads HomeBox until write-back is agreed on. */
-    write: env.HOMEBOX_WRITE === "1",
   },
   paperless: {
     url: strip(env.PAPERLESS_NGX_URL),

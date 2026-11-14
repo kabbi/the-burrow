@@ -5,9 +5,10 @@
   "scripts": {
     "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env --watch src/main.ts",
     "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/main.ts",
-    "sync:homebox": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/sync-homebox.ts",
     "typecheck": "tsc -p .",
-    "ai:eval": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/ai-eval.ts"
+    "ai:eval": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/ai-eval.ts",
+    "import:homebox": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/import-homebox.ts",
+    "migrate:0002": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/migrate-0002.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.107.0",

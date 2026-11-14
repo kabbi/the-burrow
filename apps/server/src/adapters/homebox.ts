@@ -85,6 +85,10 @@ export class HomeBox {
     return [...byId.values()];
   }
 
+  tags() {
+    return this.get<HbTag[]>("/tags");
+  }
+
   entity(id: string) {
     return this.get<HbEntity>(`/entities/${encodeURIComponent(id)}`);
   }
@@ -132,7 +136,6 @@ function dataFor(e: HbEntity): Record<string, unknown> {
   const d: Record<string, unknown> = {
     description: e.description || undefined,
     quantity: e.quantity && e.quantity !== 1 ? e.quantity : undefined,
-    tags: e.tags.map((t) => t.name).toSorted(),
     maker: e.manufacturer || undefined,
     model: e.modelNumber || undefined,
     serial: e.serialNumber || undefined,
@@ -183,6 +186,13 @@ export async function syncFromHomeBox(store: Store, hb: HomeBox): Promise<SyncRe
           ACTOR,
         );
         store.link(t.id, "homebox", e.id, refData, ACTOR);
+        if (e.tags.length)
+          store.setTags(
+            t.id,
+            e.tags.map((x) => x.name),
+            SOURCE,
+            ACTOR,
+          );
         report.created++;
         continue;
       }
@@ -211,7 +221,11 @@ function ownedPatch(t: ThingView, name: string, data: Record<string, unknown>) {
   const owned = (k: string) => (t.meta[k]?.source ?? SOURCE) === SOURCE;
   const patch: { name?: string; data: Record<string, unknown> } = { data: {} };
   if (owned("name") && t.name !== name) patch.name = name;
-  const keys = new Set([...Object.keys(data), ...Object.keys(t.data).filter((k) => owned(k))]);
+  // Tags are relations now (D-013), never a data field.
+  const keys = new Set([
+    ...Object.keys(data),
+    ...Object.keys(t.data).filter((k) => owned(k) && k !== "tags"),
+  ]);
   for (const k of keys) {
     if (!owned(k)) continue;
     const next = data[k] ?? null;

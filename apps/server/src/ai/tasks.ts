@@ -48,6 +48,7 @@ export function suggestThingTask(store: Store): AiTask<SuggestThingInput, ThingS
       const input = SuggestThingInput.parse(raw);
       const kinds = store
         .kinds()
+        .filter((k) => !store.kindIs(k.id, "tag") && !store.kindIs(k.id, "document"))
         .map((k) => `${k.id} (${k.name}${k.isPlace ? ", a place" : ""})`)
         .join(", ");
       const places = store
@@ -110,8 +111,8 @@ export function pageToInput(
 export function topTags(store: Store, n: number): string[] {
   const rows = store.db
     .prepare(
-      `select value tag, count(*) n from things, json_each(things.data, '$.tags')
-       where archived_at is null group by value order by n desc limit ?`,
+      `select t.name tag, count(*) n from edges e join things t on t.id = e.to_id
+       where e.type = 'tagged' and t.archived_at is null group by t.id order by n desc limit ?`,
     )
     .all(n) as { tag: string }[];
   return rows.map((r) => r.tag);

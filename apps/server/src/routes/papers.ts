@@ -6,7 +6,28 @@ import type { PaperlessApi, PlDoc, Taxonomy } from "../adapters/paperless.ts";
 
 // Papers = paperless-ngx seen through Burrow. Only metadata is read (D-006).
 
-const docRef = (id: number) => `paperless:${id}`;
+/**
+ * The Burrow side of a paperless document (D-011): a `document` thing linked by
+ * ref, holding only the cached title plus our own fields (physical copy place…).
+ * Created on first link/enrich, never for every document up front.
+ */
+export function ensureDocument(store: Store, doc: Pick<PlDoc, "id" | "title">): string {
+  const existing = store.findRef("paperless", String(doc.id));
+  if (existing) {
+    const t = store.getRaw(existing.thingId);
+    if (t && t.name !== doc.title && t.meta.name?.source === "paperless")
+      store.change(t.id, { name: doc.title }, "paperless", "paperless");
+    return existing.thingId;
+  }
+  const t = store.createThing({ name: doc.title, kind: "document", source: "paperless" }, "paperless");
+  store.link(t.id, "paperless", String(doc.id), {}, "paperless");
+  return t.id;
+}
+
+function docEntity(store: Store, docId: number) {
+  const ref = store.findRef("paperless", String(docId));
+  return ref ? store.get(ref.thingId) : null;
+}
 
 export function paperRoutes({ store, paperless, inboxTagNames }: Deps): Router {
   const r = Router();
@@ -60,6 +81,7 @@ export function paperRoutes({ store, paperless, inboxTagNames }: Deps): Router {
       paperless.suggestions(id).catch(() => null),
     ]);
     const linked = linkedThings(store, id);
+    const entity = docEntity(store, id);
     // Burrow's own guess: things whose names share words with the title.
     const guesses = store
       .search(doc.title, 5, { any: true })
@@ -68,6 +90,7 @@ export function paperRoutes({ store, paperless, inboxTagNames }: Deps): Router {
       .map((h) => ({ id: h.thing.id, name: h.thing.name, path: h.thing.path.map((p) => p.name) }));
     res.json({
       doc: decorate(doc, tax, store),
+      entity,
       suggestions: sugg,
       guesses,
       inboxTagIds: inboxTagIds(tax),
@@ -100,23 +123,39 @@ export function paperRoutes({ store, paperless, inboxTagNames }: Deps): Router {
       ...(b.document_type !== undefined ? { document_type: b.document_type } : {}),
       tags,
     });
-    for (const thingId of b.thingIds) {
-      store.addEdge("documents", store.mustGet(thingId).id, docRef(id), { title: updated.title });
+    if (b.thingIds.length) {
+      const docThing = ensureDocument(store, updated);
+      for (const thingId of b.thingIds) store.relate("has_document", store.mustGet(thingId).id, docThing);
     }
     res.json({ doc: decorate(updated, tax, store) });
   });
 
-  r.post("/papers/docs/:id/link", (req, res) => {
+  r.post("/papers/docs/:id/link", async (req, res) => {
     const id = Number(req.params.id);
-    const b = z.object({ thingId: z.string(), title: z.string().default("") }).parse(req.body);
-    store.addEdge("documents", store.mustGet(b.thingId).id, docRef(id), { title: b.title });
+    const b = z.object({ thingId: z.string() }).parse(req.body);
+    const docThing = ensureDocument(store, await paperless.document(id));
+    store.relate("has_document", store.mustGet(b.thingId).id, docThing);
     res.json({ things: linkedThings(store, id) });
   });
 
   r.delete("/papers/docs/:id/link/:thingId", (req, res) => {
     const id = Number(req.params.id);
-    store.removeEdge("documents", store.mustGet(req.params.thingId).id, docRef(id));
+    const doc = docEntity(store, id);
+    if (doc) store.unrelate("has_document", store.mustGet(req.params.thingId).id, doc.id);
     res.json({ things: linkedThings(store, id) });
+  });
+
+  /** Where the physical copy lives (a binder, a drawer…), or null for "no paper copy". */
+  r.post("/papers/docs/:id/place", async (req, res) => {
+    const id = Number(req.params.id);
+    const b = z.object({ placeId: z.string().nullable() }).parse(req.body);
+    const docThing = ensureDocument(store, await paperless.document(id));
+    store.move(docThing, b.placeId);
+    store.change(docThing, { data: { physicalCopy: b.placeId !== null } });
+    res.json({
+      entity: store.get(docThing),
+      event: store.events({ thingId: docThing, types: ["thing.moved"], limit: 1 })[0],
+    });
   });
 
   r.get("/papers/docs/:id/thumb", async (req, res) => {
@@ -158,9 +197,10 @@ function decorate(d: PlDoc, tax: Taxonomy, store: Store) {
 }
 
 function linkedThings(store: Store, docId: number) {
+  const doc = docEntity(store, docId);
+  if (!doc) return [];
   return store
-    .edges({ type: "documents", toId: docRef(docId) })
-    .map((e) => store.getRaw(e.fromId))
-    .filter((t) => t !== null)
-    .map((t) => ({ id: t.id, name: t.name }));
+    .relations(doc.id)
+    .filter((r) => r.type === "has_document" && r.direction === "in")
+    .map((r) => ({ id: r.other.id, name: r.other.name }));
 }

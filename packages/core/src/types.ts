@@ -57,10 +57,28 @@ export interface KnownFields {
   tier?: number;
 }
 
+export type FieldType =
+  | "text"
+  | "longtext"
+  | "number"
+  | "money"
+  | "date"
+  | "boolean"
+  | "url"
+  | "select" // one of `options`
+  | "list" // free list of strings
+  | "ref"; // another thing's id (optionally limited to `refKind`)
+
 export interface KindField {
   key: string;
   label: string;
-  type: "text" | "number" | "tags" | "url" | "date" | "money";
+  type: FieldType;
+  /** Choices for `select`. */
+  options?: string[];
+  /** For `ref`: only things of this kind (or kinds extending it). */
+  refKind?: string;
+  /** Shown after numbers, e.g. "mm", "W". */
+  unit?: string;
   /** Missing wanted fields show up in "Needs details". */
   wanted?: boolean;
 }
@@ -68,9 +86,31 @@ export interface KindField {
 export interface Kind {
   id: string;
   name: string;
+  /** Inherit fields and traits from this kind. */
+  parent: string | null;
   /** Rooms, furniture, boxes: things other things can be inside. */
   isPlace: boolean;
+  /** Has a real-world location; "no place yet" counts as a gap. */
+  physical: boolean;
+  /** Own fields; see Store.fieldsOf(kind) for inherited ones. */
   fields: KindField[];
+  builtin: boolean;
+}
+
+/** A kind of link between two things. "inside" is special (the parent column), not one of these. */
+export interface RelationType {
+  id: string;
+  /** Read from → to: "tagged", "accessory of". */
+  name: string;
+  /** Read to → from: "tag of", "accessories". */
+  inverse: string;
+  /** Allowed kinds on each end (kind ids, matched with inheritance). Empty = any. */
+  fromKinds: string[];
+  toKinds: string[];
+  /** "one": a thing can have at most one outgoing link of this type. */
+  cardinality: "one" | "many";
+  /** Same meaning both ways (e.g. "related to"); stored once. */
+  symmetric: boolean;
   builtin: boolean;
 }
 
@@ -86,6 +126,27 @@ export interface ThingView extends Thing {
   refs: ExternalRef[];
   gaps: string[];
   childCount: number;
+  tags: TagRef[];
+}
+
+export interface TagRef {
+  id: ThingId;
+  name: string;
+  /** Ancestor tag names, outermost first ("electronics" for "sensors"). */
+  path: string[];
+  /** Who attached it (edge data.source), e.g. "ai" → shown violet. */
+  source?: FieldSource;
+}
+
+export interface RelationView {
+  edgeId: number;
+  type: string;
+  /** out: this thing is `from`; in: this thing is `to`. */
+  direction: "out" | "in";
+  /** Label read from this thing's side ("accessory of" / "accessories"). */
+  label: string;
+  other: { id: ThingId; name: string; kind: string };
+  data: Record<string, unknown>;
 }
 
 export interface ExternalRef {
@@ -151,7 +212,8 @@ export type EventBody =
       data: Record<string, unknown>;
     }
   | { type: "edge.removed"; edgeType: string; fromId: string; toId: string }
-  | { type: "kind.defined"; kind: Omit<Kind, "builtin"> };
+  | { type: "kind.defined"; kind: Omit<Kind, "builtin"> }
+  | { type: "relation.defined"; relation: Omit<RelationType, "builtin"> };
 
 export type EventType = EventBody["type"];
 
