@@ -3,10 +3,13 @@ import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { get, post, type BurrowEvent, type ThingDetail } from "../lib/api.ts";
 import { timeAgo, useAction, useUndo } from "../lib/hooks.ts";
+import { useSchema } from "../lib/schema.ts";
 import { Facts } from "../components/Facts.tsx";
 import { PlacePicker } from "../components/PlacePicker.tsx";
 import { PathView, StatusLine, ThingCard, Thumb } from "../components/ThingCard.tsx";
 import { AiSuggest } from "../components/AiSuggest.tsx";
+import { TagEditor } from "../components/Tags.tsx";
+import { Relations } from "../components/Relations.tsx";
 
 export function Thing() {
   const { id = "" } = useParams();
@@ -14,6 +17,7 @@ export function Thing() {
     queryKey: ["thing", id],
     queryFn: () => get<ThingDetail>(`/things/${id}`),
   });
+  const { data: schema } = useSchema();
   const act = useAction();
   const [moving, setMoving] = useState(false);
 
@@ -25,7 +29,10 @@ export function Thing() {
     );
   if (!data) return <main className="page" />;
   const t = data.thing;
-  const hb = t.refs.find((r) => r.service === "homebox");
+  const kind = schema?.kinds.find((k) => k.id === t.kind);
+  const isTag = kind?.isTag ?? t.kind === "tag";
+  const isDoc = kind?.isDocument ?? t.kind === "document";
+  const physical = kind?.physical ?? true;
 
   return (
     <main className="page">
@@ -34,46 +41,56 @@ export function Thing() {
           <Thumb thing={t} big />
           <div className="stack grow" style={{ gap: 8 }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="idbadge" style={{ fontSize: 14 }}>
-                {t.id}
+              <span className="row" style={{ gap: 6 }}>
+                <span className="idbadge" style={{ fontSize: 14 }}>
+                  {t.id}
+                </span>
+                <span className="tag">{kind?.name ?? t.kind}</span>
               </span>
               {t.archivedAt && <span className="tag">archived</span>}
             </div>
             <h1 style={{ fontSize: 30 }}>{t.name}</h1>
-            <StatusLine thing={t} />
+            {physical && <StatusLine thing={t} />}
             <PathView thing={t} />
+            {!isTag && <TagEditor thing={t} />}
             <div className="row" style={{ marginTop: 6 }}>
               <button type="button" className="btn main" onClick={() => setMoving((m) => !m)}>
-                {moving ? "Done" : "Move"}
+                {moving ? "Done" : isTag ? "Nest under…" : t.parentId ? "Move" : "Put somewhere"}
               </button>
-              {t.status === "missing" ? (
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() =>
-                    act(
-                      () => post(`/things/${t.id}/status`, { status: "ok", note: "found" }),
-                      "Marked as found",
-                    )
-                  }
-                >
-                  I found it
-                </button>
-              ) : (
-                t.parentId && (
+              {physical &&
+                (t.status === "missing" ? (
                   <button
                     type="button"
                     className="btn"
                     onClick={() =>
                       act(
-                        () => post(`/things/${t.id}/status`, { status: "missing" }),
-                        "Noted — Burrow stops trusting that spot",
+                        () => post(`/things/${t.id}/status`, { status: "ok", note: "found" }),
+                        "Marked as found",
                       )
                     }
                   >
-                    It’s not here
+                    I found it
                   </button>
-                )
+                ) : (
+                  t.parentId && (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() =>
+                        act(
+                          () => post(`/things/${t.id}/status`, { status: "missing" }),
+                          "Noted — Burrow stops trusting that spot",
+                        )
+                      }
+                    >
+                      It’s not here
+                    </button>
+                  )
+                ))}
+              {isDoc && data.paperlessId && (
+                <Link className="btn" to={`/papers?doc=${data.paperlessId}`}>
+                  Open in Papers
+                </Link>
               )}
               {!t.archivedAt && (
                 <button
@@ -84,39 +101,72 @@ export function Thing() {
                   Archive
                 </button>
               )}
-              {hb && <span className="muted small">HomeBox {String(hb.data.assetId ?? "")}</span>}
             </div>
-            {moving && (
-              <PlacePicker
-                label="Move to"
-                autoFocus
-                value={t.parentId}
-                onChange={(to) => {
-                  setMoving(false);
-                  void act(
-                    () => post(`/things/${t.id}/move`, { to }),
-                    to ? "Moved" : "Removed from its place",
-                  );
-                }}
-              />
-            )}
+            {moving &&
+              (isTag ? (
+                <TagParentPicker id={t.id} onDone={() => setMoving(false)} />
+              ) : (
+                <PlacePicker
+                  label="Move to"
+                  autoFocus
+                  value={t.parentId}
+                  onChange={(to) => {
+                    setMoving(false);
+                    void act(
+                      () => post(`/things/${t.id}/move`, { to }),
+                      to ? "Moved" : "Removed from its place",
+                    );
+                  }}
+                />
+              ))}
           </div>
         </div>
       </section>
 
+      {isTag && (
+        <section className="stack">
+          <h2 className="eyebrow">Tagged · {data.tagged.length} (including nested tags)</h2>
+          {data.tagged.length ? (
+            <div className="grid2">
+              {data.tagged.map((c) => (
+                <ThingCard key={c.id} thing={c} compact />
+              ))}
+            </div>
+          ) : (
+            <p className="muted small">Nothing tagged yet.</p>
+          )}
+        </section>
+      )}
+
       <section className="panel stack">
         <h2 className="eyebrow">What Burrow knows</h2>
-        <AiSuggest
-          thingId={t.id}
-          input={{ name: t.name, ...(typeof t.data.url === "string" ? { url: t.data.url } : {}) }}
-          onApplied={() => {}}
-        />
-        <Facts thing={t} />
+        {!isTag && !isDoc && (
+          <AiSuggest
+            thingId={t.id}
+            input={{ name: t.name, ...(typeof t.data.url === "string" ? { url: t.data.url } : {}) }}
+            onApplied={() => {}}
+          />
+        )}
+        <Facts thing={t} fields={data.fields} />
       </section>
+
+      {!isTag && (
+        <section className="panel stack">
+          <h2 className="eyebrow">Links</h2>
+          <Relations thingId={t.id} relations={data.relations} />
+          {!isDoc && !data.relations.some((r) => r.type === "has_document") && (
+            <p className="muted small" style={{ margin: 0 }}>
+              Receipts and manuals: link them from the <Link to="/papers">Papers inbox</Link>.
+            </p>
+          )}
+        </section>
+      )}
 
       {data.children.length > 0 && (
         <section className="stack">
-          <h2 className="eyebrow">Inside · {data.children.length}</h2>
+          <h2 className="eyebrow">
+            {isTag ? "Nested tags" : "Inside"} · {data.children.length}
+          </h2>
           <div className="grid2">
             {data.children.map((c) => (
               <ThingCard key={c.id} thing={c} compact />
@@ -125,27 +175,39 @@ export function Thing() {
         </section>
       )}
 
-      <section className="panel stack">
-        <h2 className="eyebrow">Papers</h2>
-        {data.documents.length ? (
-          <div className="list">
-            {data.documents.map((d) => (
-              <div className="list-row" key={d.id}>
-                <Link to={`/papers?doc=${d.toId.split(":")[1]}`} style={{ flex: 1 }}>
-                  {String(d.data.title || d.toId)}
-                </Link>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="muted small" style={{ margin: 0 }}>
-            No receipts or manuals linked. File one from the <Link to="/papers">Papers inbox</Link>.
-          </p>
-        )}
-      </section>
-
       <History events={data.events} />
     </main>
+  );
+}
+
+/** Tags nest under other tags (their "parent"), using the same inside-relation as places. */
+function TagParentPicker({ id, onDone }: { id: string; onDone: () => void }) {
+  const act = useAction();
+  const { data } = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => get<{ tags: { id: string; name: string; path: string[] }[] }>("/tags"),
+  });
+  return (
+    <label className="field">
+      <span>Nest under</span>
+      <select
+        className="input"
+        defaultValue=""
+        onChange={(e) => {
+          onDone();
+          void act(() => post(`/things/${id}/move`, { to: e.target.value || null }), "Tag moved");
+        }}
+      >
+        <option value="">(top level)</option>
+        {data?.tags
+          .filter((x) => x.id !== id)
+          .map((x) => (
+            <option key={x.id} value={x.id}>
+              {[...x.path, x.name].join(" › ")}
+            </option>
+          ))}
+      </select>
+    </label>
   );
 }
 
@@ -166,6 +228,10 @@ function label(e: BurrowEvent): string {
       return b.undo ? "Restored" : "Archived";
     case "ref.linked":
       return `Linked to ${b.service}`;
+    case "edge.added":
+      return b.edgeType === "tagged" ? "Tagged" : `Linked (${b.edgeType.replace(/_/g, " ")})`;
+    case "edge.removed":
+      return b.edgeType === "tagged" ? "Untagged" : `Unlinked (${b.edgeType.replace(/_/g, " ")})`;
     default:
       return b.type;
   }

@@ -1,0 +1,106 @@
+import { useState } from "react";
+import { Link } from "react-router";
+import { del, post, type ThingDetail } from "../lib/api.ts";
+import { useAction } from "../lib/hooks.ts";
+import { useSchema } from "../lib/schema.ts";
+import { ThingSearch } from "./ThingSearch.tsx";
+
+type Rel = ThingDetail["relations"][number];
+
+/**
+ * Typed links to other things, grouped by how they read from this side
+ * ("accessories", "replaced by"…). Tags are shown separately.
+ */
+export function Relations({ thingId, relations }: { thingId: string; relations: Rel[] }) {
+  const act = useAction();
+  const { data: schema } = useSchema();
+  const [choice, setChoice] = useState("");
+  const shown = relations.filter((r) => r.type !== "tagged");
+  const groups = new Map<string, Rel[]>();
+  for (const r of shown) groups.set(r.label, [...(groups.get(r.label) ?? []), r]);
+
+  // Each relation type can be added from either end: "accessory of →" or "← accessories".
+  const choices = (schema?.relations ?? [])
+    .filter((rt) => rt.id !== "tagged")
+    .flatMap((rt) =>
+      rt.symmetric
+        ? [{ key: `${rt.id}:out`, label: rt.name }]
+        : [
+            { key: `${rt.id}:out`, label: rt.name },
+            { key: `${rt.id}:in`, label: rt.inverse },
+          ],
+    );
+  const [type, direction] = (choice || choices[0]?.key || ":").split(":");
+
+  return (
+    <div className="stack" style={{ gap: 10 }}>
+      {shown.length === 0 && (
+        <p className="muted small" style={{ margin: 0 }}>
+          No links yet.
+        </p>
+      )}
+      {[...groups].map(([label, rels]) => (
+        <div key={label} className="fact" style={{ gridTemplateColumns: "130px 1fr" }}>
+          <span className="label">{label}</span>
+          <span className="row">
+            {rels.map((r) => (
+              <span key={r.edgeId} className="chip" style={{ minHeight: 30, paddingRight: 4 }}>
+                <Link
+                  to={r.paperlessId ? `/papers?doc=${r.paperlessId}` : `/t/${r.other.id}`}
+                  style={{ color: "inherit", textDecoration: "none" }}
+                >
+                  {r.other.name}
+                </Link>
+                <button
+                  type="button"
+                  className="tagx"
+                  aria-label={`Unlink ${r.other.name}`}
+                  onClick={() =>
+                    act(
+                      () =>
+                        del(`/things/${thingId}/relations`, {
+                          type: r.type,
+                          otherId: r.other.id,
+                          direction: r.direction,
+                        }),
+                      `Unlinked ${r.other.name}`,
+                    )
+                  }
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </span>
+        </div>
+      ))}
+      <div className="row">
+        <select
+          className="input"
+          style={{ width: "auto" }}
+          value={choice || choices[0]?.key}
+          onChange={(e) => setChoice(e.target.value)}
+          aria-label="Link type"
+        >
+          {choices.map((c) => (
+            <option key={c.key} value={c.key}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <div className="grow" style={{ minWidth: 220 }}>
+          <ThingSearch
+            placeholder="link to…"
+            filter={(t) => t.id !== thingId && t.kind !== "tag"}
+            onPick={(t) =>
+              act(
+                () => post(`/things/${thingId}/relations`, { type, otherId: t.id, direction }),
+                `Linked ${t.name}`,
+              )
+            }
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

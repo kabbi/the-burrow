@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { get, post, type BurrowEvent, type Kind, type Preview, type ThingView } from "../lib/api.ts";
+import { get, post, type BurrowEvent, type Preview, type ThingDetail, type ThingView } from "../lib/api.ts";
 import { useDebounced, useRefresh, useUndo } from "../lib/hooks.ts";
 import { useToast } from "../lib/toast.tsx";
 import { PlacePicker } from "../components/PlacePicker.tsx";
 import { Facts } from "../components/Facts.tsx";
+import { TagEditor } from "../components/Tags.tsx";
+import { useThingKinds } from "../lib/schema.ts";
 import { AiSuggest } from "../components/AiSuggest.tsx";
 import { PathView, StatusLine, Thumb } from "../components/ThingCard.tsx";
 
 const QUICK_KINDS = ["thing", "electronics", "tool", "appliance", "container", "furniture", "room"];
+const MAX_CHIPS = 9;
 const LAST_PLACE = "burrow.add.lastPlace";
 
 function storedPlace(): string | null {
@@ -56,7 +59,13 @@ export function Add() {
   const refresh = useRefresh();
   const toast = useToast();
   const undo = useUndo();
-  const { data: kinds } = useQuery({ queryKey: ["kinds"], queryFn: () => get<{ kinds: Kind[] }>("/kinds") });
+  const thingKinds = useThingKinds();
+  // Seed kinds first, then your own (most used first), as one-tap chips.
+  const chipKinds = [
+    ...QUICK_KINDS.map((id) => thingKinds.find((k) => k.id === id)).filter((k) => k !== undefined),
+    ...thingKinds.filter((k) => !QUICK_KINDS.includes(k.id)).toSorted((a, b) => b.things - a.things),
+  ].slice(0, MAX_CHIPS);
+  const kinds = { kinds: thingKinds };
 
   const url = isUrl(text) ? text.trim() : null;
   const durl = useDebounced(url, 300);
@@ -225,7 +234,7 @@ export function Add() {
         <div className="field">
           <span>Kind</span>
           <div className="row">
-            {QUICK_KINDS.map((k) => (
+            {chipKinds.map(({ id: k }) => (
               <button
                 key={k}
                 type="button"
@@ -240,12 +249,12 @@ export function Add() {
               className="input"
               style={{ width: "auto", minHeight: 34 }}
               aria-label="Other kind"
-              value={QUICK_KINDS.includes(kind) ? "" : kind}
+              value={chipKinds.some((c) => c.id === kind) ? "" : kind}
               onChange={(e) => e.target.value && setKind(e.target.value)}
             >
               <option value="">Other…</option>
               {kinds?.kinds
-                .filter((k) => !QUICK_KINDS.includes(k.id))
+                .filter((k) => !chipKinds.some((c) => c.id === k.id))
                 .map((k) => (
                   <option key={k.id} value={k.id}>
                     {k.name}
@@ -289,10 +298,9 @@ export function Add() {
 function JustSaved({ saved, onUndo }: { saved: Saved; onUndo: () => void }) {
   const { data } = useQuery({
     queryKey: ["thing", saved.thing.id],
-    queryFn: () => get<{ thing: ThingView }>(`/things/${saved.thing.id}`),
-    initialData: { thing: saved.thing },
+    queryFn: () => get<ThingDetail>(`/things/${saved.thing.id}`),
   });
-  const t = data.thing;
+  const t = data?.thing ?? saved.thing;
   return (
     <section className="panel stack" aria-label="Just saved">
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -320,7 +328,8 @@ function JustSaved({ saved, onUndo }: { saved: Saved; onUndo: () => void }) {
       {!t.archivedAt && (
         <>
           <AiSuggest thingId={t.id} input={saved.aiInput} onApplied={() => {}} />
-          <Facts thing={t} />
+          <TagEditor thing={t} />
+          {data && <Facts thing={t} fields={data.fields} />}
           {t.gaps.length > 0 && (
             <div className="row small">
               <span className="muted">Left for later:</span>

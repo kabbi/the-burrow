@@ -52,6 +52,8 @@ export function Layout() {
             {data?.papers.inbox ? <span className="count">{data.papers.inbox}</span> : null}
           </NavLink>
           <NavLink to="/later">Needs details</NavLink>
+          <NavLink to="/tags">Tags</NavLink>
+          <NavLink to="/schema">Schema</NavLink>
           <NavLink to="/db">Database</NavLink>
         </nav>
         <Link to="/add" className="btn">

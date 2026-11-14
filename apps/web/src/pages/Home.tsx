@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { get, post, type BurrowEvent, type Hits, type Overview } from "../lib/api.ts";
-import { timeAgo, useDebounced, useRefresh, useUndo } from "../lib/hooks.ts";
-import { useToast } from "../lib/toast.tsx";
+import { get, type BurrowEvent, type Hits, type Overview } from "../lib/api.ts";
+import { timeAgo, useDebounced, useUndo } from "../lib/hooks.ts";
 import { ThingCard } from "../components/ThingCard.tsx";
 
 export function Home() {
@@ -83,27 +82,7 @@ function Results({ q, hits, loading }: { q: string; hits: Hits["hits"] | undefin
 
 function Dashboard() {
   const { data } = useQuery({ queryKey: ["overview"], queryFn: () => get<Overview>("/overview") });
-  const refresh = useRefresh();
-  const toast = useToast();
-  const [syncing, setSyncing] = useState(false);
   if (!data) return null;
-
-  async function sync() {
-    setSyncing(true);
-    try {
-      const r = await post<{ report: { created: number; updated: number; errors: string[] } }>(
-        "/homebox/sync",
-      );
-      toast({
-        text: `HomeBox: ${r.report.created} new, ${r.report.updated} updated${r.report.errors.length ? `, ${r.report.errors.length} errors` : ""}`,
-      });
-      await refresh();
-    } catch (e) {
-      toast({ text: (e as Error).message, error: true });
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   return (
     <>
@@ -141,14 +120,14 @@ function Dashboard() {
               : "nothing reported missing"}
           </span>
         </div>
-        <button type="button" className="tile" onClick={sync} disabled={syncing || !data.homebox.configured}>
+        <Link className="tile" to="/tags">
           <span className="eyebrow">Library</span>
           <span className="big">{data.stats.things}</span>
           <span className="muted small">
-            things in {data.stats.places} places ·{" "}
-            {syncing ? "syncing HomeBox…" : data.homebox.configured ? "sync HomeBox" : "HomeBox off"}
+            things in {data.stats.places} places · {data.stats.tags} tags · {data.stats.documents} papers
+            linked
           </span>
-        </button>
+        </Link>
       </div>
 
       {data.missing.length > 0 && (

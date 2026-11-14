@@ -101,6 +101,13 @@ export const coreMigrations: Migration[] = [
       create index edges_from on edges(from_id, type);
     `,
   },
+  {
+    id: "core/003-edge-events-thing-id",
+    sql: `
+      update events set thing_id = json_extract(body, '$.fromId')
+      where type in ('edge.added', 'edge.removed') and thing_id is null;
+    `,
+  },
 ];
 
 export function openDb(path: string, extra: Migration[] = []): Db {

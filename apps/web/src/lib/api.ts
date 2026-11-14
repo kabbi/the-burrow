@@ -1,6 +1,14 @@
-import type { BurrowEvent, Edge, Kind, SearchHit, ThingView } from "@burrow/core/types";
+import type {
+  BurrowEvent,
+  Kind,
+  KindField,
+  RelationType,
+  RelationView,
+  SearchHit,
+  ThingView,
+} from "@burrow/core/types";
 
-export type { BurrowEvent, Kind, ThingView };
+export type { BurrowEvent, Kind, KindField, RelationType, RelationView, ThingView };
 
 export class ApiError extends Error {
   status: number;
@@ -26,7 +34,8 @@ type Written = { event?: BurrowEvent };
 export const get = <T>(p: string) => req<T>("GET", p);
 export const post = <T = Written>(p: string, b: unknown = {}) => req<T>("POST", p, b);
 export const patch = <T = Written>(p: string, b: unknown) => req<T>("PATCH", p, b);
-export const del = <T = Written>(p: string) => req<T>("DELETE", p);
+export const put = <T = Written>(p: string, b: unknown) => req<T>("PUT", p, b);
+export const del = <T = Written>(p: string, b?: unknown) => req<T>("DELETE", p, b);
 
 export interface EventRow extends BurrowEvent {
   undoable: boolean;
@@ -42,21 +51,44 @@ export interface Place {
 }
 
 export interface Overview {
-  stats: { things: number; places: number; missing: number; events: number };
+  stats: { things: number; places: number; missing: number; events: number; tags: number; documents: number };
   needsDetails: number;
   missing: ThingView[];
   recentlyAdded: ThingView[];
   moves: BurrowEvent[];
   papers: { mode: "live" | "mock" | "off"; inbox: number | null };
-  homebox: { configured: boolean; lastSync: { at: string; report: Record<string, unknown> } | null };
   ai: { totalUsd: number; monthUsd: number; runs: number };
 }
 
 export interface ThingDetail {
   thing: ThingView;
+  fields: KindField[];
   children: ThingView[];
+  relations: (RelationView & { paperlessId: string | null })[];
+  tagged: ThingView[];
+  paperlessId: string | null;
   events: (BurrowEvent & { undoable: boolean })[];
-  documents: Edge[];
+}
+
+export interface SchemaKind extends Kind {
+  effectiveFields: KindField[];
+  things: number;
+  isTag: boolean;
+  isDocument: boolean;
+}
+
+export interface Schema {
+  kinds: SchemaKind[];
+  relations: (RelationType & { links: number })[];
+}
+
+export interface TagInfo {
+  id: string;
+  name: string;
+  parentId: string | null;
+  path: string[];
+  aliases: string[];
+  uses: number;
 }
 
 export interface Preview {
@@ -148,6 +180,7 @@ export interface Taxonomy {
 
 export interface DocDetail {
   doc: PaperDoc;
+  entity: ThingView | null;
   suggestions: { correspondents: number[]; tags: number[]; document_types: number[] } | null;
   guesses: { id: string; name: string; path: string[] }[];
   inboxTagIds: number[];

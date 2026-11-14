@@ -14,6 +14,8 @@ import { Papers } from "./pages/Papers.tsx";
 import { Later } from "./pages/Later.tsx";
 import { AiLog } from "./pages/AiLog.tsx";
 import { Db } from "./pages/Db.tsx";
+import { Schema } from "./pages/Schema.tsx";
+import { TagsPage } from "./pages/TagsPage.tsx";
 import { ToastProvider } from "./lib/toast.tsx";
 
 const queryClient = new QueryClient({
@@ -31,6 +33,8 @@ const router = createBrowserRouter([
       { path: "/later", element: <Later /> },
       { path: "/ai", element: <AiLog /> },
       { path: "/db", element: <Db /> },
+      { path: "/schema", element: <Schema /> },
+      { path: "/tags", element: <TagsPage /> },
     ],
   },
 ]);

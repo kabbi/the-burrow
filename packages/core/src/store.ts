@@ -94,7 +94,9 @@ export class Store {
     return tx(this.db, () => {
       this.validate(body);
       const at = this.now();
-      const thingId = "id" in body ? body.id : "thingId" in body ? body.thingId : null;
+      // Links are filed under their "from" thing so they show up in its history.
+      const thingId =
+        "id" in body ? body.id : "thingId" in body ? body.thingId : "fromId" in body ? body.fromId : null;
       const res = this.db
         .prepare("insert into events (at, actor, type, thing_id, body, undo_of) values (?, ?, ?, ?, ?, ?)")
         .run(at, actor, body.type, thingId, JSON.stringify(body), undoOf);
