@@ -1,0 +1,21 @@
+{
+  "name": "@burrow/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env --watch src/main.ts",
+    "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/main.ts",
+    "sync:homebox": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/sync-homebox.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.107.0",
+    "@burrow/core": "workspace:*",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.19.2"
+  }
+}

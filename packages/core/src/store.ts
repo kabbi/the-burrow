@@ -135,9 +135,10 @@ export class Store {
     return this.mustGet(id);
   }
 
-  move(id: ThingId, to: ThingId | null, actor = "you"): ThingView {
+  move(id: ThingId, to: ThingId | null, actor = "you", source?: FieldSource): ThingView {
     const t = this.mustGetRaw(id);
-    if (t.parentId !== to) this.append({ type: "thing.moved", id, from: t.parentId, to }, actor);
+    if (t.parentId !== to)
+      this.append({ type: "thing.moved", id, from: t.parentId, to, ...(source ? { source } : {}) }, actor);
     return this.mustGet(id);
   }
 
@@ -287,7 +288,8 @@ export class Store {
     return rows.map((r) => ({ id: r.id, name: r.name, kind: r.kind }));
   }
 
-  search(q: string, limit = 20): SearchHit[] {
+  /** Prefix search; `any` = match any word (for fuzzy "related" guesses). */
+  search(q: string, limit = 20, opts: { any?: boolean } = {}): SearchHit[] {
     const hits: SearchHit[] = [];
     const seen = new Set<string>();
     const direct = parseId(q);
@@ -298,7 +300,7 @@ export class Store {
         seen.add(t.id);
       }
     }
-    const match = ftsQuery(q);
+    const match = ftsQuery(q, opts.any);
     if (!match) return hits;
     const rows = this.db
       .prepare(
@@ -575,7 +577,7 @@ export class Store {
       }
       case "thing.moved": {
         const t = this.mustGetRaw(b.id);
-        if (b.to) t.meta.parent = { source: e.actor === "you" ? "you" : "import", at };
+        if (b.to) t.meta.parent = { source: b.source ?? (e.actor === "you" ? "you" : "import"), at };
         else delete t.meta.parent;
         this.db
           .prepare("update things set parent_id = ?, meta = ?, updated_at = ? where id = ?")
@@ -778,14 +780,14 @@ function same(a: unknown, b: unknown) {
 }
 
 /** Turn free text into an FTS5 query: every word must match as a prefix. */
-export function ftsQuery(q: string): string | null {
+export function ftsQuery(q: string, any = false): string | null {
   const words = q
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
     .slice(0, 12);
   if (!words.length) return null;
-  return words.map((w) => `"${w}"*`).join(" ");
+  return words.map((w) => `"${w}"*`).join(any ? " OR " : " ");
 }
 
 function toThing(r: Row): Thing {

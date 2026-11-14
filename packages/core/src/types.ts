@@ -131,7 +131,7 @@ export type EventBody =
       parentId: ThingId | null;
     }
   | { type: "thing.changed"; id: ThingId; changes: FieldChange[] }
-  | { type: "thing.moved"; id: ThingId; from: ThingId | null; to: ThingId | null }
+  | { type: "thing.moved"; id: ThingId; from: ThingId | null; to: ThingId | null; source?: FieldSource }
   | { type: "thing.status"; id: ThingId; from: ThingStatus; to: ThingStatus; note?: string }
   | { type: "thing.confirmed"; id: ThingId; fields: string[]; undo?: boolean }
   | { type: "thing.archived"; id: ThingId; undo?: boolean }
