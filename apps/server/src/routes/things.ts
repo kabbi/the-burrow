@@ -4,6 +4,7 @@ import { UNDOABLE, type FieldSource, type Store } from "@burrow/core";
 import type { Deps } from "../app.ts";
 import { fetchPreview } from "../link-preview.ts";
 import { ThingSuggestion } from "../ai/tasks.ts";
+import { withRef } from "./assets.ts";
 
 const Source = z.enum(["you", "ai", "page", "file", "homebox", "paperless", "import"]);
 const Data = z.record(z.string(), z.unknown());
@@ -59,6 +60,8 @@ export function thingRoutes({ store, ai }: Deps): Router {
         paperlessId: rel.type === "has_document" ? paperlessOf(rel.other.id) : null,
       })),
       tagged: store.kindIs(t.kind, "tag") ? store.taggedWith(t.id, 500) : [],
+      assets: store.assets(t.id).map(withRef),
+      coverId: store.coverId(t.id),
       paperlessId: paperlessOf(t.id),
       events: store
         .events({ thingId: t.id, limit: 50 })

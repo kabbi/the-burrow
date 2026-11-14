@@ -9,6 +9,8 @@ export const config = {
   db: env.BURROW_DB ?? new URL("../../../data/burrow.sqlite", import.meta.url).pathname,
   /** Photos and other files Burrow owns (content-addressed). Served at /media. */
   mediaDir: env.BURROW_MEDIA ?? new URL("../../../data/media", import.meta.url).pathname,
+  /** Stable Fast 3D server (photo → textured .glb). Empty = off. */
+  sf3dUrl: strip(env.SF3D_URL),
   /** Only used by the one-time import script (D-010). */
   homebox: {
     url: strip(env.HOMEBOX_URL),

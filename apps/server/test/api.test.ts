@@ -10,6 +10,31 @@ import type { Prompt, Provider } from "../src/ai/providers.ts";
 import { suggestThingTask } from "../src/ai/tasks.ts";
 import { PaperlessMock } from "../src/adapters/paperless-mock.ts";
 import { parsePreview } from "../src/link-preview.ts";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import sharp from "sharp";
+import { Sf3d } from "../src/adapters/sf3d.ts";
+
+/** Pretends to be Stable Fast 3D: returns a tiny valid-looking GLB. */
+class FakeSf3d extends Sf3d {
+  calls = 0;
+  constructor() {
+    super("http://sf3d.test");
+  }
+  override async health() {
+    return { ok: true, device: "fake", busy: false };
+  }
+  override async generate() {
+    this.calls++;
+    const glb = Buffer.alloc(20);
+    glb.write("glTF", 0, "ascii");
+    glb.writeUInt32LE(2, 4);
+    glb.writeUInt32LE(20, 8);
+    return { glb, seconds: 1.5 };
+  }
+}
+const fakeSf3d = new FakeSf3d();
 
 class FakeAnthropic implements Provider {
   readonly id = "anthropic" as const;
@@ -52,7 +77,12 @@ beforeAll(async () => {
   const store = Store.open(":memory:", aiMigrations);
   const ai = new AiGateway(store.db, [fake]);
   ai.register(suggestThingTask(store));
-  const deps = createDeps(config, { store, ai, paperless: new PaperlessMock(), inboxTagNames: ["inbox"] });
+  // Never write test files into the real media dir.
+  const mediaDir = mkdtempSync(join(tmpdir(), "burrow-media-"));
+  const deps = createDeps(
+    { ...config, mediaDir },
+    { store, ai, paperless: new PaperlessMock(), inboxTagNames: ["inbox"], sf3d: fakeSf3d },
+  );
   server = createApp(deps).listen(0);
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`;
@@ -333,5 +363,97 @@ describe("schema, tags and relations API", () => {
       },
     );
     expect(notTags(gone.body.relations)).toEqual([]);
+  });
+});
+
+describe("assets", () => {
+  const upload = async (id: string, body: Buffer, query: string) => {
+    const res = await fetch(`${base}/things/${id}/assets?${query}`, {
+      method: "POST",
+      headers: { "content-type": "application/octet-stream" },
+      body: new Uint8Array(body),
+    });
+    return { status: res.status, body: (await res.json()) as Record<string, any> };
+  };
+  const png = (w: number, h: number) =>
+    sharp({ create: { width: w, height: h, channels: 3, background: "#c84" } })
+      .png()
+      .toBuffer();
+
+  it("uploads photos, icons and models, picks covers, undoes", async () => {
+    const t = (await call<{ thing: { id: string } }>("POST", "/things", { name: "Drill" })).body.thing;
+    const big = await upload(t.id, await png(1600, 1200), "role=photo&filename=drill.png");
+    expect(big.status).toBe(201);
+    expect(big.body.asset).toMatchObject({ role: "photo", mime: "image/png", width: 1600, height: 1200 });
+    expect(big.body.asset.thumb).toMatch(/\.webp$/);
+    expect(big.body.cover.id).toBe(big.body.asset.id);
+
+    // The file is served from /media with a strict CSP.
+    const file = await fetch(base.replace("/api", "") + big.body.asset.fileUrl);
+    expect(file.status).toBe(200);
+    expect(file.headers.get("content-security-policy")).toContain("default-src 'none'");
+
+    // Icons: search the bundled sets, attach one as an SVG.
+    const icons = await call<{ icons: { set: string; name: string }[] }>("GET", "/icons?q=drill");
+    expect(icons.body.icons.length).toBeGreaterThan(0);
+    const ic = icons.body.icons[0]!;
+    const svg = await fetch(`${base}/icons/${ic.set}/${ic.name}.svg`);
+    expect(await svg.text()).toMatch(/^<svg/);
+    const icon = await call<Record<string, any>>("POST", `/things/${t.id}/assets/icon`, ic);
+    expect(icon.body.asset).toMatchObject({ role: "icon", mime: "image/svg+xml", source: "icons" });
+    expect(icon.body.asset.data.license).toBeTruthy();
+
+    // An STL, even if called a photo, becomes a model; no cover until it has a poster.
+    const stl = Buffer.alloc(84 + 50);
+    stl.writeUInt32LE(1, 80);
+    const model = await upload(t.id, stl, "role=photo&filename=bracket.stl");
+    expect(model.body.asset).toMatchObject({ role: "model", mime: "model/stl", imageUrl: null });
+    const poster = await fetch(`${base}/assets/${model.body.asset.id}/thumb`, {
+      method: "POST",
+      body: new Uint8Array(await png(800, 800)),
+    });
+    const after = (await poster.json()) as Record<string, any>;
+    expect(after.asset.imageUrl).toMatch(/\.webp$/);
+
+    // Choose the icon as the cover; undo goes back to automatic (the photo).
+    const cov = await call<Record<string, any>>("POST", `/things/${t.id}/cover`, {
+      assetId: icon.body.asset.id,
+    });
+    expect(cov.body.cover.id).toBe(icon.body.asset.id);
+    const thing = await call<Record<string, any>>("GET", `/things/${t.id}`);
+    expect(thing.body.thing.cover.id).toBe(icon.body.asset.id);
+    expect(thing.body.assets).toHaveLength(3);
+    await call("POST", `/events/${cov.body.event.seq}/undo`);
+    expect((await call<Record<string, any>>("GET", `/things/${t.id}`)).body.thing.cover.id).toBe(
+      big.body.asset.id,
+    );
+
+    // Remove, rename/re-role, reject junk.
+    const rm = await call<Record<string, any>>("DELETE", `/assets/${big.body.asset.id}`);
+    expect(rm.body.assets).toHaveLength(2);
+    const ch = await call<Record<string, any>>("PATCH", `/assets/${icon.body.asset.id}`, {
+      role: "sprite",
+      label: "inventory",
+    });
+    expect(ch.body.asset).toMatchObject({ role: "sprite", label: "inventory" });
+    expect((await upload(t.id, Buffer.from("hello"), "filename=x.txt")).status).toBe(400);
+  });
+
+  it("makes a 3D model from a photo with Stable Fast 3D", async () => {
+    const t = (await call<{ thing: { id: string } }>("POST", "/things", { name: "Mug" })).body.thing;
+    const photo = await upload(t.id, await png(300, 300), "role=product");
+    const cfg = await call<Record<string, any>>("GET", "/assets/config");
+    expect(cfg.body.sf3d.ok).toBe(true);
+    const gen = await call<Record<string, any>>("POST", `/things/${t.id}/assets/generate-model`, {
+      fromAssetId: photo.body.asset.id,
+    });
+    expect(gen.status).toBe(201);
+    expect(gen.body.asset).toMatchObject({
+      role: "model",
+      mime: "model/gltf-binary",
+      source: "ai",
+      data: { generator: "stable-fast-3d", fromAssetId: photo.body.asset.id },
+    });
+    expect(fakeSf3d.calls).toBe(1);
   });
 });

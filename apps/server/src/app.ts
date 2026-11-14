@@ -15,6 +15,9 @@ import { paperRoutes } from "./routes/papers.ts";
 import { aiRoutes } from "./routes/ai.ts";
 import { dbRoutes } from "./routes/db.ts";
 import { schemaRoutes } from "./routes/schema.ts";
+import { assetRoutes } from "./routes/assets.ts";
+import { Media } from "./media.ts";
+import { Sf3d } from "./adapters/sf3d.ts";
 
 export interface Deps {
   config: Config;
@@ -25,6 +28,8 @@ export interface Deps {
   ollama: OllamaProvider;
   lmstudio: LmStudioProvider;
   anthropic: AnthropicProvider;
+  media: Media;
+  sf3d: Sf3d;
 }
 
 export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
@@ -51,6 +56,8 @@ export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps 
     ollama,
     lmstudio,
     anthropic,
+    media: new Media(config.mediaDir),
+    sf3d: new Sf3d(config.sf3dUrl),
     ...overrides,
   };
 }
@@ -81,17 +88,32 @@ export function createApp(deps: Deps) {
 
   api.use(thingRoutes(deps));
   api.use(schemaRoutes(deps));
+  api.use(assetRoutes(deps));
   api.use(paperRoutes(deps));
   api.use(aiRoutes(deps));
   if (deps.config.dbAdmin) api.use(dbRoutes(deps));
   api.use((_req, res) => res.status(404).json({ error: "Not found" }));
   app.use("/api", api);
 
-  // Files Burrow owns (photos…), content-addressed so they can be cached forever.
+  // Files Burrow owns (photos, models…), content-addressed so they can be cached forever.
+  // Uploaded SVGs could carry scripts: a strict CSP keeps them inert if opened directly.
   mkdirSync(deps.config.mediaDir, { recursive: true });
   app.use(
     "/media",
-    express.static(deps.config.mediaDir, { immutable: true, maxAge: "365d", fallthrough: false }),
+    express.static(deps.config.mediaDir, {
+      immutable: true,
+      maxAge: "365d",
+      fallthrough: false,
+      setHeaders: (res, path) => {
+        res.setHeader("x-content-type-options", "nosniff");
+        res.setHeader(
+          "content-security-policy",
+          "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+        );
+        if (path.endsWith(".glb")) res.setHeader("content-type", "model/gltf-binary");
+        if (path.endsWith(".stl")) res.setHeader("content-type", "model/stl");
+      },
+    }),
   );
 
   // Production: serve the built web app.
