@@ -1,0 +1,76 @@
+# Decisions
+
+Newest at the bottom. Each entry: what, why, what it costs us. Revisit freely, but write down why.
+
+## D-001 · Stack: TypeScript everywhere, pnpm monorepo (2026-11-14)
+
+React 19 + Vite + React Router + TanStack Query on the web; Express 5 + zod on the server; vitest;
+oxlint + oxfmt. The owner's usual stack, and nothing here needs anything more exotic. The server runs
+`.ts` directly through Node 24 type stripping (no build step, no tsx), so code must stay
+"erasable" TypeScript.
+
+## D-002 · Storage: node:sqlite, event log first (2026-11-14)
+
+Node's built-in `node:sqlite` (SQLite 3.50, FTS5, JSON1) avoids native modules. It still prints an
+"experimental" warning, which we silence with `--disable-warning=ExperimentalWarning`. If it ever
+bites, `better-sqlite3` has a near-identical sync API.
+
+The `events` table is the source of truth and the other tables are projections (from the
+brainstorm: "history from day one; adding it later hurts"). The physical "inside" relation is a
+`parent_id` column, not an edge row: exactly one parent is then enforced by the schema, and
+ancestor queries are a simple recursive CTE. Other relations are rows in `edges`.
+
+## D-003 · IDs: `B-` + zero-padded sequence (2026-11-14)
+
+`B-0042`. Short enough to read aloud, type on a phone, print on a 12 mm label, and fit trivially in
+a UHF tag EPC or a tiny QR. Sequential, not random: a home has one server, so there's no
+coordination problem, and enumerable IDs don't matter here. The parser accepts `b42`, `0042`, `42`.
+HomeBox asset IDs (`000-024`) are kept on the external ref and are searchable.
+Considered: ULID / UUID (unreadable), Crockford base32 random (no real benefit at this scale). Maybe
+later: a check digit for hand-typed IDs (ideas.md).
+
+## D-004 · HomeBox and paperless are systems of record; Burrow pulls (2026-11-14)
+
+Burrow owns what nobody else has: the ID registry, links, provenance, history, boards. Items and
+photos live in HomeBox, documents in paperless. For now the HomeBox sync is **pull only**, with
+per-field ownership: a field last written by HomeBox is refreshed, and a field someone changed in
+Burrow is kept. Write-back (`HOMEBOX_WRITE=1`) is a later step that needs a conflict story.
+
+## D-005 · Places are things (2026-11-14)
+
+Rooms, furniture, boxes are things whose kind has `isPlace`. HomeBox v0.27 made the same move
+(items and locations became "entities"). Anything can still contain anything (a case "inside" a
+phone); `isPlace` only drives pickers and gaps.
+
+## D-006 · paperless: metadata only, never content (2026-11-14)
+
+The owner's documents are confidential. Burrow reads titles, dates, tags, correspondents, types and
+page counts, always through an explicit `fields=` allowlist, so the `content` field is never even
+returned. paperless' own `/suggestions/` (its local classifier) is used, but its `dates` field is
+dropped because it is extracted from the text. Thumbnails are proxied to the browser only. Any
+future AI over document text must use a local model (the gateway enforces `confidential` tasks →
+local only).
+Inbox = documents with an inbox tag (paperless' `is_inbox_tag`, or names in `PAPERLESS_INBOX_TAGS`,
+default `inbox`) **plus** documents with no correspondent and no type. The owner's paperless has no
+inbox tag configured, so "untriaged" is what actually fills it.
+
+## D-007 · AI: always quoted, local by default (2026-11-14)
+
+Every AI call is two steps. **Quote** builds the prompt and counts tokens (Anthropic's free
+`count_tokens`; ~3.5 chars/token for local models) and stores the price estimate plus a worst-case
+ceiling (`max_tokens`). **Run** only happens when the person presses the button that shows the price
+(or the ceiling is under `AI_AUTO_APPROVE_USD`, default 0). Each quote runs at most once and
+expires after 15 min. The actual cost is logged from `usage`.
+Default model in the UI: the already-loaded LM Studio model (free, local). Anthropic default is
+`claude-opus-5-5` (effort `low`, structured outputs, server-side fallback to `claude-opus-4-8` on
+refusals); Sonnet and Haiku 5.5 can be picked.
+Local providers are shared GPU machines: only already-loaded/installed models are offered, Burrow
+never pulls or loads models, requests are serialised, ollama gets `keep_alive: 2m`.
+AI output is "accepted by default" (brainstorm rule): it is applied immediately with `source: ai`,
+shown violet, and each line has Right / Wrong. Fields a person set are never overwritten.
+
+## D-008 · UI: one app, lenses as routes (2026-11-14)
+
+From the brainstorm's "Approach A + a bit of C": one web app (a PWA later), screens as routes, a
+shared item card and colour code across screens. Search-first home ("Where's my…") with a small
+dashboard under it, since search is the most common question.

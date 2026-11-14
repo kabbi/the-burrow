@@ -66,16 +66,23 @@ export class HomeBox {
     return getJson<{ health: boolean; build: { version: string } }>("homebox", `${this.url}/api/v1/status`);
   }
 
+  /** All items AND locations (the plain listing leaves locations out). */
   async entities(): Promise<HbEntitySummary[]> {
-    const out: HbEntitySummary[] = [];
-    for (let page = 1; ; page++) {
-      const r = await this.get<{ items: HbEntitySummary[]; total: number }>(
-        `/entities?page=${page}&pageSize=200`,
-      );
-      out.push(...r.items);
-      if (r.items.length < 200 || out.length >= r.total) break;
-    }
-    return out;
+    const types = await this.get<HbEntityType[]>("/entity-types");
+    const locTypes = types.filter((t) => t.isLocation).map((t) => t.id);
+    const byId = new Map<string, HbEntitySummary>();
+    const page = async (extra: string) => {
+      for (let p = 1; ; p++) {
+        const r = await this.get<{ items: HbEntitySummary[]; total: number }>(
+          `/entities?page=${p}&pageSize=200${extra}`,
+        );
+        for (const e of r.items) byId.set(e.id, e);
+        if (r.items.length < 200) break;
+      }
+    };
+    await page("");
+    if (locTypes.length) await page(locTypes.map((id) => `&entityTypeIds=${id}`).join(""));
+    return [...byId.values()];
   }
 
   entity(id: string) {

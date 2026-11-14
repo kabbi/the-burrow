@@ -57,13 +57,21 @@ export function suggestThingTask(store: Store): AiTask<SuggestThingInput, ThingS
         .join("\n");
       const tags = topTags(store, 60).join(", ");
       const system = [
-        "You help catalogue things in a home inventory. Given what a person typed (and maybe a product page summary), fill in the details.",
-        "Be concrete and conservative: leave maker/model null unless they are stated or obvious from the name.",
-        "Never invent serial numbers or prices.",
+        "You catalogue things for a home inventory. A person typed a short name (maybe with a product page summary). Return details that make the thing easy to find and recognise later.",
+        "Rules:",
+        "- name: a clear, specific name; fix capitalisation; keep the person's wording when it is already good.",
+        "- kind: exactly one id from the kinds list (the part before the parentheses).",
+        "- description: 1-2 sentences that add information beyond the name: what it is, what it is used for, notable traits. Never just repeat the name.",
+        "- tags: 3-6 short lowercase tags; reuse existing tags when they fit.",
+        "- maker / model: only when stated or unambiguous from the name, else null. Never invent serial numbers or prices.",
+        "- quantity: only when the input states a count, else null.",
+        "- placeId: an id from the places list only if the name clearly implies where it lives (e.g. a dishwasher → kitchen), else null.",
+        "- question: null unless one multiple-choice question would remove an important ambiguity.",
+        'Example: typed "moka pot" → {"name":"Moka pot","kind":"thing","description":"Stovetop espresso maker that brews strong coffee by pushing steam-pressured water through ground coffee.","tags":["coffee","kitchen","cookware"],"maker":null,"model":null,"quantity":null,"placeId":null,"question":null}',
         `Kinds: ${kinds}.`,
         `Existing tags: ${tags || "(none yet)"}.`,
         `Places (id: path):\n${places || "(none yet)"}`,
-      ].join("\n\n");
+      ].join("\n");
       const user = [
         `Typed: ${input.name}`,
         input.url ? `Link: ${input.url}` : "",

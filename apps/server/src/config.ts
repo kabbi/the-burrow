@@ -24,6 +24,8 @@ export const config = {
   ai: {
     ollamaUrl: strip(env.OLLAMA_URL),
     ollamaModel: env.OLLAMA_MODEL ?? "qwen3.5:9b",
+    lmstudioUrl: strip(env.LMSTUDIO_URL ?? env.LLM_STUDIO_URL),
+    lmstudioModel: env.LMSTUDIO_MODEL ?? "google/gemma-4-31b",
     anthropicKey: env.ANTHROPIC_API_KEY ?? env.ANTROPIC_API_KEY ?? "",
     anthropicModel: env.ANTHROPIC_MODEL ?? "claude-opus-5-5",
     /** Requests quoted at or below this many USD run without asking. 0 = always ask. */

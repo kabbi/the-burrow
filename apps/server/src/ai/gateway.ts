@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Db, Migration } from "@burrow/core";
 import type { z } from "zod";
 import { costUsd } from "./pricing.ts";
-import type { Prompt, Provider } from "./providers.ts";
+import { LOCAL_PROVIDERS, type Prompt, type Provider, type ProviderId } from "./providers.ts";
 
 export const aiMigrations: Migration[] = [
   {
@@ -50,7 +50,7 @@ export interface AiTask<I, O> {
 export interface Quote {
   id: string;
   task: string;
-  provider: Provider["id"];
+  provider: ProviderId;
   model: string;
   confidential: boolean;
   estInputTokens: number;
@@ -83,13 +83,13 @@ const QUOTE_TTL_MS = 15 * 60_000;
  */
 export class AiGateway {
   private db: Db;
-  private providers: Record<Provider["id"], Provider>;
+  private providers: Record<ProviderId, Provider>;
   private tasks = new Map<string, AiTask<unknown, unknown>>();
   private autoApproveUsd: number;
 
   constructor(db: Db, providers: Provider[], opts: { autoApproveUsd?: number } = {}) {
     this.db = db;
-    this.providers = Object.fromEntries(providers.map((p) => [p.id, p])) as Record<Provider["id"], Provider>;
+    this.providers = Object.fromEntries(providers.map((p) => [p.id, p])) as Record<ProviderId, Provider>;
     this.autoApproveUsd = opts.autoApproveUsd ?? 0;
   }
 
@@ -97,11 +97,12 @@ export class AiGateway {
     this.tasks.set(task.id, task as AiTask<unknown, unknown>);
   }
 
-  async quote(taskId: string, input: unknown, provider: Provider["id"], model: string): Promise<Quote> {
+  async quote(taskId: string, input: unknown, provider: ProviderId, model: string): Promise<Quote> {
     const task = this.task(taskId);
     const p = this.providers[provider];
     if (!p?.configured) throw new AiError(`${provider} is not configured`, 503);
-    if (task.confidential && provider !== "ollama")
+    const local = LOCAL_PROVIDERS.has(provider);
+    if (task.confidential && !local)
       throw new AiError("This task reads private documents: only local models are allowed", 403);
     const prompt = await task.build(input);
     const { tokens, exact } = await p.countTokens(prompt, model, task.schema);
@@ -117,9 +118,9 @@ export class AiGateway {
       estInputTokens: tokens,
       estOutputTokens: task.expectedOutputTokens,
       tokensExact: exact,
-      estCostUsd: provider === "ollama" ? null : est,
-      maxCostUsd: provider === "ollama" ? null : max,
-      autoApprove: provider === "ollama" ? false : (max ?? Infinity) <= this.autoApproveUsd,
+      estCostUsd: local ? null : est,
+      maxCostUsd: local ? null : max,
+      autoApprove: !local && (max ?? Infinity) <= this.autoApproveUsd,
       expiresAt: new Date(Date.now() + QUOTE_TTL_MS).toISOString(),
     };
     this.db
@@ -165,7 +166,9 @@ export class AiGateway {
     const prompt = JSON.parse(row.prompt) as Prompt;
     try {
       const out = await this.providers[rec.provider].complete(prompt, rec.model, task.schema, task.maxTokens);
-      const cost = rec.provider === "ollama" ? null : costUsd(out.model, out.inputTokens, out.outputTokens);
+      const cost = LOCAL_PROVIDERS.has(rec.provider)
+        ? null
+        : costUsd(out.model, out.inputTokens, out.outputTokens);
       this.db
         .prepare(
           `update ai_requests set status = 'done', actual_model = ?, actual_input_tokens = ?,
@@ -236,7 +239,7 @@ function toRecord(r: Record<string, unknown>): AiRecord {
   return {
     id: String(r.id),
     task: String(r.task),
-    provider: r.provider as Provider["id"],
+    provider: r.provider as ProviderId,
     model: String(r.model),
     confidential: Number(r.confidential) === 1,
     estInputTokens: Number(r.est_input_tokens),

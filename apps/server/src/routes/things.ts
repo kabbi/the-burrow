@@ -205,12 +205,19 @@ export function applySuggestion(store: Store, id: string, s: ThingSuggestion, re
   put("tags", s.tags.map((x) => x.toLowerCase().trim()).filter(Boolean));
   put("maker", s.maker);
   put("model", s.model);
-  put("quantity", s.quantity);
+  if (s.quantity !== null && s.quantity > 1) put("quantity", s.quantity);
   const patch: { name?: string; kind?: string; data: Record<string, unknown> } = { data };
   if (!reject.has("name") && s.name && s.name !== t.name) patch.name = s.name;
-  if (!reject.has("kind") && !mine("kind") && store.kind(s.kind) && s.kind !== t.kind) patch.kind = s.kind;
+  // Models sometimes answer with the kind's label ("Tool") instead of its id.
+  const kind = store
+    .kinds()
+    .find((k) => k.id === s.kind || k.name.toLowerCase() === s.kind.toLowerCase())?.id;
+  if (!reject.has("kind") && !mine("kind") && kind && kind !== t.kind) patch.kind = kind;
+  const desc = s.description.trim();
+  if (desc.toLowerCase() === s.name.toLowerCase() || desc.toLowerCase() === t.name.toLowerCase())
+    delete data.description;
   const source: FieldSource = "ai";
-  store.change(id, patch, source);
+  store.change(id, patch, source, "ai");
   if (!reject.has("parent") && s.placeId && !t.parentId && store.getRaw(s.placeId)) {
     store.move(id, s.placeId, "ai", "ai");
   }

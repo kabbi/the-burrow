@@ -8,7 +8,7 @@ import { Paperless, PaperlessOff, type PaperlessApi } from "./adapters/paperless
 import { PaperlessMock } from "./adapters/paperless-mock.ts";
 import { UpstreamError } from "./adapters/http.ts";
 import { AiError, AiGateway, aiMigrations } from "./ai/gateway.ts";
-import { AnthropicProvider, OllamaProvider } from "./ai/providers.ts";
+import { AnthropicProvider, LmStudioProvider, OllamaProvider } from "./ai/providers.ts";
 import { suggestThingTask } from "./ai/tasks.ts";
 import { thingRoutes } from "./routes/things.ts";
 import { paperRoutes } from "./routes/papers.ts";
@@ -22,6 +22,7 @@ export interface Deps {
   inboxTagNames: string[];
   ai: AiGateway;
   ollama: OllamaProvider;
+  lmstudio: LmStudioProvider;
   anthropic: AnthropicProvider;
   lastSync: { at: string; report: SyncReport } | null;
 }
@@ -29,8 +30,11 @@ export interface Deps {
 export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
   const store = overrides.store ?? Store.open(config.db, aiMigrations);
   const ollama = new OllamaProvider(config.ai.ollamaUrl);
+  const lmstudio = new LmStudioProvider(config.ai.lmstudioUrl);
   const anthropic = new AnthropicProvider(config.ai.anthropicKey);
-  const ai = new AiGateway(store.db, [ollama, anthropic], { autoApproveUsd: config.ai.autoApproveUsd });
+  const ai = new AiGateway(store.db, [lmstudio, ollama, anthropic], {
+    autoApproveUsd: config.ai.autoApproveUsd,
+  });
   ai.register(suggestThingTask(store));
   const p = config.paperless;
   const paperless: PaperlessApi = p.mock
@@ -46,6 +50,7 @@ export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps 
     inboxTagNames: p.inboxTags.map((s) => s.toLowerCase()),
     ai,
     ollama,
+    lmstudio,
     anthropic,
     lastSync: null,
     ...overrides,

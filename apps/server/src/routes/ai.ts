@@ -3,11 +3,14 @@ import { z } from "zod";
 import type { Deps } from "../app.ts";
 import { ANTHROPIC_MODELS, PRICES } from "../ai/pricing.ts";
 
-export function aiRoutes({ ai, ollama, anthropic, config }: Deps): Router {
+export function aiRoutes({ ai, ollama, lmstudio, anthropic, config }: Deps): Router {
   const r = Router();
 
   r.get("/ai/providers", async (_req, res) => {
-    const models = await ollama.models().catch(() => null);
+    const [models, lms] = await Promise.all([
+      ollama.models().catch(() => null),
+      lmstudio.configured ? lmstudio.models().catch(() => null) : Promise.resolve(null),
+    ]);
     res.json({
       anthropic: {
         configured: anthropic.configured,
@@ -20,6 +23,12 @@ export function aiRoutes({ ai, ollama, anthropic, config }: Deps): Router {
         // embeddings models can't answer questions
         models: (models ?? []).filter((m) => !m.name.includes("embed")),
       },
+      lmstudio: {
+        configured: lmstudio.configured && lms !== null,
+        defaultModel: config.ai.lmstudioModel,
+        // only already-loaded models: picking one never triggers a load
+        models: (lms ?? []).filter((m) => m.loaded),
+      },
       spend: ai.spend(),
       autoApproveUsd: config.ai.autoApproveUsd,
     });
@@ -30,11 +39,17 @@ export function aiRoutes({ ai, ollama, anthropic, config }: Deps): Router {
       .object({
         task: z.string(),
         input: z.unknown(),
-        provider: z.enum(["anthropic", "ollama"]),
+        provider: z.enum(["anthropic", "ollama", "lmstudio"]),
         model: z.string().optional(),
       })
       .parse(req.body);
-    const model = b.model ?? (b.provider === "anthropic" ? config.ai.anthropicModel : config.ai.ollamaModel);
+    const model =
+      b.model ??
+      {
+        anthropic: config.ai.anthropicModel,
+        ollama: config.ai.ollamaModel,
+        lmstudio: config.ai.lmstudioModel,
+      }[b.provider];
     res.json({ quote: await ai.quote(b.task, b.input, b.provider, model) });
   });
 
