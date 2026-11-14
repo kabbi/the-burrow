@@ -9,7 +9,8 @@
     "ai:eval": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/ai-eval.ts",
     "import:homebox": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/import-homebox.ts",
     "migrate:0002": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/migrate-0002.ts",
-    "migrate:0004": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/migrate-0004-assets.ts"
+    "migrate:0004": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/migrate-0004-assets.ts",
+    "import:pcbphoto": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/import-pcbphoto.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.107.0",

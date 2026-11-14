@@ -11,6 +11,7 @@ import { AiSuggest } from "../components/AiSuggest.tsx";
 import { TagEditor } from "../components/Tags.tsx";
 import { Relations } from "../components/Relations.tsx";
 import { Assets, ROLE_LABEL } from "../components/Assets.tsx";
+import { BoardViewer } from "../components/BoardViewer.tsx";
 
 export function Thing() {
   const { id = "" } = useParams();
@@ -124,6 +125,10 @@ export function Thing() {
           </div>
         </div>
       </section>
+
+      {data.assets.some((a) => a.data.view === "top" || a.data.view === "bottom") && (
+        <BoardViewer key={t.id} assets={data.assets} />
+      )}
 
       {!isTag && (
         <Assets

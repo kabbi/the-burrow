@@ -87,10 +87,27 @@ export interface AddAssetInput {
   width?: number;
   height?: number;
   thumb?: string;
+  original?: string;
+  key?: string;
   label?: string;
   source?: FieldSource;
   data?: Record<string, unknown>;
 }
+
+const ASSET_PATCH_KEYS = [
+  "role",
+  "label",
+  "thumb",
+  "file",
+  "mime",
+  "bytes",
+  "width",
+  "height",
+  "original",
+  "key",
+  "data",
+] as const;
+const FILE_RE = /^[\w.-]+$/;
 
 /** Cover fallback order when nobody picked one. Models only count once they have a poster. */
 const COVER_ORDER: AssetRole[] = ["photo", "product", "sprite", "icon", "other", "model"];
@@ -336,6 +353,8 @@ export class Store {
       ...(input.width ? { width: input.width } : {}),
       ...(input.height ? { height: input.height } : {}),
       ...(input.thumb ? { thumb: input.thumb } : {}),
+      ...(input.original ? { original: input.original } : {}),
+      ...(input.key ? { key: input.key } : {}),
       ...(input.label?.trim() ? { label: input.label.trim() } : {}),
       source: input.source ?? "you",
       data: input.data ?? {},
@@ -348,11 +367,12 @@ export class Store {
     const a = this.mustGetAsset(assetId);
     const from: AssetPatch = {};
     const to: AssetPatch = {};
-    for (const k of ["role", "label", "thumb"] as const) {
+    for (const k of ASSET_PATCH_KEYS) {
       if (!(k in patch)) continue;
-      const next = patch[k] === "" ? null : (patch[k] ?? null);
+      const v = patch[k];
+      const next = v === "" ? null : (v ?? null);
       const prev = a[k] ?? null;
-      if (prev === next) continue;
+      if (same(prev, next)) continue;
       (from as Record<string, unknown>)[k] = prev;
       (to as Record<string, unknown>)[k] = next;
     }
@@ -385,6 +405,14 @@ export class Store {
     const a = this.asset(id);
     if (!a) throw new BurrowError(`No asset ${id}`, 404);
     return a;
+  }
+
+  /** The asset a system filed under `key` for this thing (removed ones included). */
+  assetByKey(thingId: ThingId, key: string): Asset | null {
+    const r = this.db.prepare("select * from assets where thing_id = ? and key = ?").get(thingId, key) as
+      | Row
+      | undefined;
+    return r ? toAsset(r) : null;
   }
 
   /** A thing's assets, oldest first. Removed ones only with `removed`. */
@@ -1016,7 +1044,10 @@ export class Store {
         if (!ASSET_ROLES.includes(b.asset.role))
           throw new BurrowError(`Unknown asset role "${b.asset.role}"`);
         if (this.asset(b.asset.id)) throw new BurrowError(`${b.asset.id} already exists`, 409);
-        if (!/^[\w.-]+$/.test(b.asset.file)) throw new BurrowError("Bad asset file name");
+        for (const f of [b.asset.file, b.asset.thumb, b.asset.original])
+          if (f !== undefined && !FILE_RE.test(f)) throw new BurrowError("Bad asset file name");
+        if (b.asset.key && this.assetByKey(b.thingId, b.asset.key))
+          throw new BurrowError(`${b.thingId} already has an asset with key ${b.asset.key}`, 409);
         break;
       case "asset.changed":
       case "asset.removed": {
@@ -1025,7 +1056,14 @@ export class Store {
         if (b.type === "asset.changed") {
           if (b.to.role && !ASSET_ROLES.includes(b.to.role))
             throw new BurrowError(`Unknown asset role "${b.to.role}"`);
-          if (b.to.thumb && !/^[\w.-]+$/.test(b.to.thumb)) throw new BurrowError("Bad thumb file name");
+          for (const f of [b.to.thumb, b.to.file, b.to.original])
+            if (f && !FILE_RE.test(f)) throw new BurrowError("Bad asset file name");
+          if (b.to.file === null) throw new BurrowError("An asset needs a file");
+          if (b.to.key) {
+            const other = this.assetByKey(b.thingId, b.to.key);
+            if (other && other.id !== b.assetId)
+              throw new BurrowError(`${b.thingId} already has an asset with key ${b.to.key}`, 409);
+          }
         }
         break;
       }
@@ -1173,8 +1211,9 @@ export class Store {
         const seq = Number(a.id.replace(/^A-0*/, ""));
         this.db
           .prepare(
-            `insert into assets (id, seq, thing_id, role, file, mime, bytes, width, height, thumb, label, source, data, added_at)
-             values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `insert into assets (id, seq, thing_id, role, file, mime, bytes, width, height, thumb, original, key,
+               label, source, data, added_at)
+             values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             a.id,
@@ -1187,6 +1226,8 @@ export class Store {
             a.width ?? null,
             a.height ?? null,
             a.thumb ?? null,
+            a.original ?? null,
+            a.key ?? null,
             a.label ?? null,
             a.source,
             json(a.data),
@@ -1202,11 +1243,11 @@ export class Store {
         break;
       }
       case "asset.changed":
-        for (const [k, v] of Object.entries(b.to))
-          if (k === "role" || k === "label" || k === "thumb")
-            this.db
-              .prepare(`update assets set ${k} = ? where id = ?`)
-              .run((v as string | null) ?? null, b.assetId);
+        for (const [k, v] of Object.entries(b.to)) {
+          if (!(ASSET_PATCH_KEYS as readonly string[]).includes(k)) continue;
+          const val = k === "data" ? json(v) : ((v as string | number | null) ?? null);
+          this.db.prepare(`update assets set ${k} = ? where id = ?`).run(val, b.assetId);
+        }
         touch(b.thingId);
         break;
       case "asset.removed":
@@ -1450,6 +1491,8 @@ function toAsset(r: Row): Asset {
     ...(r.width != null ? { width: Number(r.width) } : {}),
     ...(r.height != null ? { height: Number(r.height) } : {}),
     ...(r.thumb != null ? { thumb: String(r.thumb) } : {}),
+    ...(r.original != null ? { original: String(r.original) } : {}),
+    ...(r.key != null ? { key: String(r.key) } : {}),
     ...(r.label != null ? { label: String(r.label) } : {}),
     source: r.source as FieldSource,
     data: parse(r.data, {}),
@@ -1463,7 +1506,15 @@ export function assetRef(a: Asset): AssetRef {
   const fileUrl = `/media/${a.file}`;
   const thumbUrl = a.thumb ? `/media/${a.thumb}` : null;
   const imageUrl = a.mime.startsWith("image/") ? fileUrl : thumbUrl;
-  return { id: a.id, role: a.role, mime: a.mime, fileUrl, imageUrl, thumbUrl: thumbUrl ?? imageUrl };
+  return {
+    id: a.id,
+    role: a.role,
+    mime: a.mime,
+    fileUrl,
+    imageUrl,
+    thumbUrl: thumbUrl ?? imageUrl,
+    originalUrl: a.original ? `/media/${a.original}` : null,
+  };
 }
 
 function toThing(r: Row): Thing {

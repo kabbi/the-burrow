@@ -60,7 +60,8 @@ fields HomeBox still owns.
 - `adapters/homebox.ts` + `scripts/import-homebox.ts`: the one-time HomeBox import (D-010): things,
   tag nesting, photos → `data/media`. Not used at runtime.
 - `routes/schema.ts`: kinds, relation types, tags. `routes/db.ts`: the built-in DB browser (D-009).
-- `scripts/`: `ai-eval`, `import-homebox`, `migrate-0002` (tags → tag things).
+- `scripts/`: `ai-eval`, `import-homebox`, `migrate-0002` (tags → tag things), `migrate-0004`
+  (image fields → assets), `import-pcbphoto` (PCB rig photos + originals, D-018).
 - `adapters/paperless.ts`: inbox, taxonomy, the doc's paperless suggestions, PATCH to file, thumbnail
   proxy. Strict `fields=` allowlist (D-006). `paperless-mock.ts` is a fake for UI work.
 - `ai/`: `AiGateway` with registered **tasks** (prompt builder + zod schema), providers
@@ -83,6 +84,7 @@ CSS with tokens in `styles.css`. Self-hosted fonts (Inter, Space Grotesk).
 - `AiSuggest`: quote → show price → run → apply (accepted by default) → violet facts.
 - `Facts`: the kind's declared fields (typed editors) plus extra per-thing fields, with provenance and
   Right / Wrong on AI guesses.
+- `BoardViewer`: both sides of a PCB at true scale (Top / Bottom / X-ray, measure; D-018).
 - `Assets`: the pictures & models panel (upload, camera, link, icon picker, Make 3D model, cover).
   `ModelViewer`: three.js, lazy-loaded; also renders posters for models.
 - `TagEditor` (chips, autocomplete, create, confirm AI tags), `Relations` (typed links both ways),

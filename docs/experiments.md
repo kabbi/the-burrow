@@ -108,3 +108,12 @@ prompt iteration: show tags with usage counts and say "only if it truly describe
 removal on, 1024 px texture, no remesh: **5.1 s**, 367 KB `.glb` with a good texture. The browser
 rendered the poster (three.js, off-screen) and posted it back as the thumb. Real phone photos with
 clutter are the next test: rembg should cope, but expect odd backs on single-view guesses.
+
+## 2026-11-14 · Backfilling the PCB rig's library
+
+`import:pcbphoto` on the dev DB: 191 captures → 97 HomeBox top photos upgraded in place plus 94
+bottoms added, 191 originals; 97 things → `pcb`. 13.5 s; media dir 1.0 GB. A second run changed
+nothing. X-ray on the 1.8" TFT (B-0002): holes and headers line up with no turn. Measuring the full
+image width gives 64.2 mm = 58.2 mm board + 2 × 3 mm margin, so the scale holds. Some bottoms
+report a different board size than their top (e.g. B-0001: top 26.75 mm wide, bottom 13.5 mm, a
+shrink-wrapped board), so Width/Height come from the top capture only.

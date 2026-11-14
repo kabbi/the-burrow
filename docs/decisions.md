@@ -203,3 +203,27 @@ Amends D-007. Quotes for local models (LM Studio, ollama) come back with `autoAp
 still quoted and logged in `ai_requests` (tokens, timing, result), and confidential tasks are still
 local-only. Anthropic requests still show the price and wait for a yes unless the worst case is
 under `AI_AUTO_APPROVE_USD` (0 = always ask).
+
+## D-018 · PCB photos from the rig: both sides, originals, true scale (2026-11-14)
+
+pcb-photo-maker (`~/dev/js/pcb-photo-maker`) shoots each board from both sides at a fixed 20 px/mm,
+cropped and flat-fielded, with the bottom mirrored. It wrote to HomeBox, and Burrow's HomeBox import
+(D-010) only took each item's main picture (the top).
+
+- **Assets** gain `original` (the untouched camera file, kept next to the processed one) and `key` (a
+  stable id from the system that made the asset, unique per thing, e.g. `pcbphoto:<capture id>`).
+  An asset's **file can now be replaced** (`asset.changed` with file/mime/bytes/size/data, undoable),
+  so a re-shot or reprocessed photo updates in place instead of piling up.
+- Rig photos are ordinary `photo` assets with `data.view` (`top`/`bottom`), `pxPerMm`, `widthMm` /
+  `heightMm`, `mirrored`, `captureId`, `capturedAt`, calibration and camera file.
+- **Backfill** (`import:pcbphoto`, idempotent, read-only on the rig): 191 captures (97 top, 94 bottom)
+  matched to things through the HomeBox entity id. The HomeBox top photos were upgraded in place, so
+  they stay the covers. All originals kept (≈1 GB with the processed photos).
+- **`pcb` kind** (extends Electronics, defined as data): Slug, Revision, Width, Height (mm). The 97
+  HomeBox "PCB" entities were moved to it, and `hb_slug`/`hb_revision`/`hb_*_mm` became those fields;
+  size comes from the top capture.
+- **Both sides** panel on the thing page: Top / Bottom / X-ray (the mirrored bottom over the top, with
+  an opacity slider and a 180° turn, since the rig doesn't auto-align rotation yet), and a measure
+  tool (two clicks → mm). Links to both originals.
+- Next (Part 2, when the rig moves off HomeBox): an API for the rig that upserts things and assets by
+  key, resolves place paths, and records the rig as the actor.

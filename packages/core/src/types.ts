@@ -159,6 +159,10 @@ export interface Asset {
   height?: number;
   /** Small preview file (resized photo, rendered poster of a 3D model). */
   thumb?: string;
+  /** The untouched source file (camera original) when `file` is a processed version. */
+  original?: string;
+  /** Stable id from the system that made it ("pcbphoto:<capture>"), unique per thing; re-uploads replace. */
+  key?: string;
   label?: string;
   /** Who made it: you (upload), page (shop), ai (generated), homebox, import… */
   source: FieldSource;
@@ -179,6 +183,8 @@ export interface AssetRef {
   imageUrl: string | null;
   /** A small picture for lists (the thumb, else imageUrl). */
   thumbUrl: string | null;
+  /** The camera original, if kept. */
+  originalUrl: string | null;
 }
 
 /** One place in the Places tree, with how many things are in it (D-016). */
@@ -306,6 +312,16 @@ export interface AssetPatch {
   role?: AssetRole;
   label?: string | null;
   thumb?: string | null;
+  /** Replacing the file (a reprocessed photo) also sets its type, size and dimensions. */
+  file?: string;
+  mime?: string;
+  bytes?: number;
+  width?: number | null;
+  height?: number | null;
+  original?: string | null;
+  key?: string | null;
+  /** Replaces the whole provenance object. */
+  data?: Record<string, unknown>;
 }
 
 export type EventType = EventBody["type"];

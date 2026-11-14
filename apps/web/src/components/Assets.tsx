@@ -183,6 +183,11 @@ export function Assets({
                 ) : (
                   <span className="small muted">no picture yet</span>
                 )}
+                {typeof a.data.view === "string" && (
+                  <span className="small muted">
+                    {a.data.view} side{a.originalUrl ? " · original kept" : ""}
+                  </span>
+                )}
                 {a.source === "ai" && (
                   <span className="small ai-note">made by {String(a.data.generator ?? "AI")}</span>
                 )}
@@ -436,6 +441,11 @@ function Lightbox({ asset, onClose }: { asset: AssetView; onClose: () => void })
             <a className="btn small" href={asset.fileUrl} download>
               Download
             </a>
+            {asset.originalUrl && (
+              <a className="btn small" href={asset.originalUrl} download>
+                Original
+              </a>
+            )}
             <button type="button" className="btn small" onClick={onClose}>
               Close
             </button>

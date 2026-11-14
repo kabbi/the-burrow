@@ -136,6 +136,14 @@ export const coreMigrations: Migration[] = [
     id: "core/005-positions",
     sql: `alter table things add column position text;`,
   },
+  {
+    id: "core/006-asset-originals-keys",
+    sql: `
+      alter table assets add column original text;
+      alter table assets add column key text;
+      create unique index assets_key on assets(thing_id, key) where key is not null;
+    `,
+  },
 ];
 
 export function openDb(path: string, extra: Migration[] = []): Db {

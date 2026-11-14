@@ -62,6 +62,15 @@ Loosely ordered. ✓ = done in some form.
 - Configure a real inbox tag in paperless and file faster with keyboard-only flows (j/k, Enter).
 - Expiry dates from paperless custom fields (`Expiry date`) → heads-up cards.
 
+## PCB rig (D-018)
+
+- Part 2: Burrow API for pcb-photo-maker (replace its HomeBox catalog): things + fields + tags under
+  `PCB`, place paths, asset upsert by key (`PUT …/assets/key/pcbphoto:<id>`), actor header.
+- Exact 3D board model: outline mask → 1.6 mm slab with the top/bottom photos as textures (`.glb`).
+- Search filter "has both sides"; grid hover shows the bottom.
+- Auto-align the bottom's rotation (mask IoU over 0/90/180/270) so X-ray needs no 180° toggle.
+- Read IC markings from the photos with the local VLM, and make them searchable ("every board with a CH340").
+
 ## Places (D-016)
 
 - "Inside, including nested" on a place's page: everything deeper, with the path relative to it.

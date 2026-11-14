@@ -463,3 +463,53 @@ describe("places: positions and tree", () => {
     expect(s.placeTree().unplaced).toBe(1);
   });
 });
+
+describe("asset originals, keys and file replacement", () => {
+  it("replaces a processed file in place, keeps the original, undoes", () => {
+    const s = store();
+    const t = s.createThing({ name: "Pi Zero", kind: "electronics" });
+    const a = s.addAsset(t.id, {
+      role: "photo",
+      file: "proc1.jpg",
+      original: "raw1.jpg",
+      key: "pcbphoto:abc",
+      mime: "image/jpeg",
+      bytes: 100,
+      width: 1300,
+      height: 600,
+      data: { view: "top", pxPerMm: 20 },
+    });
+    expect(s.mustGet(t.id).cover?.originalUrl).toBe("/media/raw1.jpg");
+    expect(s.assetByKey(t.id, "pcbphoto:abc")?.id).toBe(a.id);
+    expect(() =>
+      s.addAsset(t.id, { role: "photo", file: "x.jpg", key: "pcbphoto:abc", mime: "image/jpeg", bytes: 1 }),
+    ).toThrow(/already has an asset with key/);
+
+    s.changeAsset(a.id, {
+      file: "proc2.jpg",
+      bytes: 120,
+      width: 1310,
+      data: { view: "top", pxPerMm: 20, v: 2 },
+    });
+    expect(s.mustGetAsset(a.id)).toMatchObject({
+      file: "proc2.jpg",
+      bytes: 120,
+      width: 1310,
+      original: "raw1.jpg",
+    });
+    expect(() => s.changeAsset(a.id, { file: "../x" })).toThrow(/file name/);
+    const snap = snapshot(s);
+    s.rebuild();
+    expect(snapshot(s)).toEqual(snap);
+    expect(s.mustGetAsset(a.id).data).toEqual({ view: "top", pxPerMm: 20, v: 2 });
+
+    const ev = s.events({ thingId: t.id, types: ["asset.changed"], limit: 1 })[0]!;
+    s.toggleUndo(ev.seq);
+    expect(s.mustGetAsset(a.id)).toMatchObject({
+      file: "proc1.jpg",
+      bytes: 100,
+      width: 1300,
+      data: { view: "top", pxPerMm: 20 },
+    });
+  });
+});
