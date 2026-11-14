@@ -29,6 +29,8 @@ export const EVAL_INPUTS = process.env.EVAL_ONLY
 
 const args = process.argv.slice(2);
 const allowPaid = args.includes("--allow-paid");
+/** Price every request (free token counting) without running anything. */
+const quoteOnly = args.includes("--quote-only");
 const targets = args
   .filter((a) => !a.startsWith("--"))
   .map((a) => {
@@ -49,6 +51,19 @@ const ai = new AiGateway(store.db, [
 ai.register(suggestThingTask(store));
 
 for (const t of targets) {
+  if (quoteOnly) {
+    let est = 0;
+    let max = 0;
+    for (const name of EVAL_INPUTS) {
+      const q = await ai.quote("suggest-thing", { name }, t.provider, t.model);
+      est += q.estCostUsd ?? 0;
+      max += q.maxCostUsd ?? 0;
+    }
+    console.log(
+      `${t.provider}:${t.model}  ${EVAL_INPUTS.length} requests  est $${est.toFixed(4)}  worst case $${max.toFixed(4)}`,
+    );
+    continue;
+  }
   if (!LOCAL_PROVIDERS.has(t.provider) && !allowPaid) {
     console.error(`${t.provider} costs money: re-run with --allow-paid after checking the quote`);
     continue;
