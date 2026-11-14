@@ -308,3 +308,14 @@ describe("field types", () => {
     expect(s.mustGet(p.id).data).toMatchObject({ potSize: "24 cm", toxic: true });
   });
 });
+
+describe("list filters", () => {
+  it("physical: only real things, no tags, documents or places", () => {
+    const s = store();
+    const room = s.createThing({ name: "Office", kind: "room" });
+    const t = s.createThing({ name: "Calipers", kind: "tool", parentId: room.id });
+    s.setTags(t.id, ["measuring"]);
+    s.createThing({ name: "Invoice", kind: "document" });
+    expect(s.list({ physical: true }).map((x) => x.name)).toEqual(["Calipers"]);
+  });
+});

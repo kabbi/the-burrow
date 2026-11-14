@@ -20,7 +20,18 @@ PAPERLESS_MOCK=1 pnpm dev   # same, with a fake paperless (for UI work)
 pnpm --filter @burrow/server import:homebox # one-time HomeBox import (done; idempotent)
 ```
 
-Production: `pnpm build && pnpm start` (the API serves `apps/web/dist`).
+## Production
+
+Runs in Docker from `~/dev/apps/burrow` at https://burrow.example.com (D-014).
+
+```bash
+pnpm prod:deploy           # checks → build burrow:<sha> → back up live DB → restart → health check
+SKIP_CHECKS=1 pnpm prod:deploy
+pnpm prod:logs             # follow the container logs
+```
+
+Data lives in `~/dev/apps/burrow/data` (`burrow.sqlite`, `media/`, `backups/`). Without Docker:
+`pnpm build && pnpm start` (the API serves `apps/web/dist`).
 
 ## Scripts
 

@@ -70,7 +70,7 @@ export function createApp(deps: Deps) {
       stats: store.stats(),
       needsDetails: store.needsDetails(500).length,
       missing: store.list({ limit: 500 }).filter((t) => t.status === "missing"),
-      recentlyAdded: store.list({ places: false, limit: 6 }),
+      recentlyAdded: store.list({ physical: true, limit: 6 }),
       moves: store
         .events({ types: ["thing.moved", "thing.status", "thing.created"], limit: 8 })
         .filter((e) => e.actor === "you" || e.actor === "ai"),

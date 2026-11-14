@@ -299,6 +299,8 @@ export class Store {
       kind?: string;
       parentId?: ThingId | null;
       places?: boolean;
+      /** Only physical, non-place things (no tags, documents, rooms). */
+      physical?: boolean;
       archived?: boolean;
       limit?: number;
       offset?: number;
@@ -319,6 +321,7 @@ export class Store {
         args.push(opts.parentId);
       }
     }
+    if (opts.physical) where.push("kind in (select id from kinds where physical = 1 and is_place = 0)");
     if (opts.places !== undefined)
       where.push(`kind ${opts.places ? "" : "not "}in (select id from kinds where is_place = 1)`);
     const order = opts.order === "name" ? "name collate nocase" : "seq desc";

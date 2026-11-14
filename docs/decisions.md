@@ -129,3 +129,21 @@ descriptions, aliases, custom fields, renames that apply everywhere, and search 
 for free. The link carries provenance (`data.source`), so AI-suggested tags show violet until kept.
 `setTags` takes names and resolves them case-insensitively, aliases included, creating new ones.
 paperless tags stay paperless'. The old `data.tags` lists were converted by `migrate:0002`.
+
+## D-014 · Two instances: dev here, production in Docker (2026-11-14)
+
+- **Dev**: `pnpm dev` in this repo, `data/burrow.sqlite`, usually with `PAPERLESS_MOCK=1`, web on :5180.
+  Free to break.
+- **Production**: the `burrow` container from `~/dev/apps/burrow/docker-compose.yml`, behind traefik
+  at `https://burrow.example.com` (direct: `http://fedora:4200`). Real paperless, LM Studio, ollama
+  and Anthropic. Data in `~/dev/apps/burrow/data` (DB, `media/`, `backups/`). Its database was
+  started fresh from the HomeBox import, not copied from dev, so dev test data never reaches it.
+- **Deploy**: `pnpm prod:deploy` (`scripts/deploy.sh`) runs `pnpm check`, builds `burrow:<git sha>`
+  (marked `-dirty` with uncommitted changes), takes a `VACUUM INTO` backup of the live DB (keeps 30),
+  restarts the stack, and waits until `/api/health` reports the new version. Core migrations run on
+  start, so the pre-deploy backup is the rollback path: stop the container, copy the backup over
+  `data/burrow.sqlite`, then `docker compose up -d` with the previous image tag.
+- Containers can't resolve short hostnames (`fedora` resolves to a link-local IPv6, `worky` not at
+  all), so production uses FQDNs (`fedora.example.com`, `worky.<tailnet>.ts.net`).
+- No login: `burrow.example.com` resolves to the tailnet address, like the other apps. A tinyauth
+  middleware line is ready in the compose file for when tinyauth runs (it isn't deployed today).
