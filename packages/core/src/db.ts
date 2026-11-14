@@ -132,6 +132,10 @@ export const coreMigrations: Migration[] = [
       alter table things add column cover_id text;
     `,
   },
+  {
+    id: "core/005-positions",
+    sql: `alter table things add column position text;`,
+  },
 ];
 
 export function openDb(path: string, extra: Migration[] = []): Db {

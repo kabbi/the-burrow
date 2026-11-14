@@ -1,4 +1,5 @@
 import type {
+  PlaceNode,
   Asset,
   AssetRef,
   AssetRole,
@@ -11,7 +12,7 @@ import type {
   ThingView,
 } from "@burrow/core/types";
 
-export type { AssetRole, BurrowEvent, Kind, KindField, RelationType, RelationView, ThingView };
+export type { PlaceNode, AssetRole, BurrowEvent, Kind, KindField, RelationType, RelationView, ThingView };
 
 /** An asset plus the URLs to draw it. */
 export type AssetView = Asset & AssetRef;
@@ -95,6 +96,8 @@ export interface ThingDetail {
   assets: AssetView[];
   /** The cover someone chose (null: automatic). */
   coverId: string | null;
+  /** Spots already used in this thing's place ("shelf 1"…), for suggestions. */
+  spots: string[];
   paperlessId: string | null;
   events: (BurrowEvent & { undoable: boolean })[];
 }

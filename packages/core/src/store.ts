@@ -17,6 +17,7 @@ import type {
   Kind,
   KindField,
   PathSegment,
+  PlaceNode,
   RelationType,
   RelationView,
   TagRef,
@@ -166,10 +167,33 @@ export class Store {
     return this.mustGet(id);
   }
 
-  move(id: ThingId, to: ThingId | null, actor = "you", source?: FieldSource): ThingView {
+  /**
+   * Put a thing inside another (or nowhere). `position` is the spot inside it ("shelf 3"):
+   * undefined keeps the current spot when staying put and clears it when moving elsewhere.
+   */
+  move(
+    id: ThingId,
+    to: ThingId | null,
+    actor = "you",
+    source?: FieldSource,
+    position?: string | null,
+  ): ThingView {
     const t = this.mustGetRaw(id);
-    if (t.parentId !== to)
-      this.append({ type: "thing.moved", id, from: t.parentId, to, ...(source ? { source } : {}) }, actor);
+    const pos = position === undefined ? (t.parentId === to ? t.position : null) : position?.trim() || null;
+    const spot = to ? pos : null;
+    if (t.parentId !== to || t.position !== spot)
+      this.append(
+        {
+          type: "thing.moved",
+          id,
+          from: t.parentId,
+          to,
+          ...(source ? { source } : {}),
+          ...(spot ? { position: spot } : {}),
+          ...(t.position ? { fromPosition: t.position } : {}),
+        },
+        actor,
+      );
     return this.mustGet(id);
   }
 
@@ -477,18 +501,89 @@ export class Store {
       .toSorted((a, b) => a.path.localeCompare(b.path));
   }
 
+  /**
+   * Every place with item counts (direct and nested), for the Places tree.
+   * Sorted by spot then name, numbers in order ("shelf 2" before "shelf 10").
+   */
+  placeTree(): { places: PlaceNode[]; unplaced: number } {
+    const kinds = new Map(this.kinds().map((k) => [k.id, k]));
+    const rows = this.db
+      .prepare("select id, name, kind, parent_id, position, status from things where archived_at is null")
+      .all() as {
+      id: string;
+      name: string;
+      kind: string;
+      parent_id: string | null;
+      position: string | null;
+      status: ThingStatus;
+    }[];
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const nodes = new Map<string, PlaceNode>();
+    for (const r of rows)
+      if (kinds.get(r.kind)?.isPlace)
+        nodes.set(r.id, {
+          id: r.id,
+          name: r.name,
+          kind: r.kind,
+          parentId: r.parent_id,
+          position: r.position,
+          cover: this.cover(r.id),
+          items: 0,
+          total: 0,
+          status: r.status,
+        });
+    let unplaced = 0;
+    for (const r of rows) {
+      const k = kinds.get(r.kind);
+      if (!k || k.isPlace || !k.physical) continue;
+      if (!r.parent_id) {
+        unplaced++;
+        continue;
+      }
+      const direct = nodes.get(r.parent_id);
+      if (direct) direct.items++;
+      for (let p: string | null = r.parent_id, n = 0; p && n < 64; p = byId.get(p)?.parent_id ?? null, n++) {
+        const node = nodes.get(p);
+        if (node) node.total++;
+      }
+    }
+    const cmp = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+    const places = [...nodes.values()].toSorted(
+      (a, b) => cmp.compare(a.position ?? "", b.position ?? "") || cmp.compare(a.name, b.name),
+    );
+    return { places, unplaced };
+  }
+
+  /** Spots already used inside a place, for suggestions ("shelf 1", "shelf 2"…). */
+  positionsIn(parentId: ThingId): string[] {
+    return (
+      this.db
+        .prepare(
+          "select distinct position from things where parent_id = ? and position is not null and archived_at is null",
+        )
+        .all(parentId) as { position: string }[]
+    )
+      .map((r) => r.position)
+      .toSorted(new Intl.Collator(undefined, { numeric: true }).compare);
+  }
+
   path(id: ThingId): PathSegment[] {
     const rows = this.db
       .prepare(
-        `with recursive up(id, parent_id, name, kind, depth) as (
-           select id, parent_id, name, kind, 0 from things where id = ?
+        `with recursive up(id, parent_id, name, kind, position, depth) as (
+           select id, parent_id, name, kind, position, 0 from things where id = ?
            union all
-           select t.id, t.parent_id, t.name, t.kind, up.depth + 1
+           select t.id, t.parent_id, t.name, t.kind, t.position, up.depth + 1
            from things t join up on t.id = up.parent_id where up.depth < 64
-         ) select id, name, kind from up where depth > 0 order by depth desc`,
+         ) select id, name, kind, position from up where depth > 0 order by depth desc`,
       )
       .all(id) as unknown as PathSegment[];
-    return rows.map((r) => ({ id: r.id, name: r.name, kind: r.kind }));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      kind: r.kind,
+      ...(r.position ? { position: r.position } : {}),
+    }));
   }
 
   /** Prefix search; `any` = match any word (for fuzzy "related" guesses). */
@@ -880,6 +975,8 @@ export class Store {
         break;
       case "thing.moved":
         needThing(b.id);
+        if (b.position && b.position.length > 80)
+          throw new BurrowError("Keep the spot short (80 characters)");
         if (b.to) {
           needThing(b.to);
           // "inside" rules: exactly one parent (a column), and no loops.
@@ -1015,8 +1112,8 @@ export class Store {
         if (b.to) t.meta.parent = { source: b.source ?? (e.actor === "you" ? "you" : "import"), at };
         else delete t.meta.parent;
         this.db
-          .prepare("update things set parent_id = ?, meta = ?, updated_at = ? where id = ?")
-          .run(b.to, json(t.meta), at, b.id);
+          .prepare("update things set parent_id = ?, position = ?, meta = ?, updated_at = ? where id = ?")
+          .run(b.to, b.to ? (b.position ?? null) : null, json(t.meta), at, b.id);
         this.reindexTree(b.id);
         break;
       }
@@ -1183,8 +1280,17 @@ export class Store {
           }),
         };
       }
-      case "thing.moved":
-        return { type: "thing.moved", id: b.id, from: this.mustGetRaw(b.id).parentId, to: b.from };
+      case "thing.moved": {
+        const t = this.mustGetRaw(b.id);
+        return {
+          type: "thing.moved",
+          id: b.id,
+          from: t.parentId,
+          to: b.from,
+          ...(b.fromPosition ? { position: b.fromPosition } : {}),
+          ...(t.position ? { fromPosition: t.position } : {}),
+        };
+      }
       case "thing.status":
         return { type: "thing.status", id: b.id, from: this.mustGetRaw(b.id).status, to: b.from };
       case "thing.confirmed":
@@ -1275,8 +1381,8 @@ export class Store {
     const body = [id, ...values, ...tags, ...refs]
       .filter((x) => x !== undefined && x !== null && x !== "")
       .join(" \n ");
-    const path = this.path(id)
-      .map((p) => p.name)
+    const path = [...this.path(id).flatMap((p) => [p.name, p.position ?? ""]), t.position ?? ""]
+      .filter(Boolean)
       .join(" ");
     this.db
       .prepare("insert into things_fts (id, name, body, path) values (?, ?, ?, ?)")
@@ -1369,6 +1475,7 @@ function toThing(r: Row): Thing {
     data: parse(r.data, {}),
     meta: parse(r.meta, {}),
     parentId: (r.parent_id as string | null) ?? null,
+    position: (r.position as string | null) ?? null,
     status: r.status as ThingStatus,
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),

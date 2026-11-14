@@ -411,3 +411,55 @@ describe("assets", () => {
     expect(snap(s)).toEqual(live);
   });
 });
+
+describe("places: positions and tree", () => {
+  it("keeps a spot inside the parent, with undo, search and rebuild", () => {
+    const s = store();
+    const room = s.createThing({ name: "Living room", kind: "room" });
+    const ivar = s.createThing({ name: "IVAR", kind: "furniture", parentId: room.id });
+    const crate = s.createThing({ name: "Crate", kind: "container", parentId: ivar.id });
+    const box = s.createThing({ name: "Modubox", kind: "container", parentId: crate.id });
+    const leds = s.createThing({
+      name: "LEDs 5 mm",
+      kind: "electronics",
+      parentId: box.id,
+      data: { quantity: 10 },
+    });
+
+    s.move(crate.id, ivar.id, "you", undefined, " shelf 3 ");
+    expect(s.mustGet(crate.id).position).toBe("shelf 3");
+    expect(s.mustGet(leds.id).path.map((p) => [p.name, p.position ?? null])).toEqual([
+      ["Living room", null],
+      ["IVAR", null],
+      ["Crate", "shelf 3"],
+      ["Modubox", null],
+    ]);
+    expect(s.search("shelf 3").map((h) => h.thing.id)).toContain(leds.id);
+
+    // Same parent, no position given: the spot stays. Another parent: it's cleared.
+    s.move(crate.id, ivar.id);
+    expect(s.mustGet(crate.id).position).toBe("shelf 3");
+    s.move(crate.id, ivar.id, "you", undefined, "shelf 4");
+    const ev = s.events({ thingId: crate.id, types: ["thing.moved"], limit: 1 })[0]!;
+    s.toggleUndo(ev.seq);
+    expect(s.mustGet(crate.id).position).toBe("shelf 3");
+    s.move(crate.id, room.id);
+    expect(s.mustGet(crate.id).position).toBeNull();
+    s.move(crate.id, ivar.id, "you", undefined, "shelf 3");
+    s.move(box.id, crate.id, "you", undefined, "front left");
+    expect(s.positionsIn(ivar.id)).toEqual(["shelf 3"]);
+    expect(() => s.move(box.id, crate.id, "you", undefined, "x".repeat(81))).toThrow(/short/);
+
+    const snap = snapshot(s);
+    s.rebuild();
+    expect(snapshot(s)).toEqual(snap);
+
+    const tree = s.placeTree();
+    const n = (id: string) => tree.places.find((p) => p.id === id)!;
+    expect(n(room.id)).toMatchObject({ items: 0, total: 1 });
+    expect(n(box.id)).toMatchObject({ items: 1, total: 1, position: "front left" });
+    expect(n(crate.id)).toMatchObject({ items: 0, total: 1, parentId: ivar.id, position: "shelf 3" });
+    s.createThing({ name: "Loose screwdriver", kind: "tool" });
+    expect(s.placeTree().unplaced).toBe(1);
+  });
+});

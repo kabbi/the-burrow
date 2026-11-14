@@ -457,3 +457,36 @@ describe("assets", () => {
     expect(fakeSf3d.calls).toBe(1);
   });
 });
+
+describe("places tree and spots", () => {
+  it("moves with a spot and lists places with counts", async () => {
+    const mk = async (name: string, kind: string, parentId?: string) =>
+      (
+        await call<{ thing: { id: string } }>("POST", "/things", {
+          name,
+          kind,
+          ...(parentId ? { parentId } : {}),
+        })
+      ).body.thing.id;
+    const room = await mk("Tree room", "room");
+    const ivar = await mk("Tree IVAR", "furniture", room);
+    const crate = await mk("Tree crate", "container", ivar);
+    await mk("Tree LEDs", "electronics", crate);
+    const mv = await call<Record<string, any>>("POST", `/things/${crate}/move`, {
+      to: ivar,
+      position: "shelf 3",
+    });
+    expect(mv.body.thing.position).toBe("shelf 3");
+    expect(mv.body.event.body).toMatchObject({
+      type: "thing.moved",
+      from: ivar,
+      to: ivar,
+      position: "shelf 3",
+    });
+    const tree = await call<{ places: any[]; unplaced: number }>("GET", "/places/tree");
+    expect(tree.body.places.find((p) => p.id === room)).toMatchObject({ total: 1, items: 0 });
+    expect(tree.body.places.find((p) => p.id === crate)).toMatchObject({ items: 1, position: "shelf 3" });
+    const detail = await call<Record<string, any>>("GET", `/things/${crate}`);
+    expect(detail.body.spots).toEqual(["shelf 3"]);
+  });
+});

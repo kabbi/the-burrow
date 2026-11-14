@@ -62,6 +62,13 @@ Loosely ordered. ✓ = done in some form.
 - Configure a real inbox tag in paperless and file faster with keyboard-only flows (j/k, Enter).
 - Expiry dates from paperless custom fields (`Expiry date`) → heads-up cards.
 
+## Places (D-016)
+
+- "Inside, including nested" on a place's page: everything deeper, with the path relative to it.
+- Quantity split across places (one thing, several stock entries), e.g. 6 LEDs here, 4 there.
+- Touch drag & drop on the Places tree (HTML5 DnD is desktop-only), or a "move here" mode on phones.
+- Print a label sheet for a container and everything in it.
+
 ## Assets (D-015)
 
 - Sprite generation: a local image model (ComfyUI / SDXL on the GPU box) that turns a photo or icon

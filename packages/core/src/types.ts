@@ -35,6 +35,8 @@ export interface Thing {
   /** Per-field provenance. Keys: "name", "kind", "parent", or a data key. */
   meta: Record<string, FieldMeta>;
   parentId: ThingId | null;
+  /** Where exactly inside the parent: "shelf 3", "top left". Set with the move (D-016). */
+  position: string | null;
   status: ThingStatus;
   createdAt: string;
   updatedAt: string;
@@ -119,6 +121,8 @@ export interface PathSegment {
   id: ThingId;
   name: string;
   kind: string;
+  /** This segment's spot inside the previous one ("shelf 3"). */
+  position?: string | null;
 }
 
 export interface ThingView extends Thing {
@@ -175,6 +179,21 @@ export interface AssetRef {
   imageUrl: string | null;
   /** A small picture for lists (the thumb, else imageUrl). */
   thumbUrl: string | null;
+}
+
+/** One place in the Places tree, with how many things are in it (D-016). */
+export interface PlaceNode {
+  id: ThingId;
+  name: string;
+  kind: string;
+  parentId: ThingId | null;
+  position: string | null;
+  cover: AssetRef | null;
+  /** Things (not places) directly inside. */
+  items: number;
+  /** Things inside, at any depth. */
+  total: number;
+  status: ThingStatus;
 }
 
 export interface TagRef {
@@ -240,7 +259,16 @@ export type EventBody =
       parentId: ThingId | null;
     }
   | { type: "thing.changed"; id: ThingId; changes: FieldChange[] }
-  | { type: "thing.moved"; id: ThingId; from: ThingId | null; to: ThingId | null; source?: FieldSource }
+  | {
+      type: "thing.moved";
+      id: ThingId;
+      from: ThingId | null;
+      to: ThingId | null;
+      source?: FieldSource;
+      /** Spot inside `to` (D-016); absent in old events = none. */
+      position?: string | null;
+      fromPosition?: string | null;
+    }
   | { type: "thing.status"; id: ThingId; from: ThingStatus; to: ThingStatus; note?: string }
   | { type: "thing.confirmed"; id: ThingId; fields: string[]; undo?: boolean }
   | { type: "thing.archived"; id: ThingId; undo?: boolean }

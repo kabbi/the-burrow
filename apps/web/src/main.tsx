@@ -16,6 +16,7 @@ import { AiLog } from "./pages/AiLog.tsx";
 import { Db } from "./pages/Db.tsx";
 import { Schema } from "./pages/Schema.tsx";
 import { TagsPage } from "./pages/TagsPage.tsx";
+import { Places } from "./pages/Places.tsx";
 import { ToastProvider } from "./lib/toast.tsx";
 
 const queryClient = new QueryClient({
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
     children: [
       { path: "/", element: <Home /> },
       { path: "/add", element: <Add /> },
+      { path: "/places", element: <Places /> },
       { path: "/t/:id", element: <Thing /> },
       { path: "/papers", element: <Papers /> },
       { path: "/later", element: <Later /> },

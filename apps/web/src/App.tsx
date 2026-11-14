@@ -47,6 +47,7 @@ export function Layout() {
           <NavLink to="/" end>
             Find
           </NavLink>
+          <NavLink to="/places">Places</NavLink>
           <NavLink to="/papers">
             Papers
             {data?.papers.inbox ? <span className="count">{data.papers.inbox}</span> : null}

@@ -62,6 +62,8 @@ export function thingRoutes({ store, ai }: Deps): Router {
       tagged: store.kindIs(t.kind, "tag") ? store.taggedWith(t.id, 500) : [],
       assets: store.assets(t.id).map(withRef),
       coverId: store.coverId(t.id),
+      /** Spots already used in this thing's place, for suggestions. */
+      spots: t.parentId ? store.positionsIn(t.parentId) : [],
       paperlessId: paperlessOf(t.id),
       events: store
         .events({ thingId: t.id, limit: 50 })
@@ -134,8 +136,14 @@ export function thingRoutes({ store, ai }: Deps): Router {
   });
 
   r.post("/things/:id/move", (req, res) => {
-    const { to } = z.object({ to: z.string().nullable() }).parse(req.body);
-    const t = store.move(req.params.id, to);
+    const b = z
+      .object({
+        to: z.string().nullable(),
+        /** Spot inside `to` ("shelf 3"); omitted = keep when staying, clear when moving. */
+        position: z.string().max(80).nullable().optional(),
+      })
+      .parse(req.body);
+    const t = store.move(req.params.id, b.to, "you", undefined, b.position);
     // Putting something somewhere by hand means you know where it is.
     if (t.status === "missing") store.setStatus(t.id, "ok", "placed by hand");
     res.json({
@@ -176,6 +184,7 @@ export function thingRoutes({ store, ai }: Deps): Router {
   });
 
   r.get("/places", (_req, res) => res.json({ places: store.places() }));
+  r.get("/places/tree", (_req, res) => res.json(store.placeTree()));
 
   r.get("/kinds", (_req, res) => res.json({ kinds: store.kinds() }));
 

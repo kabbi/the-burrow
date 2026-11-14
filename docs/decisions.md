@@ -175,3 +175,23 @@ screens), `model` (3D: `.glb` or `.stl`) and `other`. One of them is the **cover
   `model` asset with `source: ai` and `data.generator` / `data.fromAssetId`.
 - The old `data.imageUrl` / `data.thumbUrl` fields were converted by `migrate:0004` (HomeBox photos →
   `photo` assets).
+
+## D-016 · Place hierarchy: spots, Places tree, compact paths (2026-11-14)
+
+"Inside" stays a single parent per thing (the `parent_id` column, loop-checked), so moving a box
+moves everything in it as one undoable event. Containers are places: rooms, furniture and boxes are
+things with their own B-number.
+
+- **Spot (position)**: optional short free text saying where a thing sits inside its parent ("shelf
+  3", "front left"). It belongs to the thing inside and is part of its move: `thing.moved` carries
+  `position` / `fromPosition`, and the projection is `things.position`. Moving to another place
+  clears it unless you give a new one. Changing only the spot is a move to the same parent, so it has
+  history and undo too. Spots are searchable (they're indexed with the path). Suggestions come from
+  spots already used in the same place. Shelves only need to be real things if you want to label them.
+- **Paths** show spots after the parent: `Living Room › IVAR · shelf 3 › Crate · front left ›
+  Modubox`. Cards use a **compact** path (room, "…", last two steps); "…" expands, and the full path
+  is in the tooltip. The thing page shows the full path plus a spot editor.
+- **Places page** (`/places`, `GET /places/tree`): a tree of all places, sorted by spot then name with
+  numbers in order, showing nested and direct item counts. Opening a place lists the things directly
+  in it (loaded lazily). Drag a place or a thing onto another place to move it, or onto "take it out"
+  to unplace it. Which nodes are open is remembered per browser.

@@ -351,7 +351,7 @@ function JustSaved({ saved, onUndo }: { saved: Saved; onUndo: () => void }) {
         <div className="stack grow" style={{ gap: 6 }}>
           <strong style={{ fontSize: 20, fontFamily: "var(--font-display)" }}>{t.name}</strong>
           <StatusLine thing={t} />
-          <PathView thing={t} />
+          <PathView thing={t} compact />
           {t.archivedAt && <span className="muted">Undone — it’s archived.</span>}
         </div>
       </div>

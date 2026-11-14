@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import type { ThingView } from "../lib/api.ts";
 import { post } from "../lib/api.ts";
@@ -23,18 +24,53 @@ export function Thumb({ thing, big }: { thing: Pick<ThingView, "name" | "cover">
   );
 }
 
-export function PathView({ thing }: { thing: ThingView }) {
-  if (!thing.path.length) return null;
+/**
+ * Where a thing is: Living room › IVAR · shelf 3 › Crate. A spot ("shelf 3") belongs to the
+ * thing inside, so it is shown after its parent. `compact` keeps the room and the last two
+ * steps (Living room › … › Crate › Modubox); "…" expands, the full path is in the tooltip.
+ */
+export function PathView({
+  thing,
+  compact,
+}: {
+  thing: Pick<ThingView, "path" | "position" | "status">;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const path = thing.path;
+  if (!path.length) return null;
+  const spotAfter = (i: number) => (i + 1 < path.length ? path[i + 1]!.position : thing.position) ?? null;
+  const full = path.map((p, i) => p.name + (spotAfter(i) ? ` (${spotAfter(i)})` : "")).join(" › ");
+  const fold = compact && !open && path.length > 3;
+  const shown = fold ? [0, path.length - 2, path.length - 1] : path.map((_, i) => i);
   return (
-    <span className={`path${thing.status === "missing" ? " gone" : ""}`}>
-      {thing.path.map((p, i) => (
-        <span key={p.id} className="row" style={{ gap: 4 }}>
-          {i > 0 && <span className="sep">›</span>}
-          <Link className="seg" to={`/t/${p.id}`}>
-            {p.name}
-          </Link>
-        </span>
-      ))}
+    <span className={`path${thing.status === "missing" ? " gone" : ""}`} title={full}>
+      {shown.map((i, k) => {
+        const p = path[i]!;
+        const spot = spotAfter(i);
+        return (
+          <span key={p.id} className="row" style={{ gap: 4 }}>
+            {k > 0 && <span className="sep">›</span>}
+            {fold && k === 1 && (
+              <>
+                <button
+                  type="button"
+                  className="seg more"
+                  aria-label={`Show full path: ${full}`}
+                  onClick={() => setOpen(true)}
+                >
+                  …
+                </button>
+                <span className="sep">›</span>
+              </>
+            )}
+            <Link className="seg" to={`/t/${p.id}`}>
+              {p.name}
+              {spot && <span className="spot">{spot}</span>}
+            </Link>
+          </span>
+        );
+      })}
     </span>
   );
 }
@@ -94,7 +130,7 @@ export function ThingCard({ thing, compact }: { thing: ThingView; compact?: bool
           </Link>
         </div>
         <StatusLine thing={thing} />
-        <PathView thing={thing} />
+        <PathView thing={thing} compact />
         {!compact && (
           <div className="row" style={{ marginTop: 4 }}>
             {thing.status === "missing" ? (

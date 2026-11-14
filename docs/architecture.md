@@ -2,7 +2,7 @@
 
 ```
             ┌──────────── apps/web (Vite + React) ────────────┐
-            │ Find · Add · Thing · Papers · Needs details ·   │
+            │ Find · Places · Add · Thing · Papers · Needs details · │
             │ Tags · Schema · Database · AI log               │
             └───────────────┬─────────────────────────────────┘
                             │ /api (JSON)
@@ -30,7 +30,7 @@ with inheritance and typed fields, relation types, tags as things (D-013).
   `edge.added`, `kind.defined`, …).
 - **Projections**, rebuilt by `Store.rebuild()` from the log:
   - `things`: id, kind, name, `data` (JSON own fields), `meta` (per-field provenance), `parent_id`
-    (the single physical "inside" parent), status, timestamps.
+    (the single physical "inside" parent), `position` (spot inside it, D-016), status, timestamps.
   - `edges`: typed links between things, validated against `relation_types` (`tagged`,
     `has_document`, `accessory_of`, `part_of`, `replaces`, `related`, plus your own).
   - `relation_types`: name / inverse, allowed kinds per end, one-or-many, symmetric.
@@ -87,5 +87,6 @@ CSS with tokens in `styles.css`. Self-hosted fonts (Inter, Space Grotesk).
   `ModelViewer`: three.js, lazy-loaded; also renders posters for models.
 - `TagEditor` (chips, autocomplete, create, confirm AI tags), `Relations` (typed links both ways),
   `ThingSearch` (shared finder).
-- Pages: Schema (kinds, fields, link types), Tags (tree), Database (D-009).
+- Pages: Places (tree with counts, drag to move; D-016), Schema (kinds, fields, link types),
+  Tags (tree), Database (D-009). `PathView` shows spots and folds long paths on cards.
 - Toasts carry Undo for 10 s; every change is also undoable from history.

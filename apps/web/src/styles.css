@@ -1105,3 +1105,117 @@ img.contain {
   object-fit: contain;
   padding: 18%;
 }
+
+/* ---------------------------------------------------------------- places (D-016) */
+.path .seg .spot {
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid var(--line-2);
+}
+.path .seg.more {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  color: var(--muted);
+}
+.path {
+  row-gap: 6px;
+}
+.places-tree,
+.places-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.places-tree ul {
+  margin-left: 22px;
+  border-left: 1px solid var(--line);
+  padding-left: 10px;
+}
+.place-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  min-height: 44px;
+}
+.place-row:hover {
+  background: var(--tint);
+}
+.place-row.drop {
+  background: var(--sunk);
+  outline: 2px dashed var(--main);
+}
+.place-row .thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.place-row .name {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+.place-row .name:hover {
+  text-decoration: underline;
+}
+.twisty {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  flex: none;
+  border-radius: 6px;
+}
+.twisty:hover {
+  background: var(--sunk);
+}
+.twisty[disabled] {
+  visibility: hidden;
+}
+.spot-chip {
+  font-size: 12px;
+  color: var(--ink-2);
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.count-chip {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  min-height: 36px;
+  font-size: 14px;
+}
+.item-row a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.item-row a:hover {
+  text-decoration: underline;
+}
+.item-row .thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+[draggable="true"] {
+  cursor: grab;
+}

@@ -53,6 +53,7 @@ export function Thing() {
             <h1 style={{ fontSize: 30 }}>{t.name}</h1>
             {physical && <StatusLine thing={t} />}
             <PathView thing={t} />
+            {t.parentId && <SpotEditor thing={t} spots={data.spots} />}
             {!isTag && <TagEditor thing={t} />}
             <div className="row" style={{ marginTop: 6 }}>
               <button type="button" className="btn main" onClick={() => setMoving((m) => !m)}>
@@ -191,6 +192,77 @@ export function Thing() {
   );
 }
 
+/** "Where exactly inside": a short free-text spot kept with the move (D-016). */
+function SpotEditor({ thing, spots }: { thing: ThingDetail["thing"]; spots: string[] }) {
+  const act = useAction();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(thing.position ?? "");
+  const parent = thing.path.at(-1)?.name ?? "its place";
+  const save = (position: string | null) => {
+    setEditing(false);
+    if ((position ?? "") === (thing.position ?? "")) return;
+    void act(
+      () => post(`/things/${thing.id}/move`, { to: thing.parentId, position }),
+      position ? `Spot: ${position}` : "Spot cleared",
+    );
+  };
+  if (!editing)
+    return (
+      <span className="row small" style={{ gap: 6 }}>
+        {thing.position ? (
+          <span className="muted">
+            Spot in {parent}: <strong style={{ color: "var(--ink)" }}>{thing.position}</strong>
+          </span>
+        ) : null}
+        <button
+          type="button"
+          className="btn small ghost"
+          onClick={() => {
+            setValue(thing.position ?? "");
+            setEditing(true);
+          }}
+        >
+          {thing.position ? "Change spot" : `Where in ${parent}?`}
+        </button>
+      </span>
+    );
+  return (
+    <form
+      className="row"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save(value.trim() || null);
+      }}
+    >
+      <input
+        className="input"
+        style={{ maxWidth: 260, minHeight: 36 }}
+        autoFocus
+        list="spot-suggestions"
+        maxLength={80}
+        placeholder="shelf 3, top left, back…"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+        aria-label={`Spot in ${parent}`}
+      />
+      <datalist id="spot-suggestions">
+        {spots.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+      <button type="submit" className="btn small main">
+        Save
+      </button>
+      {thing.position && (
+        <button type="button" className="btn small ghost" onClick={() => save(null)}>
+          Clear
+        </button>
+      )}
+    </form>
+  );
+}
+
 /** Tags nest under other tags (their "parent"), using the same inside-relation as places. */
 function TagParentPicker({ id, onDone }: { id: string; onDone: () => void }) {
   const act = useAction();
@@ -230,7 +302,8 @@ function label(e: BurrowEvent): string {
     case "thing.changed":
       return `Changed ${b.changes.map((c) => c.field.replace(/^data\./, "")).join(", ")}`;
     case "thing.moved":
-      return b.to ? "Moved" : "Taken out of its place";
+      if (b.to && b.to === b.from) return b.position ? `Spot: ${b.position}` : "Spot cleared";
+      return b.to ? (b.position ? `Moved (${b.position})` : "Moved") : "Taken out of its place";
     case "thing.status":
       return b.to === "missing" ? "Reported missing" : b.to === "ok" ? "Found" : "Marked not checked";
     case "thing.confirmed":
