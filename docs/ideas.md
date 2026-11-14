@@ -64,8 +64,14 @@ Loosely ordered. ✓ = done in some form.
 
 ## Core / platform
 
+- Delete / retire kinds and link types (with a check that nothing uses them), and rename field keys.
+- Show HomeBox's extra fields (`hb_slug`, `hb_width_mm`…) as declared fields on Electronics, or
+  migrate them to proper keys.
+- A dev/test DB (`BURROW_DB`) for mock-paperless UI tests, so they never touch the real data.
+- More link types as needed (charger for, lent to, belongs to); smart sets = saved searches.
+
 - Check digit on IDs for hand-typed labels (Damm algorithm).
-- HomeBox write-back (create items, set the Burrow ID as a custom field), with conflict handling.
+- (Retired with HomeBox, D-010) HomeBox write-back. Only revisit as a push-only mirror if useful.
 - Label printing (QR + ID); HomeBox has a labelmaker endpoint.
 - PWA + offline read-only cache for the phone.
 - Websocket/SSE live updates when readers start producing events.

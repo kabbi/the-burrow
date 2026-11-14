@@ -12,6 +12,7 @@ import {
 } from "../lib/api.ts";
 import { timeAgo, useDebounced, useRefresh } from "../lib/hooks.ts";
 import { useToast } from "../lib/toast.tsx";
+import { PlacePicker } from "../components/PlacePicker.tsx";
 
 type Folder =
   | { kind: "inbox" }
@@ -352,6 +353,20 @@ function DocPanel({ id, tax, onFiled }: { id: number; tax: Taxonomy; onFiled: ()
         </div>
         <ThingFinder onPick={(t) => !curThings.some((x) => x.id === t.id) && setThings([...curThings, t])} />
       </div>
+
+      <PlacePicker
+        label="Paper copy is in (binder, drawer…) — leave empty if there's no paper copy"
+        value={data.entity?.parentId ?? null}
+        onChange={async (placeId) => {
+          try {
+            await post(`/papers/docs/${id}/place`, { placeId });
+            toast({ text: placeId ? "Paper copy location saved" : "Marked as no paper copy" });
+            await refresh();
+          } catch (e) {
+            toast({ text: (e as Error).message, error: true });
+          }
+        }}
+      />
 
       <div className="row">
         <button type="button" className="btn main" onClick={file} disabled={busy}>

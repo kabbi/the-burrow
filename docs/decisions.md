@@ -29,7 +29,7 @@ HomeBox asset IDs (`000-024`) are kept on the external ref and are searchable.
 Considered: ULID / UUID (unreadable), Crockford base32 random (no real benefit at this scale). Maybe
 later: a check digit for hand-typed IDs (ideas.md).
 
-## D-004 · HomeBox and paperless are systems of record; Burrow pulls (2026-11-14)
+## D-004 · HomeBox and paperless are systems of record; Burrow pulls (2026-11-14) — superseded for HomeBox by D-010
 
 Burrow owns what nobody else has: the ID registry, links, provenance, history, boards. Items and
 photos live in HomeBox, documents in paperless. For now the HomeBox sync is **pull only**, with
@@ -86,3 +86,46 @@ an extra process and a third-party download. Easy to add later if the built-in o
 Caveat shown in the UI: tables derived from the log lose direct edits on rebuild. Lasting fixes go
 through the app or the `events` table. Turn off with `BURROW_DB_ADMIN=0`. There is no auth: Burrow
 is a LAN app for now (ideas: auth before exposing it beyond the LAN).
+
+## D-010 · Burrow is the system of record for physical things; HomeBox dropped (2026-11-14)
+
+Supersedes D-004 for HomeBox. Two-way sync is expensive (conflicts, echo loops, deletes, schema
+mismatch), and once Burrow holds every entity HomeBox adds little. So Burrow implements what we need
+itself. A one-time import (`pnpm --filter @burrow/server import:homebox`, read-only and idempotent)
+brought over things, tag nesting and photos (into `data/media`, content-addressed, served at
+`/media`). The live sync and image proxy are gone. Push-only mirroring can come back later if it
+proves useful. HomeBox refs stay on things as history.
+
+## D-011 · paperless stays the source of truth for documents (2026-11-14)
+
+paperless owns the document: file, OCR, title, tags, correspondent. Burrow links to it and enriches
+it. A `document` thing (kind `document`, not physical) is created on first link or enrichment
+(filing it onto a thing, recording where the paper copy is), never for all documents up front. It
+holds the cached title (refreshed when paperless changes it, unless edited in Burrow), the paperless
+ref, and our own fields. A paper copy's location is simply its place (e.g. inside a binder
+container). There are no HomeBox-style items per sheet of paper. The privacy rules of D-006 still
+apply.
+
+## D-012 · Schema as data: kinds, typed fields, relation types (2026-11-14)
+
+The core must be a general system of record for home things, so its schema lives in the event log:
+
+- **Kinds** have `parent` (inherit fields; a child's field overrides a parent's with the same key)
+  and two traits: `isPlace` (things go inside it) and `physical` (a missing place is a gap). A
+  definition with a built-in id overrides the seed and becomes user-owned.
+- **Fields** are typed: text, longtext, number, money, date, boolean, url, select (options), list,
+  ref (another thing, optionally of a kind). Declared fields are validated on every write;
+  undeclared fields stay free-form, per thing. Removing a field from a kind never deletes values.
+- **Relation types**: name + inverse name, allowed kinds on each end (with inheritance), `one` or
+  `many`, `symmetric`. Edges are validated against them. "Inside" stays special: the single-parent
+  `parent_id` column, with loop checks.
+  Edited from the Schema page. Kinds and relation types can't be deleted yet.
+
+## D-013 · Tags are things (2026-11-14)
+
+Our own tag system, meant to outgrow HomeBox's and paperless'. A tag is a thing of kind `tag`
+attached by the built-in `tagged` relation. That gives nesting (via the inside relation),
+descriptions, aliases, custom fields, renames that apply everywhere, and search through parent tags
+for free. The link carries provenance (`data.source`), so AI-suggested tags show violet until kept.
+`setTags` takes names and resolves them case-insensitively, aliases included, creating new ones.
+paperless tags stay paperless'. The old `data.tags` lists were converted by `migrate:0002`.

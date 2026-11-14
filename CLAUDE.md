@@ -13,9 +13,14 @@ park ideas in `docs/ideas.md`.
 - **AI costs money.** Every model call goes through `AiGateway` (quote → run). Never run an Anthropic
   request without showing the person the quoted price first. Local models (LM Studio, ollama) are
   shared GPU boxes: use already-loaded models only, never pull or load models, one request at a time.
-- HomeBox is read-only from Burrow (`HOMEBOX_WRITE=0`) until write-back is agreed on.
+- Burrow is the system of record for physical things; HomeBox is retired (D-010). paperless remains
+  the source of truth for documents; Burrow only links and enriches (D-011).
 - All writes to the core go through `Store` methods (they append events). Never `UPDATE` projection
-  tables directly.
+  tables directly (the /db browser can, but warns: a rebuild discards such edits).
+- Schema changes (kinds, fields, link types) are data: use the Schema page / `defineKind` /
+  `defineRelation`, not code. Tags are things: `setTags` / `ensureTag`, never a `data.tags` list.
+- Testing against the mock paperless writes to the real DB: don't file/link mock docs there.
+- Back up the DB with `VACUUM INTO` before any migration script.
 
 ## Conventions
 
