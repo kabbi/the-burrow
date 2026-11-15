@@ -168,8 +168,8 @@ screens), `model` (3D: `.glb` or `.stl`) and `other`. One of them is the **cover
   gets one rendered off-screen the next time its thing is opened.
 - Uploads are the raw request body (`POST /things/:id/assets?role=…&filename=…`), not multipart.
   Shop pictures are downloaded (`/assets/from-url`) rather than hot-linked, so they never break.
-- **Icons**: Tabler (MIT), Lucide (ISC) and Material Design Icons (Apache-2.0, added 2026-11-15 for
-  electronics: LEDs, resistors, chips) bundled as Iconify JSON and searched by name on the server.
+- **Icons**: Material Design Icons (Apache-2.0) bundled as Iconify JSON and searched by name and
+  alias on the server (D-022).
   Item names never leave the box. The SVG is stored as a normal asset, with the license in `data`.
 - **3D generation**: Stable Fast 3D (`~/dev/tools/stable-fast-3d/server.py`, fedora:8765, CUDA) via
   `SF3D_URL`. Local and free, about 5 s per model. One request at a time from Burrow. The result is a
@@ -325,3 +325,12 @@ of width and loses context as it gets deeper. The Places page now has a **Tree /
   peeking in.
 - No new API: the column lists use the same `/places/tree` and `/things?parent=` queries (and cache)
   as the tree.
+
+## D-022 · One icon set: Material Design Icons (2026-11-15)
+
+The picker bundled Tabler, Lucide and MDI, and a search like "box" or "plug" returned the same
+pictogram three times in slightly different strokes. Now only MDI is bundled: it is the largest
+(~7.6k icons), the only one with electronics (LEDs, resistors, chips), and one consistent filled
+style. MDI aliases are searched but fold into their real icon, so each picture shows once.
+Lost: a few Lucide/Tabler-only shapes (notably `drill`). Icons already picked are unaffected: the
+SVG is stored in the asset.

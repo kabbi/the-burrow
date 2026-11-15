@@ -69,7 +69,7 @@ fields HomeBox still owns.
   schema), price table, `ai_requests` log (D-007). Prompts may carry pictures (media file names,
   loaded at send time).
 - `media.ts`: content-addressed files, type sniffing, thumbnails (sharp). `icons.ts`: bundled
-  Tabler/Lucide search. `routes/assets.ts`: upload, from-url, icon, cover, poster, 3D generation via
+  Material Design Icons search. `routes/assets.ts`: upload, from-url, icon, cover, poster, 3D generation via
   `adapters/sf3d.ts` (Stable Fast 3D on the local GPU).
 - `link-preview.ts`: OpenGraph / JSON-LD product reading (free, no AI).
 - `vision.ts`: "looks like" search: DINOv2-small vectors on the CPU (onnxruntime-web), cached per

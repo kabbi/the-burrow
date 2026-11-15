@@ -357,7 +357,7 @@ function LinkAdder({ onAdd }: { onAdd: (url: string) => Promise<void> }) {
   );
 }
 
-/** Search the bundled open-source icon sets (Tabler, Lucide). Nothing leaves the server. */
+/** Search the bundled icon set (Material Design Icons). Nothing leaves the server. */
 function IconPicker({ initial, onPick }: { initial: string; onPick: (set: string, name: string) => void }) {
   const [q, setQ] = useState(initial);
   const dq = useDebounced(q, 200);
@@ -373,7 +373,7 @@ function IconPicker({ initial, onPick }: { initial: string; onPick: (set: string
         autoFocus
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="drill, plug, box…"
+        placeholder="hammer, plug, box…"
         aria-label="Search icons"
       />
       <div className="icon-grid">
@@ -392,9 +392,7 @@ function IconPicker({ initial, onPick }: { initial: string; onPick: (set: string
           <span className="muted small">No icons match — try a simpler word.</span>
         )}
       </div>
-      <span className="muted small">
-        Icons: Tabler (MIT), Lucide (ISC) and Material Design Icons (Apache-2.0).
-      </span>
+      <span className="muted small">Icons: Material Design Icons (Apache-2.0).</span>
     </div>
   );
 }

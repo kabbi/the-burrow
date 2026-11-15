@@ -394,7 +394,7 @@ describe("assets", () => {
     expect(file.headers.get("content-security-policy")).toContain("default-src 'none'");
 
     // Icons: search the bundled sets, attach one as an SVG.
-    const icons = await call<{ icons: { set: string; name: string }[] }>("GET", "/icons?q=drill");
+    const icons = await call<{ icons: { set: string; name: string }[] }>("GET", "/icons?q=hammer");
     expect(icons.body.icons.length).toBeGreaterThan(0);
     const ic = icons.body.icons[0]!;
     const svg = await fetch(`${base}/icons/${ic.set}/${ic.name}.svg`);
