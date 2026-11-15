@@ -381,3 +381,26 @@ and headless Chrome gets a captcha too. Your own browser passes, so it reads the
 Costs: desktop only (bookmarklets are awkward on phones); captures are lost on restart; anyone on
 the network can post a capture (same as the rest of the open `/api`). A shop with a strict CSP
 `form-action` would block the post. Shop pictures on a protected CDN may still fail to download.
+
+## D-025 · Thing page: two columns, quieter AI, grouped toasts (2026-11-15)
+
+The thing page was one 890 px column on wide screens: the board viewer and the picture tiles (each
+with a role select, × and "Use as cover") took most of the height, the AI box was a big violet
+block, ten empty "— add" rows, a full row for "Where in …?", and 15 history rows with Undo buttons.
+Confirming five AI guesses stacked five toasts.
+
+- **Layout**: header across the top; then main (board viewer, facts, Inside / Tagged) and a 300–380 px
+  side (pictures, links, history). A place shows Inside above its facts. Under 980 px it's one
+  column with pictures right after the header (the columns are `display: contents`).
+- **Header**: status, path and a small "+ spot" chip on one line (the spot already shows in the path).
+- **Pictures**: thumbnails only; ☆/★ on the tile sets or marks the cover; role, cover and remove live
+  in the lightbox. Uploads come in as "our photo" (no "upload as" select; change it on the picture).
+- **AI**: `AiSuggest compact` is a model picker + "Suggest details" in the facts header; the price box
+  opens below only when quoting a paid model. With 2+ unconfirmed guesses an "All right" bar confirms
+  them all (one event).
+- **Facts**: empty optional fields fold into one "Add: Maker · Link · …" line; wanted fields stay.
+- **Toasts**: `useAction(fn, text, { group })` merges rapid similar actions into one toast ("Confirmed
+  Maker, Model · removed Price"); its Undo reverts them all, newest first. Used by Right / Wrong and
+  tag ✓. `POST /things/:id/confirm` now returns its event, so confirms are undoable from a toast.
+- **Links**: the add form opens from "+ link to another thing". **History**: newest 8, "Show all",
+  undo as a small link.

@@ -165,3 +165,10 @@ phones the review rows stack (checkbox | label, value); empty cells and "—" ar
 - Kept: the bookmarklet (D-024). Checked end to end with agent-browser: it captured title and
   picture from a page into the dev Add screen. Not yet tried on Maisons du Monde itself (headless
   is blocked there); try in a real browser.
+
+## 2026-11-15 · Thing page redesign (D-025)
+
+Checked with agent-browser at 1440 and 390 px on a PCB (board viewer + 2 photos), the asset demo
+axe (4 assets), the PCB tag (97 tagged) and B-0108 (AI guesses). Two quick Rights → one toast
+"Confirmed name, Description"; its Undo reverted both (meta back to unconfirmed). Grouping only
+spans 10 s, so slow clicking still gives separate toasts.

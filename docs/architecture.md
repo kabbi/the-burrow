@@ -93,17 +93,20 @@ CSS with tokens in `styles.css`. Self-hosted fonts (Inter, Space Grotesk).
   always available).
 - `PlacePicker`: type-to-filter over full paths, create a place inline (inside the selected one).
 - `AiSuggest`: quote → show price → run → apply (accepted by default) → violet facts. `autoStart`
-  quotes on mount; `keep` lists fields it must not change.
+  quotes on mount; `keep` lists fields it must not change; `compact` fits a panel header.
 - `LinkEnrich` (D-023): product link → page preview → per-field review → `from-page` (one Undo) →
   optional AI follow-up. On the thing page (button or paste) and under Needs details cards.
 - `Facts`: the kind's declared fields (typed editors) plus extra per-thing fields, with provenance and
   Right / Wrong on AI guesses.
 - `BoardViewer`: both sides of a PCB at true scale (Top / Bottom / X-ray, measure; D-018).
-- `Assets`: the pictures & models panel (upload, camera, link, icon picker, Make 3D model, cover).
+- `Assets`: the pictures & models panel (upload, camera, link, icon picker, Make 3D model, ☆ cover);
+  role / cover / remove per picture in its lightbox.
   `ModelViewer`: three.js, lazy-loaded; also renders posters for models.
 - `TagEditor` (chips, autocomplete, create, confirm AI tags), `Relations` (typed links both ways),
   `ThingSearch` (shared finder).
 - API page (`/integrations`): tokens, and the reference rendered from `/api/v1/openapi.json`.
 - Pages: Places (tree with counts, drag to move, D-016; or Finder-style columns, D-021), Schema (kinds, fields, link types),
   Tags (tree), Database (D-009). `PathView` shows spots and folds long paths on cards.
-- Toasts carry Undo for 10 s; every change is also undoable from history.
+- Toasts carry Undo for 10 s; every change is also undoable from history. `useAction`'s `group`
+  merges rapid similar actions into one toast whose Undo reverts them all (D-025).
+- Thing page (D-025): header, then main (board, facts, inside) + side (pictures, links, history).
