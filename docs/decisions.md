@@ -231,7 +231,7 @@ cropped and flat-fielded, with the bottom mirrored. It wrote to HomeBox, and Bur
 
 ## D-019 · Telegram photo bot: add things from a photo (2026-11-14)
 
-Send the bot a photo (or an album: several photos of one thing). After ~7 s it answers
+Send the bot a photo (an album was "several photos of one thing" until D-029: now it's a batch). After ~7 s it answers
 with one menu:
 
 - **🎯 "Looks like your X"** (with where it lives) when one thing clearly matches, else **🆕 the AI's
@@ -489,3 +489,30 @@ From the second pass on the design canvas.
 - **Fewer buttons**: Find's jobs are whole-row links with a chevron (no inner button); activity Undo
   is a quiet link shown on hover; Tidy's AI rows keep only "All right"; the pictures panel folds its
   five add buttons behind one "+ Photo, picture, icon or 3D model" line.
+
+## D-029 · Telegram: an album is a batch of things; no "which place?" prompt (2026-11-15)
+
+Adding a shelf's worth of things one photo at a time, with a menu each, was slow. Now:
+
+- **Several photos at once = several things.** Every photo becomes a new thing straight away, with no
+  questions: named "Photo from Telegram" (name and kind marked AI, so they show up as unchecked
+  guesses), the photo as its cover. Then, **one photo at a time** (the local model is a shared GPU
+  box), the local AI names it, picks a kind, writes a description and tags, all violet until
+  confirmed. The look-alike search runs too and leaves the batch's own things out. Only the local model
+  runs: when it's away the things keep the placeholder name and the message says why (no Claude: that
+  would need a quote per photo, see ideas).
+- **One message for the batch**, updated as guesses come in: a numbered list with links, kind, place,
+  and 🎯 "looks like your X" when one clearly matches. Fixes:
+  - reply **"2 dog nail clipper"** to rename one. Your name wins, and the AI's other **unchecked**
+    guesses (description, maker, model, AI tags, kind), made for what it *thought* it was, are
+    redone by the local AI with your name as the caption. They are dropped if the local AI is away.
+    Confirmed values and your own stay. The same goes for ✏️ Rename on a single photo.
+  - tap a number → that photo's own menu (place, rename, undo; "📎 It's 1: X" when it looks like
+    something you have: archives the new thing and adds the photo to X);
+  - **📍 All in…** places every new thing of the batch; **🔗 It's all one thing** undoes the batch and
+    runs the old one-thing flow with all the photos; **↩️ Undo all** archives them.
+  - On the web, the guesses are ordinary AI facts (✓ ✕ on the thing page, Tidy up's AI checks).
+- **No "Which place?" prompt.** The place picker used to send a second force-reply message every
+  time. Now the picker's own message says "or reply to this message with a place": a reply to the menu
+  is the answer (the session's `prompt_id` is the menu itself). Plain text is still search.
+- Cost: an album of one thing now takes a tap (🔗) instead of being the default.

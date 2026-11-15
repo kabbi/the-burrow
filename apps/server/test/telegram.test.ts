@@ -22,6 +22,7 @@ class FakeVision implements Provider {
   readonly id: ProviderId;
   readonly configured = true;
   fail = false;
+  answer: Record<string, unknown> = {};
   calls: { task: string; images: number; noThinking: boolean }[] = [];
   constructor(id: ProviderId) {
     this.id = id;
@@ -42,6 +43,7 @@ class FakeVision implements Provider {
       quantity: null,
       placeId: null,
       lookFor: ["glue gun", "glue", "hot melt"],
+      ...this.answer,
     };
     return { output: schema.parse(output), model, inputTokens: 1000, outputTokens: 100 };
   }
@@ -69,6 +71,10 @@ class FakeTelegram implements BotApi {
   /** The last "reply to me" prompt. */
   promptId() {
     return this.calls.filter((c) => JSON.stringify(c.params).includes("force_reply")).at(-1)!.id;
+  }
+  /** The message the last menu edit went to. */
+  menuId() {
+    return Number(this.calls.filter((c) => c.method.startsWith("editMessage")).at(-1)!.params.message_id);
   }
   async sendPhoto(_chat: number, _photo: Buffer, params: Record<string, unknown>): Promise<TgMessage> {
     return this.call("sendPhoto", params);
@@ -109,6 +115,14 @@ const photo = (caption?: string): TgUpdate => ({
     ...(caption ? { caption } : {}),
   },
 });
+const album = (n: number): TgUpdate[] => {
+  const group = `g${upd}`;
+  return Array.from({ length: n }, () => {
+    const u = photo();
+    u.message!.media_group_id = group;
+    return u;
+  });
+};
 const press = (data: string): TgUpdate => ({
   update_id: upd++,
   callback_query: {
@@ -130,8 +144,9 @@ const text = (t: string, replyTo?: number): TgUpdate => ({
       : {}),
   },
 });
-async function send(u: TgUpdate) {
-  await bot.handle(u);
+async function send(u: TgUpdate | TgUpdate[]) {
+  for (const x of [u].flat()) await bot.handle(x);
+  await new Promise((r) => setTimeout(r, 5)); // the album timer
   await bot.idle();
 }
 const sessionId = () => Number(tg.buttons()[0]!.split(":")[0]);
@@ -202,11 +217,86 @@ describe("telegram photo bot", () => {
     expect(t.cover).not.toBeNull();
     expect(t.parentId).toBeNull(); // never placed by guess
 
+    const before = tg.calls.length;
     await send(press(`${sid}:P`));
-    await send(text("garage, top shelf", tg.promptId()));
+    // No extra "which place?" message: you reply to the menu itself.
+    expect(tg.calls.slice(before).some((c) => c.method === "sendMessage")).toBe(false);
+    await send(text("garage, top shelf", tg.menuId()));
     const moved = deps.store.mustGet(t.id);
     expect(moved.parentId).toBe(garage);
     expect(moved.position).toBe("top shelf");
+  });
+
+  it("adds an album as one new thing per photo, without asking", async () => {
+    looks.hits = [];
+    await send(album(3));
+    expect(local.calls).toHaveLength(3); // one at a time, one photo each
+    const made = deps.store.list({ limit: 50 }).filter((x) => x.name === "Hot glue gun");
+    expect(made).toHaveLength(3);
+    for (const t of made) {
+      expect(t.meta.name?.source).toBe("ai"); // violet until you say it's right
+      expect(t.kind).toBe("tool");
+      expect(t.cover).not.toBeNull();
+    }
+    const summary = String(tg.last("editMessageText")!.text);
+    expect(summary).toContain("3 new things");
+    expect(summary).toContain("2 dog nail clipper");
+  });
+
+  it("fixes a wrong guess from the batch: your name, details redone", async () => {
+    looks.hits = [];
+    await send(album(2));
+    const batchMenu = tg.menuId();
+    const second = deps.store.list({ limit: 50 }).filter((x) => x.name === "Hot glue gun")[0]!;
+    local.answer = {
+      name: "Dog nail clipper",
+      kind: "thing",
+      description: "Trims a dog's nails.",
+      tags: ["dog"],
+    };
+    await send(text("2 dog nail clipper", batchMenu));
+    const t = deps.store.mustGet(second.id);
+    expect(t.name).toBe("dog nail clipper");
+    expect(t.meta.name?.source).toBe("you");
+    expect(t.data.description).toBe("Trims a dog's nails.");
+    expect(t.tags.map((x) => x.name)).toEqual(["dog"]); // the glue gun's tags are gone
+    expect(String(tg.last("editMessageText")!.text)).toContain("dog nail clipper");
+  });
+
+  it("puts a whole batch in one place, or makes it one thing after all", async () => {
+    looks.hits = [];
+    await send(album(2));
+    const sid = Number(
+      tg
+        .buttons()
+        .find((b) => b.endsWith(":P"))!
+        .split(":")[0],
+    );
+    await send(press(`${sid}:P`));
+    await send(text("garage", tg.menuId()));
+    const made = deps.store.list({ limit: 50 }).filter((x) => x.name === "Hot glue gun");
+    expect(made.map((x) => x.parentId)).toEqual([garage, garage]);
+
+    await send(press(`${sid}:1`));
+    expect(deps.store.list({ limit: 50 }).filter((x) => x.name === "Hot glue gun")).toHaveLength(0);
+    expect(tg.buttons()).toContain(`${sid}:n`); // the one-thing menu
+    await send(press(`${sid}:n`));
+    const one = deps.store.list({ limit: 50 }).filter((x) => x.name === "Hot glue gun");
+    expect(one).toHaveLength(1);
+    expect(deps.store.assets(one[0]!.id)).toHaveLength(2);
+  });
+
+  it("flags a batch photo that looks like a thing you have; one tap moves it there", async () => {
+    await send(album(2));
+    expect(String(tg.last("editMessageText")!.text)).toContain("looks like your");
+    const item = tg.buttons().find((b) => b.endsWith(":o"))!;
+    await send(press(item));
+    const cid = item.split(":")[0];
+    expect(tg.buttons()).toContain(`${cid}:m:${glue}`);
+    const made = deps.store.list({ limit: 50 }).filter((x) => x.name === "Hot glue gun").length;
+    await send(press(`${cid}:m:${glue}`));
+    expect(deps.store.assets(glue)).toHaveLength(2);
+    expect(deps.store.list({ limit: 50 }).filter((x) => x.name === "Hot glue gun")).toHaveLength(made - 1);
   });
 
   it("names it yourself", async () => {

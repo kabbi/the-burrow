@@ -10,6 +10,7 @@ import { esc, type BotApi, type Keyboard, type TgCallback, type TgMessage, type 
 // (add the photo to it / show where it is). Matching is by looks (vision.ts, CPU) plus the
 // local vision model's description;
 // Claude is only used after the person taps a button that shows its price.
+// An album is a batch (D-029): one new thing per photo straight away, guesses filled in afterwards.
 
 export const telegramMigrations: Migration[] = [
   {
@@ -41,7 +42,7 @@ export const telegramMigrations: Migration[] = [
   },
 ];
 
-type Status = "looking" | "quote" | "ready" | "added" | "attached" | "discarded" | "failed";
+type Status = "looking" | "quote" | "ready" | "added" | "attached" | "discarded" | "failed" | "batch";
 type Photo = Pick<Ingested, "file" | "mime" | "bytes" | "width" | "height" | "thumb">;
 
 interface Session {
@@ -60,7 +61,18 @@ interface Session {
   menuPhoto: boolean;
   promptId: number | null;
   awaiting: "name" | "rename" | "place" | null;
-  extra: { spot?: string; placeOptions?: string[] };
+  extra: {
+    spot?: string;
+    placeOptions?: string[];
+    /** A batch's photos, one session each (D-029). */
+    items?: number[];
+    /** The batch this photo came in. */
+    batchOf?: number;
+    /** Still waiting for the AI and the look-alike search. */
+    pending?: boolean;
+    /** Why the batch went without AI. */
+    noAi?: string;
+  };
   error: string | null;
 }
 
@@ -74,6 +86,8 @@ const SEARCH_POOL = 12;
 const LOOKS_MIN = 0.5;
 const LOOKS_SAME = 0.85;
 const LOOKS_LEAD = 0.04;
+/** A batch thing's name until the AI (or you) names it. */
+const PLACEHOLDER = "Photo from Telegram";
 
 export interface BotOptions {
   /** How long to wait for the rest of an album (ms). */
@@ -135,7 +149,7 @@ export class PhotoBot {
       const id = m.media_group_id;
       const timer = setTimeout(() => {
         this.albums.delete(id);
-        this.track(this.newSession(msgs));
+        this.track(msgs.length > 1 ? this.newBatch(msgs) : this.newSession(msgs));
       }, this.albumDelayMs);
       this.albums.set(id, { msgs, timer });
       return;
@@ -149,6 +163,8 @@ export class PhotoBot {
     if (replyTo) {
       const s = this.findByPrompt(m.chat.id, replyTo);
       if (s) return this.onAnswer(s, text);
+      const b = this.findBatch(m.chat.id, replyTo);
+      if (b) return this.onBatchReply(b, text);
     }
     if (/^\/(start|help)\b/.test(text)) return this.send(m.chat.id, HELP);
     const q = text.replace(/^\/find(@\w+)?\s*/, "").trim();
@@ -175,32 +191,10 @@ export class PhotoBot {
     const chatId = first.chat.id;
     const caption = msgs.map((m) => m.caption?.trim()).find(Boolean) ?? null;
     const status = await this.send(chatId, "🔍 Looking…", { reply_to_message_id: first.message_id });
-    const now = new Date().toISOString();
-    const r = this.store.db
-      .prepare(
-        `insert into tg_sessions (chat_id, created_at, updated_at, status, caption, menu_id)
-         values (?, ?, ?, 'looking', ?, ?)`,
-      )
-      .run(chatId, now, now, caption, status.message_id);
-    const s = this.load(Number(r.lastInsertRowid))!;
+    const s = this.insert(chatId, "looking", caption, status.message_id);
     try {
       const photos: Photo[] = [];
-      for (const m of msgs) {
-        const fileId = m.photo?.at(-1)?.file_id ?? m.document!.file_id;
-        const f = await this.deps.media.ingest(
-          await this.api.download(fileId),
-          m.document?.file_name ?? "photo.jpg",
-        );
-        if (f.kind !== "image") throw new Error("That file isn't a picture");
-        photos.push({
-          file: f.file,
-          mime: f.mime,
-          bytes: f.bytes,
-          ...(f.width ? { width: f.width } : {}),
-          ...(f.height ? { height: f.height } : {}),
-          ...(f.thumb ? { thumb: f.thumb } : {}),
-        });
-      }
+      for (const m of msgs) photos.push(await this.fetchPhoto(m));
       s.photos = photos;
       this.save(s);
     } catch (e) {
@@ -212,25 +206,57 @@ export class PhotoBot {
     await this.recognise(s);
   }
 
-  /** Ask the local vision model; if it's not there, offer Claude (with its price) or no AI. */
-  private async recognise(s: Session) {
-    const { ai, config, lmstudio, anthropic } = this.deps;
+  private async fetchPhoto(m: TgMessage): Promise<Photo> {
+    const fileId = m.photo?.at(-1)?.file_id ?? m.document!.file_id;
+    const f = await this.deps.media.ingest(
+      await this.api.download(fileId),
+      m.document?.file_name ?? "photo.jpg",
+    );
+    if (f.kind !== "image") throw new Error("That file isn't a picture");
+    return {
+      file: f.file,
+      mime: f.mime,
+      bytes: f.bytes,
+      ...(f.width ? { width: f.width } : {}),
+      ...(f.height ? { height: f.height } : {}),
+      ...(f.thumb ? { thumb: f.thumb } : {}),
+    };
+  }
+
+  /** The local vision model's guess (free, never asks). `why` says why there is none. */
+  private async localGuess(
+    photos: Photo[],
+    caption: string | null,
+  ): Promise<{ sg: PhotoSuggestion | null; why: string }> {
+    const { ai, config, lmstudio } = this.deps;
     const input = {
-      images: s.photos.slice(0, MAX_PHOTOS_TO_AI).map((p) => p.file),
-      ...(s.caption ? { caption: s.caption } : {}),
+      images: photos.slice(0, MAX_PHOTOS_TO_AI).map((p) => p.file),
+      ...(caption ? { caption } : {}),
     };
     let why = "it isn't set up";
     if (lmstudio.configured) {
       try {
         const q = await ai.quote("photo-thing", input, "lmstudio", config.ai.lmstudioModel);
         const rec = await ai.run(q.id);
-        if (rec.status === "done") return this.matched(s, rec.result as PhotoSuggestion);
+        if (rec.status === "done") return { sg: rec.result as PhotoSuggestion, why: "" };
         why = rec.error ?? "it failed";
       } catch (e) {
         why = (e as Error).message;
       }
     }
     console.warn(`telegram: local photo recognition unavailable: ${why}`);
+    return { sg: null, why };
+  }
+
+  /** Ask the local vision model; if it's not there, offer Claude (with its price) or no AI. */
+  private async recognise(s: Session) {
+    const { ai, config, anthropic } = this.deps;
+    const input = {
+      images: s.photos.slice(0, MAX_PHOTOS_TO_AI).map((p) => p.file),
+      ...(s.caption ? { caption: s.caption } : {}),
+    };
+    const { sg, why } = await this.localGuess(s.photos, s.caption);
+    if (sg) return this.matched(s, sg);
     if (anthropic.configured) {
       try {
         const q = await ai.quote("photo-thing", input, "anthropic", config.ai.anthropicModel);
@@ -267,9 +293,22 @@ export class PhotoBot {
   /** Things it could already be: by looks first, then by the AI's words; then show the menu. */
   private async matched(s: Session, suggestion: PhotoSuggestion | null) {
     s.suggestion = suggestion;
+    s.candidates = await this.candidates(s, suggestion);
+    s.status = "ready";
+    this.save(s);
+    await this.renderReady(s, true);
+  }
+
+  /** Up to 3 things the photos could be; `exclude` = things not to offer (a batch's own). */
+  private async candidates(
+    s: Session,
+    suggestion: PhotoSuggestion | null,
+    exclude: Set<string> = new Set(),
+  ): Promise<Session["candidates"]> {
     const out: Session["candidates"] = [];
     const add = (t: ThingView | null | undefined, c: Omit<Session["candidates"][number], "id">) => {
-      if (t && this.isItem(t) && !out.some((x) => x.id === t.id)) out.push({ id: t.id, ...c });
+      if (t && this.isItem(t) && !exclude.has(t.id) && !out.some((x) => x.id === t.id))
+        out.push({ id: t.id, ...c });
     };
     // An id in the caption ("B-0042") goes first.
     if (s.caption)
@@ -278,7 +317,7 @@ export class PhotoBot {
     const looks = new Map<string, number>();
     try {
       for (const p of s.photos.slice(0, MAX_PHOTOS_TO_AI))
-        for (const h of await this.deps.vision.similar(p.file, 8))
+        for (const h of await this.deps.vision.similar(p.file, 8, exclude))
           looks.set(h.thingId, Math.max(h.score, looks.get(h.thingId) ?? 0));
     } catch (e) {
       console.warn(`telegram: visual search failed: ${(e as Error).message}`);
@@ -300,10 +339,214 @@ export class PhotoBot {
     const [a, b] = looksLike;
     if (a && (a.score ?? 0) >= LOOKS_SAME && (!b || (a.score ?? 0) - (b.score ?? 0) >= LOOKS_LEAD))
       a.sure = true;
-    s.candidates = out.slice(0, MAX_CANDIDATES);
-    s.status = "ready";
-    this.save(s);
-    await this.renderReady(s, true);
+    return out.slice(0, MAX_CANDIDATES);
+  }
+
+  // ------------------------------------------------------------ an album: one new thing per photo
+
+  /**
+   * Several photos at once (D-029): every photo becomes a new thing right away, no questions. Then,
+   * one at a time, the local AI names it (violet, unconfirmed) and the look-alike search flags ones
+   * you may already have. All of it is fixable from the batch message or the thing page.
+   */
+  private async newBatch(msgs: TgMessage[]) {
+    const first = msgs[0]!;
+    const chatId = first.chat.id;
+    const caption = msgs.map((m) => m.caption?.trim()).find(Boolean) ?? null;
+    const msg = await this.send(chatId, `📥 Adding ${msgs.length} things…`, {
+      reply_to_message_id: first.message_id,
+    });
+    const b = this.insert(chatId, "batch", caption, msg.message_id);
+    const items: Session[] = [];
+    for (const m of msgs) {
+      let photo: Photo;
+      try {
+        photo = await this.fetchPhoto(m);
+      } catch (e) {
+        console.warn(`telegram: skipped a photo: ${(e as Error).message}`);
+        continue;
+      }
+      b.photos.push(photo);
+      const c = this.insert(chatId, "added", caption, null);
+      c.photos = [photo];
+      // Nobody has said what it is yet: name and kind stay unchecked (AI) until the guess or you fill them.
+      c.thingId = this.store.createThing({ name: PLACEHOLDER, source: "ai" }, "you").id;
+      c.assetIds = this.addPhotos(c, c.thingId);
+      c.extra = { batchOf: b.id, pending: true };
+      this.save(c);
+      items.push(c);
+    }
+    b.extra = { items: items.map((c) => c.id) };
+    if (!items.length) {
+      b.status = "failed";
+      b.error = "no pictures";
+      this.save(b);
+      return this.editMenu(b, "😕 Couldn't get the photos.", []);
+    }
+    this.save(b);
+    await this.renderBatch(b);
+
+    const own = new Set(items.map((c) => c.thingId!));
+    let noAi: string | null = null;
+    for (const item of items) {
+      // One at a time: the local model is a shared GPU box.
+      const { sg, why }: { sg: PhotoSuggestion | null; why: string } =
+        noAi === null ? await this.localGuess(item.photos, caption) : { sg: null, why: noAi };
+      if (!sg) noAi = why;
+      const c = this.load(item.id)!; // you may have acted on it meanwhile
+      if (sg && c.status === "added" && c.thingId) {
+        const t = this.store.get(c.thingId);
+        if (t && !t.archivedAt)
+          applySuggestion(
+            this.store,
+            t.id,
+            sg,
+            new Set(["parent", ...(t.name !== PLACEHOLDER ? ["name"] : [])]),
+          );
+      }
+      c.suggestion = sg;
+      c.candidates = await this.candidates(c, sg, own);
+      delete c.extra.pending;
+      this.save(c);
+      if (c.menuId) await this.renderAny(c);
+      const cur = this.load(b.id)!;
+      if (noAi && !cur.extra.noAi) {
+        cur.extra.noAi = noAi;
+        this.save(cur);
+      }
+      await this.renderBatch(cur);
+    }
+  }
+
+  private items(b: Session): Session[] {
+    return (b.extra.items ?? []).map((id) => this.load(id)).filter((c): c is Session => Boolean(c));
+  }
+
+  private async renderBatch(b: Session) {
+    if (b.status !== "batch") return;
+    const items = this.items(b);
+    const pending = items.filter((c) => c.extra.pending).length;
+    const added = items.filter((c) => c.status === "added").length;
+    const lines = [
+      `📥 <b>${added} new thing${added === 1 ? "" : "s"}</b>${pending ? ` · 🔍 looking at ${pending}…` : ""}`,
+      "",
+    ];
+    items.forEach((c, i) => {
+      const t = c.thingId ? this.store.get(c.thingId) : null;
+      const n = `${i + 1}.`;
+      if (c.status === "attached" && t) lines.push(`${n} 📎 photo added to your ${this.link(t)}`);
+      else if (c.status !== "added" || !t || t.archivedAt) lines.push(`${n} <s>↩️ undone</s>`);
+      else {
+        const sure = this.sureMatch(c);
+        lines.push(
+          [
+            `${n} ${c.extra.pending && t.name === PLACEHOLDER ? "🔍 …" : this.link(t)}`,
+            c.extra.pending ? "" : esc(this.kindName(t.kind)),
+            t.parentId ? `📍 ${esc(t.path.at(-1)?.name ?? "")}` : "",
+            sure ? `🎯 looks like your ${this.link(sure)}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        );
+      }
+    });
+    lines.push("");
+    if (b.extra.noAi)
+      lines.push(`🤖 No AI names: the local AI is away (<i>${esc(clip(b.extra.noAi, 100))}</i>).`);
+    lines.push("Wrong guess? Reply to this message, e.g. “2 dog nail clipper”, or tap a number.");
+    const kb: Keyboard = pairs(
+      items.map((c, i) => {
+        const t = c.thingId ? this.store.get(c.thingId) : null;
+        const label =
+          c.status === "added" && t && !t.archivedAt
+            ? c.extra.pending && t.name === PLACEHOLDER
+              ? "🔍"
+              : clip(t.name, 18)
+            : c.status === "attached"
+              ? "📎"
+              : "↩️";
+        return { text: `${i + 1} · ${this.sureMatch(c) ? "🎯 " : ""}${label}`, callback_data: `${c.id}:o` };
+      }),
+    );
+    if (added) kb.push([{ text: "📍 All in…", callback_data: `${b.id}:P` }]);
+    kb.push([
+      { text: "🔗 It's all one thing", callback_data: `${b.id}:1` },
+      { text: "↩️ Undo all", callback_data: `${b.id}:U` },
+    ]);
+    await this.editMenu(b, lines.join("\n"), kb);
+  }
+
+  /** A batch photo that clearly looks like a thing you have. */
+  private sureMatch(c: Session): ThingView | null {
+    const top = c.status === "added" ? c.candidates[0] : undefined;
+    const t = top && (top.sure || top.via === "id") ? this.store.get(top.id) : null;
+    return t && !t.archivedAt ? t : null;
+  }
+
+  /** "2 dog nail clipper" in reply to the batch message renames the second one. */
+  private async onBatchReply(b: Session, text: string) {
+    const m = /^#?(\d+)[\s.:)–-]+(.+)$/s.exec(text);
+    const c = m ? this.items(b)[Number(m[1]) - 1] : undefined;
+    if (!m || !c) return this.send(b.chatId, "Reply with a number and a name, e.g. “2 dog nail clipper”.");
+    if (c.status !== "added" || !c.thingId) return this.send(b.chatId, `${m[1]} isn't a new thing any more.`);
+    await this.rename(c, m[2]!.trim());
+    await this.renderBatch(b);
+  }
+
+  /** Undo every photo of a batch. */
+  private undoBatch(b: Session) {
+    for (const c of this.items(b)) {
+      if (c.status === "added" && c.thingId && !this.store.get(c.thingId)?.archivedAt)
+        this.store.archive(c.thingId, "you");
+      if (c.status === "attached")
+        for (const id of c.assetIds) if (!this.store.asset(id)?.removedAt) this.store.removeAsset(id, "you");
+      c.status = "discarded";
+      c.thingId = null;
+      c.assetIds = [];
+      delete c.extra.pending;
+      this.save(c);
+    }
+  }
+
+  /**
+   * You named it: your name wins, and the AI's other unchecked guesses (made for what it *thought*
+   * it was) are redone for your name, or dropped when the local AI is away.
+   */
+  private async rename(s: Session, name: string) {
+    const id = s.thingId!;
+    this.store.change(id, { name }, "you", "you");
+    const t = this.store.mustGet(id);
+    const stale = Object.entries(t.meta)
+      .filter(([k]) => !["name", "kind", "parent"].includes(k))
+      .filter(([, m]) => m.source === "ai" && !m.confirmed)
+      .map(([k]) => k.replace(/^data\./, ""))
+      .filter((k) => t.data[k] !== undefined);
+    const aiTags = t.tags.filter((x) => x.source === "ai");
+    if (!stale.length && !aiTags.length && t.meta.kind?.source !== "ai")
+      return this.renderAny(s, "✏️ Renamed");
+    await this.renderAny(s, "✏️ Renamed · 🔍 redoing the details…");
+    this.track(
+      (async () => {
+        const { sg } = await this.localGuess(s.photos, name);
+        const cur = this.store.get(id);
+        if (!cur || cur.archivedAt || cur.name !== name) return;
+        if (stale.length)
+          this.store.change(id, { data: Object.fromEntries(stale.map((k) => [k, null])) }, "ai", "ai");
+        for (const tag of aiTags) this.store.unrelate("tagged", id, tag.id, "ai");
+        if (sg) applySuggestion(this.store, id, sg, new Set(["name", "parent"]));
+        const fresh = this.load(s.id)!;
+        if (sg) fresh.suggestion = { ...sg, name };
+        this.save(fresh);
+        await this.renderAny(fresh, sg ? "✏️ Renamed · details redone for the new name" : "✏️ Renamed");
+        if (fresh.extra.batchOf) await this.renderBatch(this.load(fresh.extra.batchOf)!);
+      })(),
+    );
+  }
+
+  private async renderAny(s: Session, note?: string) {
+    if (s.status === "batch") return this.renderBatch(s);
+    if ((s.status === "added" || s.status === "attached") && s.thingId) return this.renderDone(s, note);
+    if (s.status === "ready") return this.renderReady(s);
   }
 
   // ------------------------------------------------------------ menus
@@ -395,8 +638,22 @@ export class PhotoBot {
         : `📎 Photo added to ${this.link(t)}`,
       t.parentId ? `📍 ${esc(this.pathText(t))}` : "📍 Not in a place yet",
     ];
+    if (s.extra.pending) lines.push("🔍 Still looking at it…");
     if (note) lines.push(note);
     const kb: Keyboard = [];
+    // From a batch nobody chose "new": offer the look-alikes it may really be.
+    const alike =
+      s.status === "added" && s.extra.batchOf
+        ? s.candidates
+            .map((c) => this.store.get(c.id))
+            .filter((x): x is ThingView => Boolean(x && !x.archivedAt))
+        : [];
+    if (alike.length) {
+      lines.push("", "Already in Burrow?");
+      alike.forEach((x, i) => lines.push(`${i + 1}. ${this.link(x)}${this.where(x, " — ")}`));
+      for (const [i, x] of alike.entries())
+        kb.push([{ text: `📎 It's ${i + 1}: ${clip(x.name, 24)}`, callback_data: `${s.id}:m:${x.id}` }]);
+    }
     const guess = s.status === "added" && !t.parentId ? s.suggestion?.placeId : null;
     const guessT = guess ? this.store.get(guess) : null;
     kb.push([
@@ -426,6 +683,7 @@ export class PhotoBot {
     try {
       const reply = await this.act(s, action ?? "", arg, cb);
       await this.answer(cb, reply ?? undefined);
+      if (action !== "o") await this.refreshBatch(s);
     } catch (e) {
       console.error("telegram: button failed:", e);
       await this.answer(cb, `😕 ${(e as Error).message}`.slice(0, 190), true);
@@ -495,13 +753,48 @@ export class PhotoBot {
         return null;
       case "p":
       case "k": {
-        if (!s.thingId || !arg) return "Nothing to place";
+        if (!this.targets(s).length || !arg) return "Nothing to place";
         return this.place(s, arg, action === "k" ? s.extra.spot : undefined);
       }
       case "P":
-        if (!s.thingId) return "Nothing to place";
+        if (!this.targets(s).length) return "Nothing to place";
         await this.placePicker(s);
         return null;
+      case "o": {
+        // A batch photo's own menu, as a new message.
+        if (s.status === "discarded") return "Undone";
+        const m = await this.send(s.chatId, "…", { reply_to_message_id: cb.message?.message_id });
+        s.menuId = m.message_id;
+        s.menuPhoto = false;
+        this.save(s);
+        await this.renderAny(s);
+        return null;
+      }
+      case "m": {
+        // It wasn't new after all: the photo goes to the thing you have.
+        if (s.status !== "added" || !s.thingId || !arg) return "Already done";
+        this.store.archive(s.thingId, "you");
+        this.attach(s, arg);
+        await this.renderDone(s);
+        return "Photo added";
+      }
+      case "1": {
+        if (s.status !== "batch") return "Already done";
+        this.undoBatch(s);
+        s.status = "looking";
+        s.extra = {};
+        this.save(s);
+        await this.editMenu(s, "🔍 One thing, then. Looking…", []);
+        this.track(this.recognise(s));
+        return null;
+      }
+      case "U":
+        if (s.status !== "batch") return "Already done";
+        this.undoBatch(s);
+        s.status = "discarded";
+        this.save(s);
+        await this.editMenu(s, "↩️ Undone: none of these were added.", []);
+        return "Undone";
       case "v":
         if (s.status !== "attached" || !s.thingId || !s.assetIds[0]) return "Already done";
         this.store.setCover(s.thingId, s.assetIds[0], "you");
@@ -511,10 +804,11 @@ export class PhotoBot {
         return this.undo(s);
       case "B":
         s.awaiting = null;
-        s.extra = {};
+        s.promptId = null;
+        delete s.extra.spot;
+        delete s.extra.placeOptions;
         this.save(s);
-        if (s.thingId) await this.renderDone(s);
-        else await this.renderReady(s);
+        await this.renderAny(s);
         return null;
       default:
         return "?";
@@ -583,20 +877,45 @@ export class PhotoBot {
     return "Undone";
   }
 
+  /** The things a place pick moves: the session's thing, or a batch's new things. */
+  private targets(s: Session): string[] {
+    if (s.status === "batch")
+      return this.items(s)
+        .filter((c) => c.status === "added" && c.thingId && !this.store.get(c.thingId)?.archivedAt)
+        .map((c) => c.thingId!);
+    return s.thingId ? [s.thingId] : [];
+  }
+
   private place(s: Session, placeId: string, spot?: string): string {
     const p = this.store.mustGet(placeId);
-    this.store.move(s.thingId!, placeId, "you", undefined, spot ?? null);
+    const ids = this.targets(s);
+    for (const id of ids) this.store.move(id, placeId, "you", undefined, spot ?? null);
     const recent = [placeId, ...this.recentPlaces().filter((x) => x !== placeId)].slice(0, 5);
     this.setState("recent_places", JSON.stringify(recent));
-    s.extra = {};
+    delete s.extra.spot;
+    delete s.extra.placeOptions;
     s.awaiting = null;
+    s.promptId = null;
     this.save(s);
-    void this.renderDone(s);
-    return `In ${p.name}`;
+    void this.renderAny(s).then(() => this.refreshBatch(s));
+    return ids.length > 1 ? `${ids.length} things in ${p.name}` : `In ${p.name}`;
+  }
+
+  private async refreshBatch(s: Session) {
+    const b = s.extra.batchOf ? this.load(s.extra.batchOf) : null;
+    if (b) await this.renderBatch(b);
+  }
+
+  /** A reply to the menu itself names a place: no extra "which place?" message (D-029). */
+  private awaitPlace(s: Session) {
+    s.awaiting = "place";
+    s.promptId = s.menuId;
+    this.save(s);
   }
 
   private async placePicker(s: Session) {
-    const t = this.store.mustGet(s.thingId!);
+    const targets = this.targets(s);
+    const t = this.store.mustGet(targets[0]!);
     const ids = [
       ...(s.suggestion?.placeId ? [s.suggestion.placeId] : []),
       ...this.recentPlaces(),
@@ -606,29 +925,27 @@ export class PhotoBot {
         .map((p) => p.id),
     ];
     const opts = [...new Set(ids)]
-      .filter((id) => id !== t.id && id !== t.parentId)
+      .filter((id) => !targets.includes(id) && id !== t.parentId)
       .map((id) => this.store.get(id))
       .filter((p): p is ThingView => Boolean(p && !p.archivedAt))
       .slice(0, 6);
+    const what = targets.length > 1 ? `are these ${targets.length} things` : `is ${this.link(t)}`;
     await this.editMenu(
       s,
-      `📍 Where is ${this.link(t)}?\nPick one, or reply to the next message with a place name.`,
+      `📍 Where ${what}?\nPick one, or reply to this message with a place, e.g. “IVAR shelf, shelf 3”.`,
       [
         ...pairs(opts.map((p) => ({ text: clip(p.name, 24), callback_data: `${s.id}:p:${p.id}` }))),
         [{ text: "‹ Back", callback_data: `${s.id}:B` }],
       ],
     );
-    await this.prompt(s, "place", "Which place? Add a spot after a comma, e.g. “IVAR shelf, shelf 3”.");
+    this.awaitPlace(s);
   }
 
   // ------------------------------------------------------------ replies to prompts
 
-  private async prompt(s: Session, what: "name" | "rename" | "place", text: string) {
+  private async prompt(s: Session, what: "name" | "rename", text: string) {
     const m = await this.send(s.chatId, text, {
-      reply_markup: {
-        force_reply: true,
-        input_field_placeholder: what === "place" ? "garage shelf" : "name",
-      },
+      reply_markup: { force_reply: true, input_field_placeholder: "name" },
     });
     s.promptId = m.message_id;
     s.awaiting = what;
@@ -646,27 +963,30 @@ export class PhotoBot {
       return this.renderDone(s);
     }
     if (what === "rename" && s.thingId) {
-      this.store.change(s.thingId, { name: text }, "you", "you");
-      return this.renderDone(s, "✏️ Renamed");
+      await this.rename(s, text);
+      return this.refreshBatch(s);
     }
-    if (what === "place" && s.thingId) {
+    if (what === "place" && this.targets(s).length) {
       const [name, ...rest] = text.split(",");
       const spot = rest.join(",").trim() || undefined;
       const places = this.store
         .search(name!.trim(), 20)
         .map((h) => h.thing)
-        .filter((t) => this.store.kind(t.kind)?.isPlace && t.id !== s.thingId);
+        .filter((t) => this.store.kind(t.kind)?.isPlace && !this.targets(s).includes(t.id));
       const exact = places.filter((p) => p.name.toLowerCase() === name!.trim().toLowerCase());
       const pick = exact.length === 1 ? exact[0] : places.length === 1 ? places[0] : null;
       if (pick) {
         this.place(s, pick.id, spot);
         return;
       }
-      if (!places.length) {
-        await this.send(s.chatId, `No place called “${esc(name!.trim())}”. Try another name.`);
-        return this.prompt(s, "place", "Which place?");
-      }
-      s.extra = spot ? { spot } : {};
+      this.awaitPlace(s);
+      if (!places.length)
+        return this.send(
+          s.chatId,
+          `No place called “${esc(name!.trim())}”. Reply to the menu with another name.`,
+        );
+      if (spot) s.extra.spot = spot;
+      else delete s.extra.spot;
       this.save(s);
       return this.editMenu(s, `📍 Which one${spot ? ` (spot: ${esc(spot)})` : ""}?`, [
         ...places.slice(0, 6).map((p) => [
@@ -811,6 +1131,24 @@ export class PhotoBot {
     return r ? toSession(r) : null;
   }
 
+  private insert(chatId: number, status: Status, caption: string | null, menuId: number | null): Session {
+    const now = new Date().toISOString();
+    const r = this.store.db
+      .prepare(
+        `insert into tg_sessions (chat_id, created_at, updated_at, status, caption, menu_id)
+         values (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(chatId, now, now, status, caption, menuId);
+    return this.load(Number(r.lastInsertRowid))!;
+  }
+
+  private findBatch(chatId: number, menuId: number): Session | null {
+    const r = this.store.db
+      .prepare("select * from tg_sessions where chat_id = ? and menu_id = ? and status = 'batch'")
+      .get(chatId, menuId) as Row | undefined;
+    return r ? toSession(r) : null;
+  }
+
   private findByPrompt(chatId: number, promptId: number): Session | null {
     const r = this.store.db
       .prepare("select * from tg_sessions where chat_id = ? and prompt_id = ? and awaiting is not null")
@@ -934,7 +1272,7 @@ const HELP = [
   "📷 <b>Send a photo of a thing.</b> I'll guess what it is and check whether it's already in Burrow.",
   "Then: ➕ add it as a new thing, 📎 add the photo to the one you have, or 🔎 see where that one lives.",
   "",
-  "• An album = several photos of one thing.",
+  "• Several photos at once = several things: each becomes a new thing, named by the AI. Fix any of them afterwards (reply “2 dog nail clipper”), or tap 🔗 if they were all one thing.",
   "• A caption helps: a name, or an id like B-0042.",
   "• Text without a photo searches: “glue gun” → where it is.",
   "",

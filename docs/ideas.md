@@ -80,6 +80,9 @@ Loosely ordered. ✓ = done in some form.
 - Several things in one photo (a drawer): detect objects, one menu per crop.
 - Things without photos can't be found by looks: fetch shop pictures for them (from-url) so they can.
 - Inline mode (`@bot glue` in any chat) for quick lookups; a daily "things without a place" nudge.
+- Batch (D-029) when the local AI is away: one "🤖 Ask Claude for all · $x" button (sum of per-photo quotes).
+- Web: renaming an AI-named thing could redo its unchecked guesses too, like the bot does (D-029).
+- A batch caption as a shared place ("all in drawer 3"), not only as an AI hint.
 - Use the photo's EXIF/time to suggest "the place you were adding things to 5 minutes ago".
 
 ## PCB rig (D-018)

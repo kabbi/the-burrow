@@ -78,7 +78,8 @@ fields HomeBox still owns.
 - `vision.ts`: "looks like" search: DINOv2-small vectors on the CPU (onnxruntime-web), cached per
   media file in `image_vectors` (D-019).
 - `telegram/`: `api.ts` (minimal Bot API client, long polling), `bot.ts` (the photo bot: sessions in
-  `tg_sessions`, menus, matching by looks + the `photo-thing` AI task) (D-019).
+  `tg_sessions`, menus, matching by looks + the `photo-thing` AI task; an album is a batch of
+  new things, one session per photo under a batch session) (D-019, D-029).
 - `api/` (D-020): the public `/api/v1` for outside systems. `define.ts` (one `op()` per operation →
   route with token auth, scope check and actor attribution, plus the OpenAPI 3.1 document),
   `v1.ts` (the operations), `schemas.ts` (documented answer shapes), `tokens.ts` (`api_tokens`,
