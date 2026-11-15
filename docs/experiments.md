@@ -138,3 +138,13 @@ shrink-wrapped board), so Width/Height come from the top capture only.
   other, hence the "lead over runner-up" rule for 🎯. Everyday objects should separate far better.
 - Speed (6 cores, WASM, 2 threads): ~0.2 s a picture, ~0.8 s a query (4 rotations); indexing the dev
   library (192 pictures + 94 mirrored) ≈ 40 s once. End to end in the bot: ~7 s, mostly the VLM.
+
+## 2026-11-15 · Columns view for Places (D-021)
+
+Tried Finder-style columns on the dev DB (only 4 levels deep: Living Room › IVAR › Crate › Modubox
+› LEDs). Feels much better than the tree for drilling down, and the path stays readable at any
+depth because older columns scroll off to the left. Gotchas: `scrollIntoView` on the selected row
+also scrolls the column strip sideways and cancels the smooth scroll to the newest column, so rows
+are kept in view by setting the list's `scrollTop` directly. Headless agent-browser can lag a
+second behind the URL on React renders (tab throttling), so keyboard tests are run as an in-page
+script with small sleeps. Not yet tried on production's real depth.

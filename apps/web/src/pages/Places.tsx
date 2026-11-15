@@ -1,12 +1,16 @@
-import { useState, type DragEvent } from "react";
-import { Link } from "react-router";
+import { useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { get, post, type PlaceNode, type ThingView } from "../lib/api.ts";
 import { useAction } from "../lib/hooks.ts";
 import { useSchema } from "../lib/schema.ts";
 import { Thumb } from "../components/ThingCard.tsx";
+import { PlaceColumns } from "../components/PlaceColumns.tsx";
+import { dragSource, useDrop, type Drag, type Dragged } from "../components/placeDrag.ts";
 
 const OPEN_KEY = "burrow.places.open";
+const VIEW_KEY = "burrow.places.view";
+type View = "tree" | "columns";
 type Tree = { places: PlaceNode[]; unplaced: number };
 
 function loadOpen(): Set<string> | null {
@@ -30,9 +34,25 @@ export function Places() {
   const [q, setQ] = useState("");
   const [room, setRoom] = useState("");
   const [openSet, setOpenSet] = useState<Set<string> | null>(loadOpen);
-  const [dragging, setDragging] = useState<{ id: string; parentId: string | null; name: string } | null>(
-    null,
-  );
+  const [dragging, setDragging] = useState<Dragged | null>(null);
+  const [params] = useSearchParams();
+  // A link with ?at= is a columns link; otherwise the view this browser used last.
+  const [view, setViewState] = useState<View>(() => {
+    if (params.has("at")) return "columns";
+    try {
+      return localStorage.getItem(VIEW_KEY) === "columns" ? "columns" : "tree";
+    } catch {
+      return "tree";
+    }
+  });
+  const setView = (v: View) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // private mode: the default view comes back next time
+    }
+  };
 
   const places = data?.places ?? [];
   const byParent = new Map<string | null, PlaceNode[]>();
@@ -83,7 +103,7 @@ export function Places() {
     if (!d || d.id === to || d.parentId === to) return;
     void act(() => post(`/things/${d.id}/move`, { to }), `${d.name} → ${toName}`);
   };
-  const drag = { dragging, setDragging, moveTo };
+  const drag: Drag = { dragging, setDragging, moveTo };
 
   const branch = (parent: string | null, depth: number) => {
     const kids = (byParent.get(parent) ?? []).filter((p) => !visible || visible.has(p.id));
@@ -118,30 +138,43 @@ export function Places() {
 
   return (
     <main className="page">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ fontSize: 34 }}>Places</h1>
-        <span className="muted small">
-          {places.length} places · drag a box or a thing onto a place to move it
+      <div className="row places-bar">
+        <h1>Places</h1>
+        <span className="muted small" title="Drag a box or a thing onto a place to move it">
+          {places.length} places
         </span>
-      </div>
-      <div className="row">
         <input
           className="input"
-          style={{ maxWidth: 320 }}
           placeholder="Filter places…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           aria-label="Filter places"
         />
-        <button type="button" className="btn small" onClick={() => setAll(true)}>
-          Open all
-        </button>
-        <button type="button" className="btn small" onClick={() => setAll(false)}>
-          Close all
-        </button>
+        <div className="seg-group" role="group" aria-label="View">
+          {(["tree", "columns"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              className="chip"
+              aria-pressed={view === v}
+              onClick={() => setView(v)}
+            >
+              {v === "tree" ? "Tree" : "Columns"}
+            </button>
+          ))}
+        </div>
+        {view === "tree" && (
+          <>
+            <button type="button" className="btn small" onClick={() => setAll(true)}>
+              Open all
+            </button>
+            <button type="button" className="btn small" onClick={() => setAll(false)}>
+              Close all
+            </button>
+          </>
+        )}
         <form
-          className="row"
-          style={{ marginLeft: "auto" }}
+          className="row places-new"
           onSubmit={(e) => {
             e.preventDefault();
             if (!room.trim()) return;
@@ -154,7 +187,6 @@ export function Places() {
         >
           <input
             className="input"
-            style={{ maxWidth: 200 }}
             placeholder="New room"
             value={room}
             onChange={(e) => setRoom(e.target.value)}
@@ -166,50 +198,41 @@ export function Places() {
         </form>
       </div>
 
-      <section className="panel">
-        {dragging && dragging.parentId && (
-          <DropZone label="Drop here to take it out of its place" onDrop={() => moveTo(null, "no place")} />
-        )}
-        {branch(null, 0) ?? <p className="muted">{places.length ? "No places match." : "No places yet."}</p>}
-      </section>
-
-      {data && data.unplaced > 0 && (
-        <p className="small">
-          <Link to="/later">
-            {data.unplaced} {data.unplaced === 1 ? "thing isn't" : "things aren't"} anywhere yet →
-          </Link>
-        </p>
+      {view === "columns" && places.length > 0 ? (
+        <PlaceColumns
+          places={places}
+          byParent={byParent}
+          placeIds={ids}
+          kindName={kindName}
+          drag={drag}
+          filter={q}
+          onPick={() => setQ("")}
+        />
+      ) : (
+        <section className="panel">
+          {dragging && dragging.parentId && (
+            <DropZone label="Drop here to take it out of its place" onDrop={() => moveTo(null, "no place")} />
+          )}
+          {branch(null, 0) ?? (
+            <p className="muted">{places.length ? "No places match." : "No places yet."}</p>
+          )}
+        </section>
       )}
+
+      <p className="small muted">
+        {data && data.unplaced > 0 && (
+          <>
+            <Link to="/later">
+              {data.unplaced} {data.unplaced === 1 ? "thing isn't" : "things aren't"} anywhere yet →
+            </Link>{" "}
+            ·{" "}
+          </>
+        )}
+        Drag a box or a thing onto a place to move it
+        {view === "columns" && " · arrow keys move, Enter opens"}
+      </p>
     </main>
   );
-}
-
-interface Drag {
-  dragging: { id: string; parentId: string | null; name: string } | null;
-  setDragging: (d: { id: string; parentId: string | null; name: string } | null) => void;
-  moveTo: (to: string | null, toName: string) => void;
-}
-
-/** Drag & drop handlers shared by place rows. */
-function useDrop(id: string, name: string, drag: Drag) {
-  const [over, setOver] = useState(false);
-  const can = Boolean(drag.dragging && drag.dragging.id !== id && drag.dragging.parentId !== id);
-  return {
-    over: over && can,
-    props: {
-      onDragOver: (e: DragEvent) => {
-        if (!can) return;
-        e.preventDefault();
-        setOver(true);
-      },
-      onDragLeave: () => setOver(false),
-      onDrop: (e: DragEvent) => {
-        e.preventDefault();
-        setOver(false);
-        if (can) drag.moveTo(id, name);
-      },
-    },
-  };
 }
 
 function PlaceRow({
@@ -231,13 +254,7 @@ function PlaceRow({
   return (
     <div
       className={`place-row${drop.over ? " drop" : ""}`}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", p.id);
-        drag.setDragging({ id: p.id, parentId: p.parentId, name: p.name });
-      }}
-      onDragEnd={() => drag.setDragging(null)}
+      {...dragSource({ id: p.id, parentId: p.parentId, name: p.name }, drag)}
       {...drop.props}
     >
       <button
@@ -277,13 +294,7 @@ function PlaceItems({ placeId, placeIds, drag }: { placeId: string; placeIds: Se
         <li
           key={t.id}
           className="item-row"
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.effectAllowed = "move";
-            e.dataTransfer.setData("text/plain", t.id);
-            drag.setDragging({ id: t.id, parentId: t.parentId, name: t.name });
-          }}
-          onDragEnd={() => drag.setDragging(null)}
+          {...dragSource({ id: t.id, parentId: t.parentId, name: t.name }, drag)}
         >
           <Thumb thing={t} />
           <Link to={`/t/${t.id}`}>{t.name}</Link>

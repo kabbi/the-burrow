@@ -304,3 +304,24 @@ versioned API. The web app keeps its own unversioned `/api`, which can change wi
 - **Not exposed**: paperless (only links; `paperless` refs are read-only for apps) and AI (paid calls
   need a person to see the price). The token is not a security boundary for the web app's own `/api`,
   which is still open to the tailnet (D-014); tokens give integrations scoped, attributable access.
+
+## D-021 · Places: Finder-style columns next to the tree (2026-11-15)
+
+Nesting goes deep (room › furniture › box › organiser › compartment), and an indented tree runs out
+of width and loses context as it gets deeper. The Places page now has a **Tree / Columns** switch
+(remembered per browser).
+
+- **Columns** (Miller columns, like macOS Finder): the first column is the rooms; each next column is
+  what's directly inside the place selected before it, sub-places first, then things. Picking a
+  thing shows a preview column (cover, kind, spot, tags, Open). Column headers show the place's
+  cover, kind and how much is inside, and link to its page. A breadcrumb above jumps back up.
+- **Keyboard**: ↑/↓ inside a column, → goes in, ← goes back out, Enter opens the selection
+  (double-click too). The selection is in the URL (`/places?at=<place>&item=<thing>`), so a spot can
+  be linked to; such a link opens in columns.
+- **Moving**: drag a row onto a place row, or onto a column's empty space to put it in that column's
+  place (the rooms column = no place). Same drag helpers as the tree (`components/placeDrag.ts`).
+- **Filter** in columns lists matching places with where they sit; picking one jumps there.
+- Phones: columns are ~80 % of the width and snap, so you see one column with the previous one
+  peeking in.
+- No new API: the column lists use the same `/places/tree` and `/things?parent=` queries (and cache)
+  as the tree.

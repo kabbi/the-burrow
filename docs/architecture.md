@@ -99,6 +99,6 @@ CSS with tokens in `styles.css`. Self-hosted fonts (Inter, Space Grotesk).
 - `TagEditor` (chips, autocomplete, create, confirm AI tags), `Relations` (typed links both ways),
   `ThingSearch` (shared finder).
 - API page (`/integrations`): tokens, and the reference rendered from `/api/v1/openapi.json`.
-- Pages: Places (tree with counts, drag to move; D-016), Schema (kinds, fields, link types),
+- Pages: Places (tree with counts, drag to move, D-016; or Finder-style columns, D-021), Schema (kinds, fields, link types),
   Tags (tree), Database (D-009). `PathView` shows spots and folds long paths on cards.
 - Toasts carry Undo for 10 s; every change is also undoable from history.
