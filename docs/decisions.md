@@ -592,10 +592,28 @@ yet: every account may do everything. What accounts give us is a locked door and
   token. Writes with an `Origin` from another host are refused, because SameSite=Lax treats
   `*.example.com` siblings as same-site.
 - **Telegram**: each update acts as the account whose Telegram user id matches the sender
-  (`/me` tells you your id; you put it on your account page). Unlinked chats write as `telegram`.
+  (linked with a code from the account page, D-033). Unlinked chats write as `telegram`.
 - `BURROW_AUTH=0` turns sign-in off (everything is `you` again). The existing API tests run that
   way; `test/auth.test.ts` covers sign-in with it on.
 - Considered: tinyauth / forward auth at traefik (D-014). It locks the door but can't tell Burrow
   who you are without trusting a header, and passkeys plus per-person history want Burrow to know
   the account itself. Users as a separate table without person things: then "owned by grandma"
   would need a second concept.
+
+## D-033 · Telegram: link your account with a code, no chat ids in config (2026-11-15)
+
+Letting someone use the photo bot meant adding their chat id to `TG_ALLOWED_CHAT_IDS` and
+restarting. Now the account page has **Connect Telegram**: it makes a one-time code (8 characters,
+no 0/O/1/I, 10 minutes, one per account, in memory) and an "Open @bot in Telegram" button, a
+`https://t.me/<bot>?start=<code>` link, so pressing Start sends `/start CODE` by itself. From another
+device you can type `/link CODE` instead. The bot links whoever sent a valid code
+(`accounts.telegram_id` = their Telegram user id; one Telegram user belongs to one account) and
+answers with the help text. The page checks every 3 s and shows "Connected".
+
+- The bot lets in a sender linked to an active account, or a chat from the environment
+  (`TG_ADMIN_CHAT_ID`, `TG_ALLOWED_CHAT_IDS` still work, unattributed: actor `telegram`). It runs
+  with just `TG_BOT_TOKEN`; it learns its @username with `getMe` for the links.
+- The code is the proof that the Telegram account is yours, so the API no longer takes a typed
+  Telegram id: `PATCH /api/account` can only unlink (`telegramId: null`). 5 wrong codes from one
+  Telegram user pause it for 10 minutes. Disabling an account locks its Telegram out too.
+- Strangers get one "private bot: connect it from your account page" reply per chat.

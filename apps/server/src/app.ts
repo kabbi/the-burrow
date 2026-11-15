@@ -43,6 +43,8 @@ export interface Deps {
   vision: VisualMatcher;
   tokens: Tokens;
   accounts: Accounts;
+  /** The Telegram bot, once it's running (its @username, for t.me links). */
+  telegram: { username: string | null };
 }
 
 export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
@@ -81,6 +83,7 @@ export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps 
     vision: new ImageIndex(store, config.mediaDir, config.modelsDir),
     tokens: new Tokens(store.db),
     accounts: overrides.accounts ?? new Accounts(store),
+    telegram: { username: null },
     ...overrides,
   };
 }

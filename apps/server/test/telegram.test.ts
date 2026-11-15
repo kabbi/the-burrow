@@ -331,6 +331,29 @@ describe("telegram photo bot", () => {
       update_id: upd++,
       message: { message_id: 1, chat: { id: 999, type: "private" }, date: 0, text: "hi" },
     });
-    expect(tg.last("sendMessage")!.text).toBe("This is a private bot.");
+    expect(String(tg.last("sendMessage")!.text)).toContain("This is a private bot.");
+  });
+
+  it("lets a stranger in after they send a link code from Burrow", async () => {
+    const a = await deps.accounts.create({ username: "anna", name: "Anna", password: "anna's first" });
+    const msg = (t: string): TgUpdate => ({
+      update_id: upd++,
+      message: { message_id: upd, chat: { id: 777, type: "private" }, from: { id: 777 }, date: 0, text: t },
+    });
+    await send(msg("/start NOPE1234"));
+    expect(String(tg.last("sendMessage")!.text)).toContain("didn't work");
+    const { code } = deps.accounts.telegramCode(a.username);
+    await send(msg(`/start ${code}`));
+    expect(String(tg.last("sendMessage")!.text)).toContain("Linked: you are <b>Anna</b>");
+    await send(msg("glue gun"));
+    expect(String(tg.last("sendPhoto")!.caption)).toContain("Garage");
+    // What a linked person does is theirs.
+    await send({
+      ...photo("Anna's photo"),
+      message: { ...photo("Anna's photo").message!, chat: { id: 777, type: "private" }, from: { id: 777 } },
+    });
+    await send(press(`${sessionId()}:n`));
+    const created = deps.store.events({ types: ["thing.created"], limit: 1 })[0]!;
+    expect(created.actor).toBe("anna");
   });
 });

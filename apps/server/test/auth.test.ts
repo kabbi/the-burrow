@@ -188,11 +188,21 @@ describe("sign-in", () => {
     expect((await anna("GET", "/api/things")).status).toBe(401);
   });
 
-  it("links a Telegram id to one account", async () => {
-    const r = await owner<{ me: { telegramId: string } }>("PATCH", "/api/account", { telegramId: "4242" });
-    expect(r.body.me.telegramId).toBe("4242");
+  it("links Telegram only with a code, and unlinks", async () => {
+    expect((await owner("PATCH", "/api/account", { telegramId: "4242" })).status).toBe(400);
+    // No bot running: no code.
+    expect((await owner("POST", "/api/account/telegram/code")).status).toBe(409);
+    deps.telegram.username = "burrow_test_bot";
+    const c = await owner<{ code: string; link: string }>("POST", "/api/account/telegram/code");
+    expect(c.body.link).toBe(`https://t.me/burrow_test_bot?start=${c.body.code}`);
+    expect(deps.accounts.redeemTelegramCode("WRONG123", 4242)).toBeNull();
+    expect(deps.accounts.redeemTelegramCode(c.body.code.toLowerCase(), 4242)?.username).toBe("kabbi");
+    expect(deps.accounts.redeemTelegramCode(c.body.code, 4242)).toBeNull(); // one use
     expect(deps.accounts.byTelegram(4242)?.username).toBe("kabbi");
-    expect((await owner("PATCH", "/api/account", { telegramId: "abc" })).status).toBe(400);
+    const r = await owner<{ me: { telegramId: string | null } }>("PATCH", "/api/account", {
+      telegramId: null,
+    });
+    expect(r.body.me.telegramId).toBeNull();
   });
 
   it("starts passkey sign-in only for this site's origin", async () => {

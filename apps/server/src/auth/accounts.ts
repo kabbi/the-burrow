@@ -267,6 +267,37 @@ export class Accounts {
     this.db.prepare("update accounts set telegram_id = ? where username = ?").run(id, username);
   }
 
+  // Telegram link codes: shown on the account page, sent to the bot (/start CODE via a t.me
+  // link, or /link CODE). In memory: the bot runs in this process, a code lives 10 minutes.
+  private tgCodes = new Map<string, { username: string; expires: number }>();
+
+  /** A fresh one-time code for linking Telegram; replaces this account's previous one. */
+  telegramCode(username: string): { code: string; expiresAt: string } {
+    this.must(username);
+    const now = this.now().getTime();
+    for (const [k, v] of this.tgCodes) if (v.expires < now || v.username === username) this.tgCodes.delete(k);
+    // No 0/O/1/I: people may type it. 32^8 ≈ 10^12, and the bot slows down wrong guesses.
+    const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const code = [...randomBytes(8)].map((b) => abc[b % 32]).join("");
+    const expires = now + 10 * 60_000;
+    this.tgCodes.set(code, { username, expires });
+    return { code, expiresAt: new Date(expires).toISOString() };
+  }
+
+  /** Link the Telegram user who sent a valid code. Null if the code is unknown or expired. */
+  redeemTelegramCode(code: string, telegramId: string | number): Account | null {
+    const key = code.trim().toUpperCase();
+    const c = this.tgCodes.get(key);
+    if (!c || c.expires < this.now().getTime()) return null;
+    this.tgCodes.delete(key);
+    const a = this.get(c.username);
+    if (!a || a.disabledAt) return null;
+    // A Telegram user is one account: linking moves it away from whoever had it.
+    this.db.prepare("update accounts set telegram_id = null where telegram_id = ?").run(String(telegramId));
+    this.setTelegram(c.username, String(telegramId));
+    return this.must(c.username);
+  }
+
   setDisabled(username: string, disabled: boolean) {
     this.must(username);
     this.db

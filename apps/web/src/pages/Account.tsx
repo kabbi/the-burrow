@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { startRegistration } from "@simplewebauthn/browser";
@@ -25,7 +25,10 @@ function deviceName() {
 
 function useSetMe() {
   const qc = useQueryClient();
-  return (me: Me) => qc.setQueryData<AuthState>(["auth"], (old) => (old ? { ...old, me } : old));
+  return useCallback(
+    (me: Me) => qc.setQueryData<AuthState>(["auth"], (old) => (old ? { ...old, me } : old)),
+    [qc],
+  );
 }
 
 export function Account() {
@@ -205,57 +208,106 @@ function Password({ me }: { me: Me }) {
   );
 }
 
+/**
+ * Connect the Telegram bot with a one-time code (D-033): the t.me link sends "/start CODE" to the
+ * bot, which links whoever sent it. The page checks every few seconds until it's done.
+ */
 function Telegram({ me }: { me: Me }) {
   const setMe = useSetMe();
-  const [id, setId] = useState(me.telegramId ?? "");
+  const toast = useToast();
+  const [code, setCode] = useState<{ code: string; link: string; bot: string; expiresAt: string } | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
-  const save = (telegramId: string | null) => {
+  // Until the bot reports the link, check every few seconds (and drop an expired code).
+  useEffect(() => {
+    if (!code) return;
+    const t = setInterval(async () => {
+      if (Date.parse(code.expiresAt) < Date.now()) return setCode(null);
+      const st = await get<AuthState>("/auth/state").catch(() => null);
+      if (st?.me?.telegramId) {
+        setMe(st.me);
+        setCode(null);
+        toast({ text: "Telegram connected" });
+      }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [code, setMe, toast]);
+
+  const start = () => {
     setError(null);
-    patch<{ me: Me }>("/account", { telegramId })
-      .then((r) => {
-        setMe(r.me);
-        setId(r.me.telegramId ?? "");
-      })
+    post<{ code: string; link: string; bot: string; expiresAt: string }>("/account/telegram/code")
+      .then(setCode)
       .catch((err: Error) => setError(err.message));
   };
   return (
     <section className="panel stack">
       <SecHead title="Telegram" />
-      <p className="muted small" style={{ margin: 0 }}>
-        {me.telegramId
-          ? "Photos you send the Burrow bot are recorded under your name."
-          : "Send /me to the Burrow bot: it answers with your Telegram id. Put it here, and what you add from Telegram is recorded under your name."}
-      </p>
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save(id.trim() || null);
-        }}
-      >
-        <label className="field grow" style={{ minWidth: 140 }}>
-          <span>Telegram user id</span>
-          <input className="mono" inputMode="numeric" value={id} onChange={(e) => setId(e.target.value)} />
-        </label>
-        <button
-          type="submit"
-          className="btn"
-          style={{ alignSelf: "flex-end" }}
-          disabled={id === (me.telegramId ?? "")}
-        >
-          Save
-        </button>
-        {me.telegramId && (
+      {me.telegramId ? (
+        <>
+          <p style={{ margin: 0 }}>
+            Connected
+            {me.telegramBot && (
+              <>
+                {" "}
+                to <a href={`https://t.me/${me.telegramBot}`}>@{me.telegramBot}</a>
+              </>
+            )}
+            . Photos you send the bot are recorded under your name.
+          </p>
           <button
             type="button"
             className="btn ghost"
-            style={{ alignSelf: "flex-end" }}
-            onClick={() => save(null)}
+            style={{ alignSelf: "flex-start" }}
+            onClick={() =>
+              patch<{ me: Me }>("/account", { telegramId: null })
+                .then((r) => setMe(r.me))
+                .catch((err: Error) => setError(err.message))
+            }
           >
-            Unlink
+            Disconnect
           </button>
-        )}
-      </form>
+        </>
+      ) : !me.telegramBot ? (
+        <p className="muted small" style={{ margin: 0 }}>
+          The Telegram bot isn't running on this server (it needs <code className="mono">TG_BOT_TOKEN</code>).
+        </p>
+      ) : code ? (
+        <>
+          <p style={{ margin: 0 }}>Open the bot and press Start. That links this account.</p>
+          <a
+            className="btn"
+            href={code.link}
+            target="_blank"
+            rel="noreferrer"
+            style={{ alignSelf: "flex-start" }}
+          >
+            Open @{code.bot} in Telegram
+          </a>
+          <p className="muted small" style={{ margin: 0 }}>
+            On another device? Send the bot <code className="mono">/link {code.code}</code>. The code works
+            once, for 10 minutes. Waiting for Telegram…
+          </p>
+          <button
+            type="button"
+            className="btn ghost small"
+            style={{ alignSelf: "flex-start" }}
+            onClick={() => setCode(null)}
+          >
+            Cancel
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="muted small" style={{ margin: 0 }}>
+            Send photos to <strong>@{me.telegramBot}</strong> to add things from your phone. Connect it to
+            record them under your name.
+          </p>
+          <button type="button" className="btn" style={{ alignSelf: "flex-start" }} onClick={start}>
+            Connect Telegram
+          </button>
+        </>
+      )}
       {error && <p style={{ color: "var(--bad)", margin: 0 }}>{error}</p>}
     </section>
   );

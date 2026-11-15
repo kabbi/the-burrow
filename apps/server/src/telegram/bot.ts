@@ -101,8 +101,10 @@ export class PhotoBot {
   private albums = new Map<string, { msgs: TgMessage[]; timer: NodeJS.Timeout }>();
   private work = new Set<Promise<unknown>>();
   private albumDelayMs: number;
+  /** Chats let in by the environment (TG_ADMIN_CHAT_ID, TG_ALLOWED_CHAT_IDS); linked accounts are too. */
   private allowed: Set<string>;
   private warnedChats = new Set<number>();
+  private badCodes = new Map<number, { n: number; until: number }>();
 
   constructor(deps: Deps, api: BotApi, opts: BotOptions = {}) {
     this.deps = deps;
@@ -134,17 +136,29 @@ export class PhotoBot {
     return runAs(account?.username ?? "telegram", () => this.handleUpdate(u));
   }
 
+  /** Let in: a chat from the environment, or a sender linked to a Burrow account. */
+  private lets(chatId: number, fromId: number | undefined) {
+    return (
+      this.allowed.has(String(chatId)) ||
+      (fromId !== undefined && Boolean(this.deps.accounts.byTelegram(fromId)))
+    );
+  }
+
   private async handleUpdate(u: TgUpdate) {
     if (u.callback_query) return this.onCallback(u.callback_query);
     const m = u.message;
     if (!m) return;
-    if (!this.allowed.has(String(m.chat.id))) {
+    // "/start CODE" (from the account page's t.me link) or "/link CODE" links this Telegram user.
+    const code = m.text?.trim().match(/^\/(?:start|link)(?:@\w+)?\s+([A-Za-z0-9]{6,32})$/)?.[1];
+    if (code && m.from) return this.linkAccount(m.chat.id, m.from.id, code);
+    if (!this.lets(m.chat.id, m.from?.id)) {
       if (!this.warnedChats.has(m.chat.id)) {
         this.warnedChats.add(m.chat.id);
-        console.warn(
-          `telegram: chat ${m.chat.id} (${m.from?.first_name ?? "?"}) is not allowed; add it to TG_ALLOWED_CHAT_IDS to let it in`,
+        console.warn(`telegram: chat ${m.chat.id} (${m.from?.first_name ?? "?"}) isn't linked to an account`);
+        await this.send(
+          m.chat.id,
+          `This is a private bot. To use it, open your account page in Burrow (${esc(this.deps.config.publicUrl)}/account) and tap “Connect Telegram”.`,
         );
-        await this.send(m.chat.id, "This is a private bot.");
       }
       return;
     }
@@ -181,6 +195,27 @@ export class PhotoBot {
     return this.find(m.chat.id, q);
   }
 
+  private async linkAccount(chatId: number, fromId: number, code: string) {
+    const bad = this.badCodes.get(fromId);
+    if (bad && bad.until > Date.now())
+      return this.send(chatId, "Too many wrong codes. Try again in a few minutes.");
+    const a = this.deps.accounts.redeemTelegramCode(code, fromId);
+    if (!a) {
+      const n = (bad?.n ?? 0) + 1;
+      this.badCodes.set(fromId, { n, until: n >= 5 ? Date.now() + 10 * 60_000 : 0 });
+      return this.send(
+        chatId,
+        "That code didn't work (it lasts 10 minutes). Make a new one on your account page in Burrow.",
+      );
+    }
+    this.badCodes.delete(fromId);
+    this.warnedChats.delete(chatId);
+    return this.send(
+      chatId,
+      `🔗 Linked: you are <b>${esc(a.name)}</b> in Burrow. What you do here is recorded under your name.\n\n${HELP}`,
+    );
+  }
+
   /** Which Burrow account this Telegram user is, and how to link one. */
   private whoami(m: TgMessage): string {
     const id = m.from?.id;
@@ -188,7 +223,7 @@ export class PhotoBot {
     const a = this.deps.accounts.byTelegram(id);
     return a
       ? `You are <b>${esc(a.name)}</b> (${esc(a.username)}) in Burrow. What you do here is recorded under that name.`
-      : `Your Telegram id is <code>${id}</code>. Put it on your account page in Burrow (${esc(this.deps.config.publicUrl)}/account) so what you add here is recorded under your name.`;
+      : `You aren't linked to a Burrow account. Open your account page (${esc(this.deps.config.publicUrl)}/account) and tap “Connect Telegram”.`;
   }
 
   /** Text that isn't a reply: find things and say where they are. */
@@ -691,7 +726,7 @@ export class PhotoBot {
 
   private async onCallback(cb: TgCallback) {
     const chatId = cb.message?.chat.id;
-    if (chatId === undefined || !this.allowed.has(String(chatId))) {
+    if (chatId === undefined || !this.lets(chatId, cb.from.id)) {
       await this.answer(cb, "Not allowed");
       return;
     }
@@ -1304,6 +1339,13 @@ export function startTelegramBot(deps: Deps, api: import("./api.ts").TelegramApi
     )
     .catch((e: Error) => console.warn(`vision: ${e.message}`));
   let warned409 = false;
+  // The bot's @username, for the account page's t.me links (D-033).
+  void api
+    .call<{ username?: string }>("getMe", {})
+    .then((me) => {
+      deps.telegram.username = me.username ?? null;
+    })
+    .catch((e: Error) => console.warn(`telegram: getMe failed: ${e.message}`));
   void api
     .call("setMyCommands", {
       commands: [

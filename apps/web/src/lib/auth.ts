@@ -26,6 +26,8 @@ export interface Me {
   name: string;
   hasPassword: boolean;
   telegramId: string | null;
+  /** The bot's @username when it runs on this server (null: no bot). */
+  telegramBot: string | null;
   createdAt: string;
   passkeys: Passkey[];
   /** Devices signed in. */

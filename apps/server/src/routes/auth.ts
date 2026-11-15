@@ -155,6 +155,7 @@ export function authRoutes(deps: Deps): Router {
 
   const meView = (a: Account) => ({
     ...a,
+    telegramBot: deps.telegram.username,
     passkeys: accounts.passkeys(a.username),
     sessions: accounts.sessionCount(a.username),
   });
@@ -254,9 +255,19 @@ export function authRoutes(deps: Deps): Router {
 
   r.patch("/account", (req, res) => {
     const a = me(res);
-    const b = z.object({ telegramId: z.string().max(20).nullable().optional() }).parse(req.body);
-    if (b.telegramId !== undefined) accounts.setTelegram(a.username, b.telegramId);
+    // Linking needs a code sent from Telegram (proof it's yours, D-033); here you can only unlink.
+    const b = z.object({ telegramId: z.null().optional() }).parse(req.body);
+    if (b.telegramId === null) accounts.setTelegram(a.username, null);
     res.json({ me: meView(accounts.must(a.username)) });
+  });
+
+  /** A code to send the bot; the answer has a t.me link that sends it by itself. */
+  r.post("/account/telegram/code", (_req, res) => {
+    const a = me(res);
+    const bot = deps.telegram.username;
+    if (!bot) throw new BurrowError("The Telegram bot isn't running on this server", 409);
+    const c = accounts.telegramCode(a.username);
+    res.json({ ...c, bot, link: `https://t.me/${bot}?start=${c.code}` });
   });
 
   r.post("/account/sign-out-others", (req, res) => {

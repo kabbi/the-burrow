@@ -20,7 +20,11 @@ export const config = {
   sf3dUrl: strip(env.SF3D_URL),
   /** Where people open Burrow (links in Telegram messages). */
   publicUrl: strip(env.BURROW_PUBLIC_URL ?? "http://localhost:5180"),
-  /** Telegram photo bot (D-019). Runs when a token is set, unless TG_BOT=0. Only one instance may poll a token. */
+  /**
+   * Telegram photo bot (D-019). Runs when a token is set, unless TG_BOT=0. Only one instance may
+   * poll a token. People link their account with a code from the account page (D-033); these
+   * chats are let in without one.
+   */
   telegram: {
     token: env.TG_BOT_TOKEN ?? "",
     enabled: Boolean(env.TG_BOT_TOKEN) && env.TG_BOT !== "0",

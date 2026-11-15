@@ -16,7 +16,9 @@ app.listen(config.port, () => {
 });
 
 const tg = config.telegram;
-if (tg.enabled && tg.chats.length) {
+if (tg.enabled) {
   startTelegramBot(deps, new TelegramApi(tg.token));
-  console.log(`  telegram: on (${tg.chats.length} chat${tg.chats.length === 1 ? "" : "s"} allowed)`);
-} else if (tg.enabled) console.warn("  telegram: token set but no TG_ADMIN_CHAT_ID: bot off");
+  console.log(
+    `  telegram: on (linked accounts${tg.chats.length ? ` + ${tg.chats.length} chat(s) from env` : ""})`,
+  );
+}
