@@ -8,6 +8,11 @@ export default defineConfig({
     strictPort: true,
     allowedHosts: ["fedora", "fedora.example.com"],
     host: true,
-    proxy: { "/api": "http://localhost:4100", "/media": "http://localhost:4100" },
+    // Keep the browser's Host header: the server compares it with Origin (same-origin writes,
+    // passkey relying party; D-032). The string shorthand would rewrite it to localhost:4100.
+    proxy: {
+      "/api": { target: "http://localhost:4100", changeOrigin: false },
+      "/media": { target: "http://localhost:4100", changeOrigin: false },
+    },
   },
 });

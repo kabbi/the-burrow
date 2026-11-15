@@ -199,3 +199,7 @@ username). Bug found and fixed: after setup the gate kept showing the form (an o
 true` was spread over the new state). Gotcha: in zsh, `A="agent-browser --session x"; $A …`
 doesn't word-split, so nothing runs; use a function.
 Dev DB backup before the new tables: `data/backups/pre-accounts-2026-11-15.sqlite`.
+Follow-up: on the real dev setup (:5180) setup failed with "Cross-origin request refused": Vite's
+string proxy shorthand sets `changeOrigin`, so `Host` arrived as `localhost:4100` while `Origin`
+was `fedora:5180`. Fixed with `changeOrigin: false` in `vite.config.ts`. The browser test used the
+built app on one port, so it never went through the proxy.
