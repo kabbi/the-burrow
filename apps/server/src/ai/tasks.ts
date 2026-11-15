@@ -25,7 +25,6 @@ export const ThingSuggestion = z.object({
   name: z.string().describe("Clean, specific name a person would search for"),
   kind: z.string().describe("One of the kind ids given"),
   description: z.string().describe("One or two plain sentences: what it is and what it is for"),
-  tags: z.array(z.string()).describe("3-6 lowercase tags, reuse existing tags when they fit"),
   maker: z.string().nullable(),
   model: z.string().nullable(),
   quantity: z.number().nullable().describe("Only if the input states a count"),
@@ -56,21 +55,18 @@ export function suggestThingTask(store: Store): AiTask<SuggestThingInput, ThingS
         .slice(0, 120)
         .map((p) => `${p.id}: ${p.path}`)
         .join("\n");
-      const tags = topTags(store, 60).join(", ");
       const system = [
         "You catalogue things for a home inventory. A person typed a short name (maybe with a product page summary). Return details that make the thing easy to find and recognise later.",
         "Rules:",
         "- name: a clear, specific name; fix capitalisation; keep the person's wording when it is already good.",
         "- kind: exactly one id from the kinds list (the part before the parentheses).",
         "- description: 1-2 sentences that add information beyond the name: what it is, what it is used for, notable traits. Never just repeat the name.",
-        "- tags: 3-6 short lowercase tags; reuse existing tags when they fit.",
         "- maker / model: only when stated or unambiguous from the name, else null. Never invent serial numbers or prices.",
         "- quantity: only when the input states a count, else null.",
         "- placeId: an id from the places list only if the name clearly implies where it lives (e.g. a dishwasher → kitchen), else null.",
         "- question: null unless one multiple-choice question would remove an important ambiguity.",
-        'Example: typed "hot glue gun" → {"name":"Hot glue gun","kind":"tool","description":"Electric tool that melts glue sticks for quick bonding of plastic, wood, fabric and craft materials.","tags":["glue","crafts","workshop"],"maker":null,"model":null,"quantity":null,"placeId":null,"question":null}',
+        'Example: typed "hot glue gun" → {"name":"Hot glue gun","kind":"tool","description":"Electric tool that melts glue sticks for quick bonding of plastic, wood, fabric and craft materials.","maker":null,"model":null,"quantity":null,"placeId":null,"question":null}',
         `Kinds: ${kinds}.`,
-        `Existing tags: ${tags || "(none yet)"}.`,
         `Places (id: path):\n${places || "(none yet)"}`,
       ].join("\n");
       const user = [
@@ -106,16 +102,6 @@ export function pageToInput(
         }
       : {}),
   };
-}
-
-export function topTags(store: Store, n: number): string[] {
-  const rows = store.db
-    .prepare(
-      `select t.name tag, count(*) n from edges e join things t on t.id = e.to_id
-       where e.type = 'tagged' and t.archived_at is null group by t.id order by n desc limit ?`,
-    )
-    .all(n) as { tag: string }[];
-  return rows.map((r) => r.tag);
 }
 
 // ------------------------------------------------------------ photo-thing (Telegram, D-019)

@@ -516,3 +516,13 @@ Adding a shelf's worth of things one photo at a time, with a menu each, was slow
   time. Now the picker's own message says "or reply to this message with a place": a reply to the menu
   is the answer (the session's `prompt_id` is the menu itself). Plain text is still search.
 - Cost: an album of one thing now takes a tap (🔗) instead of being the default.
+
+## D-030 · AI suggests no tags (paused) (2026-11-15)
+
+AI tag suggestions were wrong about nine times out of ten. Tags in Burrow carry human meaning ("for
+the trip", "mum's"), which a name, a photo or a product page can't tell. So the `suggest-thing` and
+`photo-thing` tasks no longer ask for tags: the field is gone from the schema and the prompt, which
+also saves output tokens and the list of existing tags in the prompt. `applySuggestion` adds none.
+Tags a person sets are unchanged. AI tags already in the DB stay as unchecked guesses: confirm or
+remove them in Tidy up, and Telegram's rename still drops them. To bring tags back, restore the
+field and add a rule like "only reuse an existing tag that clearly applies".

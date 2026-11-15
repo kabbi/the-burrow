@@ -90,7 +90,6 @@ for (const t of targets) {
         model: s.model,
         qty: s.quantity,
         place: s.placeId ? `${s.placeId} ${store.getRaw(s.placeId)?.name ?? "?"}` : null,
-        tags: s.tags.join(","),
         desc: s.description,
         q: s.question?.text ?? null,
       }),

@@ -37,7 +37,6 @@ class FakeVision implements Provider {
       name: "Hot glue gun",
       kind: "tool",
       description: "Melts glue sticks for quick bonding.",
-      tags: ["glue", "crafts"],
       maker: null,
       model: null,
       quantity: null,
@@ -213,7 +212,7 @@ describe("telegram photo bot", () => {
     const t = deps.store.list({ limit: 50 }).find((x) => x.name === "Hot glue gun")!;
     expect(t.kind).toBe("tool");
     expect(t.meta.name?.source).toBe("ai");
-    expect(t.tags.map((x) => x.name).toSorted()).toEqual(["crafts", "glue"]);
+    expect(t.tags).toEqual([]); // AI suggests no tags (D-030)
     expect(t.cover).not.toBeNull();
     expect(t.parentId).toBeNull(); // never placed by guess
 
@@ -252,14 +251,13 @@ describe("telegram photo bot", () => {
       name: "Dog nail clipper",
       kind: "thing",
       description: "Trims a dog's nails.",
-      tags: ["dog"],
     };
     await send(text("2 dog nail clipper", batchMenu));
     const t = deps.store.mustGet(second.id);
     expect(t.name).toBe("dog nail clipper");
     expect(t.meta.name?.source).toBe("you");
     expect(t.data.description).toBe("Trims a dog's nails.");
-    expect(t.tags.map((x) => x.name)).toEqual(["dog"]); // the glue gun's tags are gone
+    expect(t.tags).toEqual([]);
     expect(String(tg.last("editMessageText")!.text)).toContain("dog nail clipper");
   });
 

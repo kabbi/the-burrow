@@ -289,14 +289,7 @@ export function applySuggestion(
     delete data.description;
   const source: FieldSource = "ai";
   store.change(id, patch, source, "ai");
-  if (!reject.has("tags")) {
-    // Add suggested tags (marked as AI) without removing the ones already there.
-    for (const name of s.tags.map((x) => x.toLowerCase().trim()).filter(Boolean)) {
-      const tagId = store.ensureTag(name, "ai");
-      if (!store.edges({ type: "tagged", fromId: id, toId: tagId }).length)
-        store.relate("tagged", id, tagId, { source: "ai" }, "ai");
-    }
-  }
+  // No AI tags (D-030): tags carry human meaning a product page can't tell.
   if (!reject.has("parent") && s.placeId && !t.parentId && store.getRaw(s.placeId)) {
     store.move(id, s.placeId, "ai", "ai");
   }

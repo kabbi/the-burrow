@@ -49,7 +49,6 @@ class FakeAnthropic implements Provider {
       name: "Moka pot, 6-cup",
       kind: "thing",
       description: "Stovetop coffee maker.",
-      tags: ["coffee", "kitchen"],
       maker: "Bialetti",
       model: null,
       quantity: null,
@@ -159,10 +158,7 @@ describe("AI gateway", () => {
     }>("POST", "/things/B-0002/apply-suggestion", { requestId: q.body.quote.id, reject: ["maker"] });
     expect(applied.body.thing.name).toBe("Moka pot, 6-cup");
     expect(applied.body.thing.data.maker).toBeUndefined();
-    expect(applied.body.thing.tags.map((t) => [t.name, t.source])).toEqual([
-      ["coffee", "ai"],
-      ["kitchen", "ai"],
-    ]);
+    expect(applied.body.thing.tags).toEqual([]); // AI suggests no tags (D-030)
     expect(applied.body.thing.parentId).toBe("B-0001");
   });
 

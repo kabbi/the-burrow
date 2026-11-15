@@ -581,7 +581,6 @@ export class PhotoBot {
     } else {
       lines.push(`🆕 ${newLine}`);
       if (sg?.description) lines.push(esc(sg.description));
-      if (sg?.tags.length) lines.push(sg.tags.map((t) => `#${esc(t.replace(/\s+/g, "_"))}`).join(" "));
       if (things.length) {
         lines.push("", "<b>Already in Burrow?</b>");
         things.forEach(({ c, t }, i) =>
