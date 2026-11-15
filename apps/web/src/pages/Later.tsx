@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { get, type ThingView } from "../lib/api.ts";
 import { ThingCard } from "../components/ThingCard.tsx";
+import { LinkEnrich } from "../components/LinkEnrich.tsx";
+import { isUrl } from "../lib/page.ts";
 
 /** Things saved with gaps. Nothing here is urgent; it's a to-do you pick at. */
 export function Later() {
@@ -35,10 +37,36 @@ export function Later() {
       {shown.length === 0 && <div className="empty">Nothing missing. Nice.</div>}
       <div className="stack">
         {shown.slice(0, 100).map((t) => (
-          <ThingCard key={t.id} thing={t} />
+          <LaterItem key={t.id} thing={t} />
         ))}
       </div>
       {shown.length > 100 && <p className="muted small">…and {shown.length - 100} more</p>}
     </main>
+  );
+}
+
+/** A card plus "paste a product link": the fastest way to fill a name-only thing (D-023). */
+function LaterItem({ thing }: { thing: ThingView }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const hasLink = typeof thing.data.url === "string";
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <ThingCard thing={thing} />
+      {url ? (
+        <div className="panel" style={{ marginLeft: 24 }}>
+          <LinkEnrich thing={thing} initialUrl={url} onClose={() => setUrl(null)} />
+        </div>
+      ) : (
+        !hasLink && (
+          <input
+            className="input linkslot"
+            placeholder="🔗 paste a product link"
+            aria-label={`Product link for ${thing.name}`}
+            inputMode="url"
+            onChange={(e) => isUrl(e.target.value) && setUrl(e.target.value.trim())}
+          />
+        )
+      )}
+    </div>
   );
 }

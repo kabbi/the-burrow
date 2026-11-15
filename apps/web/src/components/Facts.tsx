@@ -7,7 +7,7 @@ import { useSchema } from "../lib/schema.ts";
 import { ThingSearch } from "./ThingSearch.tsx";
 
 const HIDDEN = new Set(["imageUrl", "thumbUrl", "tags"]);
-const SOURCE_LABEL: Record<string, string> = {
+export const SOURCE_LABEL: Record<string, string> = {
   you: "you",
   ai: "AI guess",
   page: "from the page",

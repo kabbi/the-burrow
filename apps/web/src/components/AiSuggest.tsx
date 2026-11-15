@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRefresh } from "../lib/hooks.ts";
 import { get, post, usd, type AiRecord, type Providers, type Quote, type ThingView } from "../lib/api.ts";
@@ -25,10 +25,16 @@ export function AiSuggest({
   thingId,
   input,
   onApplied,
+  autoStart = false,
+  keep = [],
 }: {
   thingId: string;
   input: Record<string, unknown>;
   onApplied: (t: ThingView, rec: AiRecord) => void;
+  /** Ask for a quote as soon as it can: local models then run, paid ones show the price. */
+  autoStart?: boolean;
+  /** Fields the suggestion must not change (e.g. "name" when it's the household's own name). */
+  keep?: string[];
 }) {
   const { data: prov } = useQuery({
     queryKey: ["ai-providers"],
@@ -91,6 +97,7 @@ export function AiSuggest({
       if (request.status !== "done") return setStep({ s: "error", message: request.error ?? request.status });
       const { thing } = await post<{ thing: ThingView }>(`/things/${thingId}/apply-suggestion`, {
         requestId: quote.id,
+        ...(keep.length ? { reject: keep } : {}),
       });
       setStep({ s: "done", rec: request });
       await refresh();
@@ -102,6 +109,7 @@ export function AiSuggest({
 
   return (
     <div className="aibox" aria-live="polite">
+      {autoStart && <OnMount run={getQuote} />}
       {(step.s === "idle" || step.s === "error" || step.s === "quoting") && (
         <div className="row">
           <button type="button" className="btn ai" onClick={getQuote} disabled={step.s === "quoting"}>
@@ -187,4 +195,11 @@ export function AiSuggest({
       )}
     </div>
   );
+}
+
+/** Runs `run` once, when first shown (the auto start, after the providers are known). */
+function OnMount({ run }: { run: () => Promise<void> }) {
+  // oxlint-disable-next-line react/exhaustive-deps -- once on mount, on purpose
+  useEffect(() => void run(), []);
+  return null;
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { get, post, type BurrowEvent, type ThingDetail } from "../lib/api.ts";
@@ -12,6 +12,8 @@ import { TagEditor } from "../components/Tags.tsx";
 import { Relations } from "../components/Relations.tsx";
 import { Assets, ROLE_LABEL } from "../components/Assets.tsx";
 import { BoardViewer } from "../components/BoardViewer.tsx";
+import { LinkEnrich } from "../components/LinkEnrich.tsx";
+import { isUrl } from "../lib/page.ts";
 
 export function Thing() {
   const { id = "" } = useParams();
@@ -22,6 +24,23 @@ export function Thing() {
   const { data: schema } = useSchema();
   const act = useAction();
   const [moving, setMoving] = useState(false);
+  /** The "Add product link" panel: closed, or open (with a pasted URL). */
+  const [linkingAt, setLinking] = useState<{ id: string; url?: string } | null>(null);
+  const linking = linkingAt?.id === id ? linkingAt : null;
+
+  // Paste a product link anywhere on the page (outside a text box) to open the panel with it.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest("input, textarea, select, [contenteditable]")) return;
+      const text = e.clipboardData?.getData("text") ?? "";
+      if (!isUrl(text)) return;
+      e.preventDefault();
+      setLinking({ id, url: text.trim() });
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [id]);
 
   if (error)
     return (
@@ -52,6 +71,12 @@ export function Thing() {
               {t.archivedAt && <span className="tag">archived</span>}
             </div>
             <h1 style={{ fontSize: 30 }}>{t.name}</h1>
+            {typeof t.data.productName === "string" && t.data.productName !== t.name && (
+              <ProductName
+                name={t.data.productName}
+                url={typeof t.data.url === "string" ? t.data.url : null}
+              />
+            )}
             {physical && <StatusLine thing={t} />}
             <PathView thing={t} />
             {t.parentId && <SpotEditor thing={t} spots={data.spots} />}
@@ -95,6 +120,16 @@ export function Thing() {
                   Open in Papers
                 </Link>
               )}
+              {!isTag && !isDoc && !linking && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setLinking({ id })}
+                  title="Or paste a link anywhere on this page"
+                >
+                  {typeof t.data.url === "string" ? "Re-read link" : "Add product link"}
+                </button>
+              )}
               {!t.archivedAt && (
                 <button
                   type="button"
@@ -125,6 +160,19 @@ export function Thing() {
           </div>
         </div>
       </section>
+
+      {linking && !isTag && !isDoc && (
+        <section className="panel stack">
+          <h2 className="eyebrow">Fill in from a product page</h2>
+          <LinkEnrich
+            key={linking.url ?? ""}
+            thing={t}
+            assets={data.assets}
+            {...(linking.url ? { initialUrl: linking.url } : {})}
+            onClose={() => setLinking(null)}
+          />
+        </section>
+      )}
 
       {data.assets.some((a) => a.data.view === "top" || a.data.view === "bottom") && (
         <BoardViewer key={t.id} assets={data.assets} />
@@ -194,6 +242,21 @@ export function Thing() {
 
       <History events={data.events} />
     </main>
+  );
+}
+
+/** The shop's name for it, under the household's name (D-023). */
+function ProductName({ name, url }: { name: string; url: string | null }) {
+  return (
+    <span className="muted" style={{ marginTop: -4 }}>
+      {url ? (
+        <a href={url} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>
+          {name} ↗
+        </a>
+      ) : (
+        name
+      )}
+    </span>
   );
 }
 

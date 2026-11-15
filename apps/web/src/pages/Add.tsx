@@ -17,6 +17,7 @@ import { Facts } from "../components/Facts.tsx";
 import { TagEditor } from "../components/Tags.tsx";
 import { useThingKinds } from "../lib/schema.ts";
 import { AiSuggest } from "../components/AiSuggest.tsx";
+import { aiInput as pageAiInput, isUrl, pageData } from "../lib/page.ts";
 import { PathView, StatusLine, Thumb } from "../components/ThingCard.tsx";
 
 const QUICK_KINDS = ["thing", "electronics", "tool", "appliance", "container", "furniture", "room"];
@@ -29,17 +30,6 @@ function storedPlace(): string | null {
   } catch {
     return null;
   }
-}
-
-function isUrl(s: string) {
-  return /^https?:\/\/\S+$/i.test(s.trim());
-}
-
-function parsePrice(p: string | undefined): { price?: number; currency?: string } {
-  const m = p?.match(/([\d.,]+)\s*([A-Z]{3})?/);
-  if (!m?.[1]) return {};
-  const n = Number(m[1].replace(/,(?=\d{2}$)/, ".").replace(/,/g, ""));
-  return Number.isFinite(n) ? { price: n, ...(m[2] ? { currency: m[2] } : {}) } : {};
 }
 
 interface Saved {
@@ -112,9 +102,11 @@ export function Add() {
         sources.url = "you";
       }
       if (page) {
-        if (page.brand) data.maker = page.brand;
-        Object.assign(data, parsePrice(page.price));
-        for (const k of ["maker", "price", "currency"]) if (k in data) sources[k] = "page";
+        // The shop's title is kept as the product name even when you call it something else.
+        for (const [k, v] of Object.entries(pageData(page))) {
+          data[k] = v;
+          sources[k] = "page";
+        }
         if (page.title && page.title === finalName) sources.name = "page";
       }
       if (qty.trim()) data.quantity = Number(qty);
@@ -135,21 +127,7 @@ export function Add() {
         await upload(`/things/${r.thing.id}/assets`, photo, { role: "photo", filename: photo.name }).catch(
           (e: Error) => toast({ text: `Photo not saved: ${e.message}`, error: true }),
         );
-      const aiInput = {
-        name: finalName,
-        ...(url ? { url } : {}),
-        ...(page
-          ? {
-              page: {
-                ...(page.title ? { title: page.title } : {}),
-                ...(page.description ? { description: page.description.slice(0, 600) } : {}),
-                ...(page.siteName ? { siteName: page.siteName } : {}),
-                ...(page.price ? { price: page.price } : {}),
-                ...(page.brand ? { brand: page.brand } : {}),
-              },
-            }
-          : {}),
-      };
+      const aiInput = pageAiInput(finalName, url, page);
       setSaved((s) => [{ thing: r.thing, event: r.event, aiInput }, ...s].slice(0, 20));
       setText("");
       setName(null);

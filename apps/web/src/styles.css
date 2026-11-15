@@ -1564,3 +1564,74 @@ a.pc-title:hover {
     white-space: normal;
   }
 }
+
+/* Fill in from a product page (D-023) */
+.changes {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  padding: 4px 12px;
+  background: var(--tint);
+}
+.change {
+  display: grid;
+  grid-template-columns: 20px 110px minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-3);
+  font-size: 14px;
+  cursor: pointer;
+}
+.change:first-child {
+  border-top: 0;
+}
+.change.sub {
+  border-top: 0;
+  padding-top: 0;
+}
+.change .label {
+  color: var(--muted);
+}
+.change .from,
+.change .to {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.change .from {
+  color: var(--ink-2);
+}
+.change .to {
+  font-weight: 600;
+}
+.change.off .to {
+  font-weight: 400;
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.change .ai-src {
+  color: var(--ai);
+}
+.linkslot {
+  margin-left: 24px;
+  width: calc(100% - 24px);
+  min-height: 36px;
+  font-size: 14px;
+  background: transparent;
+  border-style: dashed;
+}
+@media (max-width: 640px) {
+  .change {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+  .change .from,
+  .change .to {
+    grid-column: 2;
+  }
+  .change .label:empty,
+  .change .from:empty,
+  .change .from.none {
+    display: none;
+  }
+}
