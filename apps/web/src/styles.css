@@ -1852,3 +1852,12 @@ a.job:hover .job-go {
     gap: 0;
   }
 }
+
+/* ---------------------------------------------------------------- account (D-032) */
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 20px;
+  align-items: start;
+}

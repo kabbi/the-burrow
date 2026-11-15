@@ -17,6 +17,7 @@ import { Assets } from "../components/Assets.tsx";
 import { BoardViewer } from "../components/BoardViewer.tsx";
 import { LinkEnrich } from "../components/LinkEnrich.tsx";
 import { isUrl } from "../lib/page.ts";
+import { Who } from "../components/Who.tsx";
 
 export function Thing() {
   const { id = "" } = useParams();
@@ -139,7 +140,7 @@ export function Thing() {
             {created && (
               <span className="small muted">
                 added {new Date(created.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}{" "}
-                by {created.actor}
+                by <Who actor={created.actor} />
               </span>
             )}
           </span>
@@ -275,7 +276,7 @@ export function Thing() {
           {!isTag && (
             <section className="panel stack">
               <h2 className="eyebrow">Links</h2>
-              <Relations thingId={t.id} relations={data.relations} />
+              <Relations thingId={t.id} thingKind={t.kind} relations={data.relations} />
               {!isDoc && !data.relations.some((r) => r.type === "has_document") && (
                 <p className="muted small" style={{ margin: 0 }}>
                   Receipts and manuals: link them from the <Link to="/papers">Papers inbox</Link>.
@@ -420,7 +421,7 @@ function History({ events }: { events: (BurrowEvent & { undoable: boolean })[] }
           <li key={e.seq} className={e.undone ? "undone" : ""}>
             <span className="hist-what">{eventLabel(e)}</span>
             <span className="hist-meta">
-              {e.actor} · {timeAgo(e.at)}
+              <Who actor={e.actor} /> · {timeAgo(e.at)}
               {e.undoable && (
                 <button type="button" className="linkbtn" onClick={() => undo.mutate(e.seq)}>
                   {e.undone ? "redo" : "undo"}

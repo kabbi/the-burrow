@@ -25,6 +25,8 @@ import { Places } from "./pages/Places.tsx";
 import { Api } from "./pages/Api.tsx";
 import { ToastProvider } from "./lib/toast.tsx";
 import { System } from "./pages/System.tsx";
+import { Account } from "./pages/Account.tsx";
+import { AuthGate } from "./components/SignIn.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 5_000, refetchOnWindowFocus: true, retry: 1 } },
@@ -40,6 +42,7 @@ const router = createBrowserRouter([
       { path: "/t/:id", element: <Thing /> },
       { path: "/papers", element: <Papers /> },
       { path: "/tidy", element: <Tidy /> },
+      { path: "/account", element: <Account /> },
       {
         path: "/workshop",
         element: <Workshop />,
@@ -68,7 +71,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <RouterProvider router={router} />
+        <AuthGate>
+          <RouterProvider router={router} />
+        </AuthGate>
       </ToastProvider>
     </QueryClientProvider>
   </StrictMode>,

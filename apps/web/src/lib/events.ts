@@ -48,9 +48,3 @@ export function eventLabel(e: BurrowEvent, names: MoveNames = {}): string {
       return b.type.replace(".", " ");
   }
 }
-
-/** Who did it, in words: "you", "local AI", "pcb-rig". */
-export function actorLabel(actor: string): string {
-  if (actor === "ai") return "AI";
-  return actor;
-}

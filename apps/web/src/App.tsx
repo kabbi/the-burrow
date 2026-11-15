@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react
 import { useQuery } from "@tanstack/react-query";
 import { get, type Overview } from "./lib/api.ts";
 import { Icon, Mark, type IconName } from "./ui/Icon.tsx";
+import { useMe } from "./lib/auth.ts";
 
 /** The places you go, in order. Workshop holds the admin pages (D-027). */
 const NAV: { to: string; label: string; end?: boolean; count?: (o: Overview) => number | null }[] = [
@@ -78,10 +79,22 @@ export function Layout() {
           <Icon name="plus" size={16} stroke={2.5} />
           Add a thing
         </NavLink>
+        <AccountLink />
       </header>
       <Outlet />
       <TabBar papers={data?.papers.inbox ?? null} />
     </div>
+  );
+}
+
+/** Who's signed in: their initial, to the account page (D-032). */
+function AccountLink() {
+  const me = useMe();
+  if (!me) return null;
+  return (
+    <NavLink to="/account" className="avatar" aria-label={`Your account: ${me.name}`} title={me.name}>
+      {[...me.name.trim()][0]?.toUpperCase() ?? "?"}
+    </NavLink>
   );
 }
 
@@ -124,7 +137,8 @@ function TabBar({ papers }: { papers: number | null }) {
   const more = moreAt === pathname;
   const setMore = (open: boolean | ((o: boolean) => boolean)) =>
     setMoreAt((typeof open === "function" ? open(more) : open) ? pathname : null);
-  const inMore = pathname.startsWith("/papers") || pathname.startsWith("/workshop");
+  const inMore =
+    pathname.startsWith("/papers") || pathname.startsWith("/workshop") || pathname.startsWith("/account");
   return (
     <>
       <nav className="tabbar" aria-label="Main">
@@ -159,6 +173,7 @@ function TabBar({ papers }: { papers: number | null }) {
           <div className="sheet-backdrop" onClick={() => setMore(false)} />
           <div className="sheet" role="dialog" aria-label="More">
             <span className="grabber" />
+            <AccountSheetLink />
             <NavLink to="/papers">
               <Icon name="paper" size={20} />
               <span className="grow">Papers</span>
@@ -183,6 +198,18 @@ function TabBar({ papers }: { papers: number | null }) {
         </>
       )}
     </>
+  );
+}
+
+function AccountSheetLink() {
+  const me = useMe();
+  if (!me) return null;
+  return (
+    <NavLink to="/account">
+      <Icon name="person" size={20} />
+      <span className="grow">{me.name}</span>
+      <span className="muted small">account</span>
+    </NavLink>
   );
 }
 

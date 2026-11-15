@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { del, post, type ThingDetail } from "../lib/api.ts";
 import { useAction } from "../lib/hooks.ts";
-import { useSchema } from "../lib/schema.ts";
+import { kindIs, useSchema } from "../lib/schema.ts";
+import { useMe } from "../lib/auth.ts";
 import { ThingSearch } from "./ThingSearch.tsx";
 
 type Rel = ThingDetail["relations"][number];
@@ -11,7 +12,15 @@ type Rel = ThingDetail["relations"][number];
  * Typed links to other things, grouped by how they read from this side
  * ("accessories", "replaced by"…). Tags are shown separately.
  */
-export function Relations({ thingId, relations }: { thingId: string; relations: Rel[] }) {
+export function Relations({
+  thingId,
+  thingKind,
+  relations,
+}: {
+  thingId: string;
+  thingKind: string;
+  relations: Rel[];
+}) {
   const act = useAction();
   const { data: schema } = useSchema();
   const [choice, setChoice] = useState("");
@@ -20,18 +29,32 @@ export function Relations({ thingId, relations }: { thingId: string; relations: 
   const groups = new Map<string, Rel[]>();
   for (const r of shown) groups.set(r.label, [...(groups.get(r.label) ?? []), r]);
 
-  // Each relation type can be added from either end: "accessory of →" or "← accessories".
+  const isA = (kind: string, allowed: string[]) =>
+    !allowed.length || allowed.some((k) => kindIs(schema?.kinds ?? [], kind, k));
+  // Each relation type can be added from either end: "accessory of →" or "← accessories", when
+  // this thing may stand on that end (only a person "owns").
   const choices = (schema?.relations ?? [])
     .filter((rt) => rt.id !== "tagged")
     .flatMap((rt) =>
       rt.symmetric
-        ? [{ key: `${rt.id}:out`, label: rt.name }]
+        ? [{ key: `${rt.id}:out`, label: rt.name, ok: isA(thingKind, rt.fromKinds) }]
         : [
-            { key: `${rt.id}:out`, label: rt.name },
-            { key: `${rt.id}:in`, label: rt.inverse },
+            { key: `${rt.id}:out`, label: rt.name, ok: isA(thingKind, rt.fromKinds) },
+            { key: `${rt.id}:in`, label: rt.inverse, ok: isA(thingKind, rt.toKinds) },
           ],
-    );
+    )
+    .filter((c) => c.ok);
   const [type, direction] = (choice || choices[0]?.key || ":").split(":");
+  // Only things the link type allows at the other end ("owned by" → people).
+  const rt = schema?.relations.find((x) => x.id === type);
+  const otherKinds = (direction === "in" ? rt?.fromKinds : rt?.toKinds) ?? [];
+  const fits = (kind: string) => isA(kind, otherKinds);
+  const me = useMe();
+  const link = (otherId: string, name: string) =>
+    act(() => post(`/things/${thingId}/relations`, { type, otherId, direction }), `Linked ${name}`);
+  const linkedToMe = shown.some(
+    (r) => r.type === type && r.direction === direction && r.other.id === me?.personId,
+  );
 
   return (
     <div className="stack" style={{ gap: 10 }}>
@@ -104,15 +127,15 @@ export function Relations({ thingId, relations }: { thingId: string; relations: 
             <ThingSearch
               placeholder="link to…"
               autoFocus
-              filter={(t) => t.id !== thingId && t.kind !== "tag"}
-              onPick={(t) =>
-                act(
-                  () => post(`/things/${thingId}/relations`, { type, otherId: t.id, direction }),
-                  `Linked ${t.name}`,
-                )
-              }
+              filter={(t) => t.id !== thingId && t.kind !== "tag" && fits(t.kind)}
+              onPick={(t) => link(t.id, t.name)}
             />
           </div>
+          {me && me.personId !== thingId && fits("person") && otherKinds.length > 0 && !linkedToMe && (
+            <button type="button" className="chip" onClick={() => link(me.personId, me.name)}>
+              me
+            </button>
+          )}
           <button type="button" className="btn small ghost" onClick={() => setAdding(false)}>
             Done
           </button>

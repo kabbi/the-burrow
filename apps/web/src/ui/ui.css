@@ -91,6 +91,44 @@ svg.icon {
 .brand:hover {
   color: var(--ink);
 }
+/* Who's signed in (D-032): their initial, to the account page. */
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: var(--sunk);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  text-decoration: none;
+}
+.avatar:hover,
+.avatar.active {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* The door: sign in, or make the first account. Nothing else of Burrow shows. */
+.door {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px var(--gutter);
+}
+.door-card {
+  width: min(420px, 100%);
+  gap: 16px;
+}
+.door-card h1 {
+  font-family: var(--font-display);
+  font-size: 32px;
+  margin: 0;
+}
+
 .topsearch {
   flex: 1 1 260px;
   max-width: 420px;

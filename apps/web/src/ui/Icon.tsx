@@ -122,6 +122,18 @@ const PATHS = {
   group: <path d="M4 6h16M4 12h16M4 18h10" />,
   star: <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
   home: <path d="M4 11l8-7 8 7v9H4z" />,
+  person: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </>
+  ),
+  key: (
+    <>
+      <circle cx="8" cy="15" r="4" />
+      <path d="M11 12l9-9M16 7l3 3M14 9l2 2" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

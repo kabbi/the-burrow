@@ -10,6 +10,7 @@ import { Icon } from "../ui/Icon.tsx";
 import { SecHead } from "../ui/parts.tsx";
 import { ThingRow, ThingTile, Thumb } from "../ui/thing.tsx";
 import { ThingOfTheDay } from "../components/ThingOfTheDay.tsx";
+import { useActors } from "../lib/auth.ts";
 
 /** Find: the home page. One question, one box; below it what needs you and what changed. */
 export function Home() {
@@ -468,6 +469,7 @@ function Activity() {
     queryKey: ["events", "home"],
     queryFn: () => get<{ events: EventRow[] }>("/events?limit=60"),
   });
+  const actors = useActors();
   const entries = useMemo(() => {
     const out: { id: string; name: string; events: EventRow[] }[] = [];
     for (const e of data?.events ?? []) {
@@ -495,7 +497,7 @@ function Activity() {
                 .map((e) => eventLabel(e, { from: e.thing?.from ?? null, to: e.thing?.to ?? null })),
             ),
           ].join(" · ");
-          const who = [...new Set(evs.map((e) => e.actor))].join(" + ");
+          const who = [...new Set(evs.map((e) => actors(e.actor).label))].join(" + ");
           return (
             <div key={`${x.id}-${evs[0]!.seq}`} className="activity">
               <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap" }}>

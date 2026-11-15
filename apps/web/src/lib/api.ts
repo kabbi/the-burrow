@@ -62,10 +62,14 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
     headers: body !== undefined ? { "content-type": "application/json" } : {},
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
-  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
+  const json = (await res.json().catch(() => ({}))) as T & { error?: string; signIn?: boolean };
+  // The session ended (signed out elsewhere, expired): the gate shows the sign-in screen (D-032).
+  if (res.status === 401 && json.signIn) window.dispatchEvent(new Event(SIGNED_OUT));
   if (!res.ok) throw new ApiError(res.status, json.error ?? `HTTP ${res.status}`);
   return json;
 }
+
+export const SIGNED_OUT = "burrow:signed-out";
 
 /** Writes return the event they appended (for Undo) unless told otherwise. */
 type Written = { event?: BurrowEvent };
