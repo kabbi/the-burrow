@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { get, patch, post, type KindField, type ThingView } from "../lib/api.ts";
@@ -84,6 +84,8 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
   /** Empty fields opened from the "Add" line (they stay until the page changes). */
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const group = reviewGroup(thing.id);
+  const kindGuessed = thing.meta.kind?.source === "ai" && !thing.meta.kind.confirmed;
+  const kindSelect = useRef<HTMLSelectElement>(null);
 
   const declared = new Map(fields.map((f) => [f.key, f]));
   const extra = Object.keys(thing.data).filter((k) => !declared.has(k) && !HIDDEN.has(k));
@@ -264,10 +266,14 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
   return (
     <div className="facts">
       {row("name", undefined)}
-      <div className="fact">
-        <span className="label">Kind</span>
+      <div className={`fact${kindGuessed ? " ai" : ""}`}>
+        <span className="label">
+          {kindGuessed && <Icon name="sparkle" size={13} label="AI guess" className="filled" />}
+          Kind
+        </span>
         <span className="value">
           <select
+            ref={kindSelect}
             className="input"
             value={thing.kind}
             aria-label="Kind"
@@ -288,7 +294,22 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
             ))}
           </select>
         </span>
-        <span />
+        {kindGuessed ? (
+          <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
+            <Verdict
+              what="Kind"
+              onRight={() =>
+                void act(() => post(`/things/${thing.id}/confirm`, { fields: ["kind"] }), "+Kind", { group })
+              }
+              onWrong={() => {
+                kindSelect.current?.focus();
+                kindSelect.current?.showPicker?.();
+              }}
+            />
+          </span>
+        ) : (
+          <span />
+        )}
       </div>
       {fields.filter((f) => !foldedKeys.has(f.key)).map((f) => row(f.key, f))}
       {extra.map((k) => row(k, undefined))}
@@ -386,7 +407,7 @@ function RefName({ id }: { id: string }) {
 export function guessKeys(thing: ThingView, fields: KindField[]): string[] {
   const declared = new Set(fields.map((f) => f.key));
   const extra = Object.keys(thing.data).filter((k) => !declared.has(k) && !HIDDEN.has(k));
-  return [...fields.map((f) => f.key), ...extra, "name"].filter(
+  return [...fields.map((f) => f.key), ...extra, "name", "kind"].filter(
     (k) => thing.meta[k]?.source === "ai" && !thing.meta[k]?.confirmed,
   );
 }

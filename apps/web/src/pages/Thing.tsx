@@ -60,6 +60,7 @@ export function Thing() {
   const physical = kind?.physical ?? true;
 
   const isPlace = kind?.isPlace ?? false;
+  const kindGuessed = t.meta.kind?.source === "ai" && !t.meta.kind.confirmed;
 
   const inside = data.children.length > 0 && (
     <section className="stack">
@@ -127,7 +128,13 @@ export function Thing() {
         <div className="thing-info">
           <span className="row" style={{ gap: 8 }}>
             <span className="idbadge">{t.id}</span>
-            <span className="tag">{kind?.name ?? t.kind}</span>
+            <span
+              className={`tag${kindGuessed ? " ai" : ""}`}
+              title={kindGuessed ? "Kind guessed by AI" : undefined}
+            >
+              {kindGuessed && <Icon name="sparkle" size={12} />}
+              {kind?.name ?? t.kind}
+            </span>
             {t.archivedAt && <span className="tag">archived</span>}
             {created && (
               <span className="small muted">
