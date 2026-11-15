@@ -6,6 +6,7 @@ import { useToast } from "../lib/toast.tsx";
 import { aiInput, isUrl, pageData } from "../lib/page.ts";
 import { AiSuggest } from "./AiSuggest.tsx";
 import { SOURCE_LABEL } from "./Facts.tsx";
+import { BlockedHint } from "./SendToBurrow.tsx";
 
 const LABEL: Record<string, string> = {
   productName: "Product name",
@@ -49,7 +50,8 @@ export function LinkEnrich({
   const durl = useDebounced(url, 300);
   const preview = useQuery({
     queryKey: ["preview", durl],
-    queryFn: () => post<{ preview: Preview | null; error?: string }>("/preview", { url: durl }),
+    queryFn: () =>
+      post<{ preview: Preview | null; error?: string; blocked?: boolean }>("/preview", { url: durl }),
     enabled: Boolean(durl),
     staleTime: Infinity,
     retry: false,
@@ -167,6 +169,7 @@ export function LinkEnrich({
           be saved.
         </span>
       )}
+      {url && !reading && preview.data?.blocked && <BlockedHint onRetry={() => void preview.refetch()} />}
       {page && (
         <div className="row" style={{ alignItems: "flex-start", gap: 12, flexWrap: "nowrap" }}>
           {page.image ? (

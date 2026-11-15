@@ -19,6 +19,7 @@ import { useThingKinds } from "../lib/schema.ts";
 import { AiSuggest } from "../components/AiSuggest.tsx";
 import { aiInput as pageAiInput, isUrl, pageData } from "../lib/page.ts";
 import { PathView, StatusLine, Thumb } from "../components/ThingCard.tsx";
+import { BlockedHint } from "../components/SendToBurrow.tsx";
 
 const QUICK_KINDS = ["thing", "electronics", "tool", "appliance", "container", "furniture", "room"];
 const MAX_CHIPS = 9;
@@ -70,7 +71,8 @@ export function Add() {
   const durl = useDebounced(url, 300);
   const preview = useQuery({
     queryKey: ["preview", durl],
-    queryFn: () => post<{ preview: Preview | null; error?: string }>("/preview", { url: durl }),
+    queryFn: () =>
+      post<{ preview: Preview | null; error?: string; blocked?: boolean }>("/preview", { url: durl }),
     enabled: Boolean(durl),
     staleTime: Infinity,
     retry: false,
@@ -189,6 +191,9 @@ export function Add() {
                   Couldn’t read that page{preview.data?.error ? ` (${preview.data.error})` : ""}. Type a name
                   below.
                 </span>
+              )}
+              {!preview.isFetching && preview.data?.blocked && (
+                <BlockedHint onRetry={() => void preview.refetch()} />
               )}
               {page && (
                 <>
