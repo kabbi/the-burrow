@@ -160,6 +160,41 @@ export function assetRoutes({ store, media, sf3d }: Deps): Router {
     res.json(reply(a.thingId));
   });
 
+  /**
+   * Enrich an existing thing from its product page (D-023). The client read the page with
+   * /preview and chose which values to take; they land with source "page" (the link itself is
+   * "you"), the shop picture becomes a product asset, optionally the cover. Answers with every
+   * event it appended, so one Undo can take it all back.
+   */
+  r.post("/things/:id/from-page", async (req, res) => {
+    const id = store.mustGet(req.params.id).id;
+    const b = z
+      .object({
+        url: z.url({ protocol: /^https?$/ }),
+        data: z.record(z.string(), z.unknown()).default({}),
+        picture: z.url({ protocol: /^https?$/ }).optional(),
+        cover: z.boolean().default(false),
+      })
+      .parse(req.body);
+    const before = store.events({ limit: 1 })[0]?.seq ?? 0;
+    store.change(id, { data: { ...b.data, url: b.url }, sources: { url: "you" } }, "page");
+    let pictureError: string | null = null;
+    if (b.picture) {
+      try {
+        const f = await media.ingest(await download(b.picture), new URL(b.picture).pathname);
+        const a = add(id, f, "product", { source: "page", data: { url: b.picture } });
+        if (b.cover) store.setCover(id, a.id);
+      } catch (e) {
+        pictureError = (e as Error).message;
+      }
+    }
+    res.json({
+      thing: store.mustGet(id),
+      events: store.events({ thingId: id, after: before }).map((e) => e.seq),
+      pictureError,
+    });
+  });
+
   r.post("/things/:id/cover", (req, res) => {
     const id = store.mustGet(req.params.id).id;
     const b = z.object({ assetId: z.string().nullable() }).parse(req.body);

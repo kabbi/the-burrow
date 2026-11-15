@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
+import { createServer, type Server } from "node:http";
 import { z } from "zod";
 import { Store } from "@burrow/core";
 import { createApp, createDeps } from "../src/app.ts";
@@ -455,6 +455,47 @@ describe("assets", () => {
       data: { generator: "stable-fast-3d", fromAssetId: photo.body.asset.id },
     });
     expect(fakeSf3d.calls).toBe(1);
+  });
+
+  it("fills a thing from its product page, keeps the household name, undoes it all (D-023)", async () => {
+    const pic = await png(400, 300);
+    const shop = createServer((_req, res) => res.writeHead(200, { "content-type": "image/png" }).end(pic));
+    shop.listen(0);
+    await new Promise((r) => shop.once("listening", r));
+    const shopUrl = `http://127.0.0.1:${(shop.address() as AddressInfo).port}`;
+    try {
+      const t = (await call<{ thing: { id: string } }>("POST", "/things", { name: "Dmitry's table" })).body
+        .thing;
+      const icon = await call<Record<string, any>>("POST", `/things/${t.id}/assets/icon`, {
+        set: "mdi",
+        name: "desk",
+      });
+      await call("POST", `/things/${t.id}/cover`, { assetId: icon.body.asset.id });
+      const r = await call<Record<string, any>>("POST", `/things/${t.id}/from-page`, {
+        url: `${shopUrl}/p/bollpojke`,
+        data: { productName: "BOLLPOJKE bureau, pin/blanc, 90x55 cm", maker: "IKEA", price: 129 },
+        picture: `${shopUrl}/img/bollpojke.png`,
+        cover: true,
+      });
+      expect(r.status).toBe(200);
+      expect(r.body.pictureError).toBeNull();
+      expect(r.body.thing).toMatchObject({
+        name: "Dmitry's table",
+        data: { productName: "BOLLPOJKE bureau, pin/blanc, 90x55 cm", maker: "IKEA", price: 129 },
+      });
+      expect(r.body.thing.meta.url.source).toBe("you");
+      expect(r.body.thing.meta.maker.source).toBe("page");
+      expect(r.body.thing.cover.role).toBe("product");
+      expect(r.body.events).toHaveLength(3); // fields, picture, cover
+
+      for (const seq of (r.body.events as number[]).toReversed()) await call("POST", `/events/${seq}/undo`);
+      const after = (await call<Record<string, any>>("GET", `/things/${t.id}`)).body;
+      expect(after.thing.data).toEqual({});
+      expect(after.thing.cover.id).toBe(icon.body.asset.id);
+      expect(after.assets).toHaveLength(1);
+    } finally {
+      shop.close();
+    }
   });
 });
 
