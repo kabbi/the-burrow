@@ -32,7 +32,7 @@ export function Schema() {
   return (
     <main className="page wide">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ fontSize: 34 }}>Schema</h1>
+        <h1 style={{ fontSize: 32 }}>Kinds &amp; fields</h1>
         <div className="row">
           <button
             type="button"

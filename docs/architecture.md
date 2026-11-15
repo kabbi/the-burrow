@@ -2,8 +2,8 @@
 
 ```
             ┌──────────── apps/web (Vite + React) ────────────┐
-            │ Find · Places · Add · Thing · Papers · Needs details · │
-            │ Tags · Schema · Database · AI log               │
+            │ Find · Places · Papers · Tidy up · Add · Thing  │
+            │ Workshop: kinds · tags · DB · API · AI · system │
             └───────────────┬─────────────────────────────────┘
                             │ /api (JSON)
 ┌───────────────────────────▼──────────────────────────────────────┐
@@ -45,8 +45,9 @@ with inheritance and typed fields, relation types, tags as things (D-013).
   restored too.
 - **Rules** enforced on append: one parent (it's a column), no loops, known kinds, non-empty names,
   declared field values match their type, links match their relation type (kinds, cardinality).
-- **Gaps** (Needs details) are derived: a physical thing with no place, or an empty `wanted` field
-  (inherited fields included).
+- **Gaps** (Tidy up) are derived: a physical thing with no place (unless it roams: "no fixed place",
+  D-026), or an empty `wanted` field (inherited fields included). `aiUnchecked()` lists unconfirmed AI
+  guesses.
 - **Documents** (D-011): thin `document` things linked to paperless by ref; a paper copy's location
   is its place.
 
@@ -87,10 +88,14 @@ fields HomeBox still owns.
 ## Web (`apps/web`)
 
 React 19, React Router 7, TanStack Query (invalidate-all after writes: the data set is small), plain
-CSS with tokens in `styles.css`. Self-hosted fonts (Inter, Space Grotesk).
+CSS. Self-hosted fonts (Inter, Space Grotesk, JetBrains Mono). The design system (D-027,
+`docs/design-system.md`) lives in `src/ui/`: tokens, shared CSS, the thing row / tile / path / status
+parts, icons; `styles.css` is page layout only. Shell: top bar on desktop, bottom tab bar + More sheet
+on phones (≤ 720 px); Workshop pages share a side nav.
 
-- `ThingCard`: the one item card (picture, name, one status line, path, actions; "It's not here"
-  always available).
+- `ui/thing.tsx`: `ThingRow` (the one item card in list form: picture, name + ID, where, status pill
+  only when not fine, actions), `ThingTile` for grids, `Where` (path or one of the two nowheres,
+  D-026). `ThingCard` wraps them for older call sites.
 - `PlacePicker`: type-to-filter over full paths, create a place inline (inside the selected one).
 - `AiSuggest`: quote → show price → run → apply (accepted by default) → violet facts. `autoStart`
   quotes on mount; `keep` lists fields it must not change; `compact` fits a panel header.

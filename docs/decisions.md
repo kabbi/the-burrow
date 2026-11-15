@@ -429,3 +429,43 @@ a real path).
 Considered: a built-in pseudo place thing (a real row with a magic id, would show in counts, paths,
 pickers, the API and the FTS path); a kind flag (it's about this laptop, not all electronics); a
 `status` value (status is about trusting the location, and a roaming thing can still be missing).
+
+## D-027 · A design system, a new shell and the everyday screens reworked (2026-11-15)
+
+The "Burrow — unified design" canvas settled the look. Until now the web app had tokens in one
+1800-line stylesheet and every page styled its own cards, statuses and buttons, so the same idea
+(a missing thing, an AI guess, the main action) looked different from page to page.
+
+- **Design system as code**: `src/ui/` holds the tokens, the shared CSS and the React parts (thing
+  row, tile, path, the two nowheres, status pill, Right/Wrong, ⋯ menu, move picker, icons). Pages may
+  only add layout. Rules and inventory: `docs/design-system.md`; a live sheet drawn with the real
+  parts at Workshop › Design system.
+- **Rules that changed screens**: fine is silent (the green "Where it should be" dot is gone; only
+  exceptions get a pill), one orange per screen (Add in the top bar is outlined; the Papers count and
+  "Take photo" stopped being orange; the cover star is ink), counts neutral, toasts bottom left.
+- **Shell**: nav is Find · Places · Papers · Tidy up · Workshop. Workshop (`/workshop/*`) holds Kinds &
+  fields, Tags, Database, API & tokens, AI log and the design system, with a side nav. Old paths
+  (`/later`, `/schema`, `/tags`, `/db`, `/integrations`, `/ai`) redirect. Phones get a bottom tab bar
+  (Find, Places, orange +, Tidy, More → sheet) and no top bar.
+- **Find**: one question and one box; "When you have a minute" jobs (AI guesses, papers, not placed,
+  wanted fields), recently added tiles, "What changed · per thing" (a burst of edits to one thing is
+  one entry with one Undo). Pasting a link offers to add it.
+- **Search results**: a "Found in …" line when the name doesn't explain the match; Where and Tags
+  facets; tags shown as chips; 12+ results of one kind fold into an auto group (opens by itself when
+  alone; "Don't group" flattens for this search). Limit raised to 200.
+- **Tidy up** (was Needs details, `/tidy`): gaps grouped into jobs with one bulk action each — not
+  placed yet (by kind, select by tag, "Put them there" or "No fixed place" for all, one Undo via
+  `useBulk`), AI guesses ("All right" per thing), one job per wanted field with an inline input (or a
+  product link → LinkEnrich). New `GET /tidy` and `Store.aiUnchecked()` (tags and papers excluded).
+- **Add**: big name-or-link box with a Photo button, duplicate check while typing ("You already have
+  …" / "It's a second one"), place chips (last place, this session's, rooms) plus "No fixed place" and
+  "Not sure yet", kind chips, a stepper, then "Just saved" and "This session" on the side.
+- **Thing**: header with a 168 px cover, ID · kind · added by, the path as chips (or a nowhere), status
+  pill, tags; Move (orange), It's not here, ⋯ (product link, No fixed place, Archive). Facts use ✓ ✕
+  icon buttons; your own values carry no source label. On phones: Back, full-width cover, two big
+  buttons.
+- **Places**: the two nowheres as dashed pseudo rooms under the tree.
+
+Not done (parked in ideas.md): remembering "Don't group" per kind (Workshop › Groups), duplicate
+merging, snoozing a job, grouping by top tag or import, Papers' receipt matching by date. The phone
+camera-first Add and the bot were left as they are.

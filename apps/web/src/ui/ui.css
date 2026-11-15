@@ -301,6 +301,8 @@ main.page.narrow {
   max-width: 640px;
 }
 .question {
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: 48px;
   line-height: 1;
   letter-spacing: -1.2px;
@@ -1239,4 +1241,9 @@ a.job:hover {
 }
 .field > .stepper {
   align-self: flex-start;
+}
+.trow > a,
+.thing-cover {
+  text-decoration: none;
+  color: inherit;
 }

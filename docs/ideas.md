@@ -139,3 +139,14 @@ Loosely ordered. ✓ = done in some form.
 - Paid scraping API (ScrapingBee, ZenRows, …) for anti-bot shops from the phone, where the
   bookmarklet doesn't fit. Costs per request: quote it like AI calls.
 - Phone: a share target (PWA `share_target`) only gets the URL; would need the paid route above.
+
+## From the design rework (D-027), not built yet
+
+- Workshop › Groups: remember "Don't group <kind>" and the threshold (12) server-side; group by top tag
+  or import source too; show groups as dashed pseudo boxes in Places.
+- Duplicates: detect same-name things and offer "Merge into B-…" (the old ID points to the kept one).
+- Snooze a Find job for a week ("Not now").
+- Papers: suggest the thing a receipt belongs to by date and shop (titles and dates only, D-006).
+- "Tags used once, made by AI" as a Tidy up job with "Remove all".
+- Phone Add, camera first: photo → "looks like something you have" (vision search, D-019) → save new.
+- Missing since <date> on the status pill (needs the status event time on ThingView).

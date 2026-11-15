@@ -12,7 +12,7 @@ export function AiLog() {
   });
   return (
     <main className="page">
-      <h1 style={{ fontSize: 34 }}>AI requests</h1>
+      <h1 style={{ fontSize: 32 }}>AI log</h1>
       {data && (
         <p className="muted" style={{ margin: 0 }}>
           {usd(data.spend.monthUsd)} this month · {usd(data.spend.totalUsd)} total · {data.spend.runs} runs.

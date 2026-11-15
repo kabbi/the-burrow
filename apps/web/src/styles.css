@@ -1757,3 +1757,36 @@ a.pc-title:hover {
   overflow-wrap: anywhere;
   min-width: 0;
 }
+
+/* ---------------------------------------------------------------- places: the two nowheres (D-026) */
+
+.nowheres {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.nowhere-room {
+  border: 1px dashed var(--dash);
+  border-radius: var(--radius-l);
+  background: transparent;
+  overflow: hidden;
+}
+.nowhere-room > button.job {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.nowhere-room.job,
+.nowhere-room .job {
+  background: transparent;
+}
+.tidy-head {
+  flex-wrap: nowrap;
+}
+.tidy-head .main {
+  flex: 1 1 0;
+}

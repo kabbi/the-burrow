@@ -172,3 +172,15 @@ Checked with agent-browser at 1440 and 390 px on a PCB (board viewer + 2 photos)
 axe (4 assets), the PCB tag (97 tagged) and B-0108 (AI guesses). Two quick Rights → one toast
 "Confirmed name, Description"; its Undo reverted both (meta back to unconfirmed). Grouping only
 spans 10 s, so slow clicking still gives separate toasts.
+
+## 2026-11-15 · Design system and screen rework (D-026, D-027)
+
+Checked with agent-browser (mock paperless) at 1440 and 390 px: Find, search ("esp32": 8 rows with
+"Found in the description"; "usb": 2 tag chips + 34 PCBs folded into one group), Tidy up (101 not
+placed, kind and tag chips, selection), Add, Thing, Places, Papers, every Workshop page, the More
+sheet. "No fixed place" end to end on the dev DB: added "Test laptop (roams)" (B-0205) from Add →
+listed under Places › No fixed place, not in Tidy up; moved to Attic (roams cleared), toast Undo put
+it back to no fixed place. Gotcha: agent-browser's ref click on the Add page's "No fixed place" chip
+once didn't register (a JS click did); worth a real-phone check. `node --watch` doesn't restart for
+edits in `packages/core` (it's behind a node_modules symlink): touch a server file.
+Ran `migrate-0005-roams` on dev: archived the empty "Nowhere specific" room (B-0195).

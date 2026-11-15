@@ -44,7 +44,7 @@ export function TagsPage() {
   return (
     <main className="page">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ fontSize: 34 }}>Tags</h1>
+        <h1 style={{ fontSize: 32 }}>Tags</h1>
         <span className="muted small">{tags.length} tags · nest them from a tag’s page</span>
       </div>
       <div className="row">

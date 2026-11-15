@@ -142,9 +142,11 @@ export function Thing() {
           )}
           {(physical || t.parentId) && (
             <span className="row thing-where">
-              <span style={{ color: "var(--muted)" }}>
-                <Icon name={t.roams ? "bag" : "pin"} size={16} />
-              </span>
+              {!t.roams && (
+                <span style={{ color: "var(--muted)" }}>
+                  <Icon name="pin" size={16} />
+                </span>
+              )}
               <Where thing={t} chips />
               {t.parentId && <SpotEditor thing={t} spots={data.spots} />}
               {physical && <StatusPill thing={t} />}

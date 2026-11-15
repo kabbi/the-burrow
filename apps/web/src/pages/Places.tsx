@@ -5,13 +5,15 @@ import { get, post, type PlaceNode, type ThingView } from "../lib/api.ts";
 import { useAction } from "../lib/hooks.ts";
 import { useSchema } from "../lib/schema.ts";
 import { Thumb } from "../components/ThingCard.tsx";
+import { ThingTile } from "../ui/thing.tsx";
+import { Icon } from "../ui/Icon.tsx";
 import { PlaceColumns } from "../components/PlaceColumns.tsx";
 import { dragSource, useDrop, type Drag, type Dragged } from "../components/placeDrag.ts";
 
 const OPEN_KEY = "burrow.places.open";
 const VIEW_KEY = "burrow.places.view";
 type View = "tree" | "columns";
-type Tree = { places: PlaceNode[]; unplaced: number };
+type Tree = { places: PlaceNode[]; unplaced: number; roaming: number };
 
 function loadOpen(): Set<string> | null {
   try {
@@ -216,15 +218,11 @@ export function Places() {
         </section>
       )}
 
-      <p className="small muted">
-        {data && data.unplaced > 0 && (
-          <>
-            <Link to="/tidy">
-              {data.unplaced} {data.unplaced === 1 ? "thing isn't" : "things aren't"} anywhere yet →
-            </Link>{" "}
-            ·{" "}
-          </>
-        )}
+      {data && (data.unplaced > 0 || data.roaming > 0) && (
+        <Nowheres unplaced={data.unplaced} roaming={data.roaming} />
+      )}
+
+      <p className="small muted" style={{ margin: 0 }}>
         Drag a box or a thing onto a place to move it
         {view === "columns" && " · arrow keys move, Enter opens"}
       </p>
@@ -341,4 +339,57 @@ function ancestors(p: PlaceNode, all: PlaceNode[]): string[] {
   )
     out.push(x.id);
   return out;
+}
+
+/** The two nowheres (D-026), as pseudo rooms under the real ones: dashed, never a real box. */
+function Nowheres({ unplaced, roaming }: { unplaced: number; roaming: number }) {
+  const [open, setOpen] = useState(false);
+  const { data } = useQuery({
+    queryKey: ["things", "roams"],
+    queryFn: () => get<{ things: ThingView[] }>("/things?roams=1&order=name&limit=500"),
+    enabled: open,
+  });
+  return (
+    <section className="nowheres">
+      {roaming > 0 && (
+        <div className="nowhere-room">
+          <button type="button" className="job" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            <span className="ntile">
+              <Icon name="bag" />
+            </span>
+            <span className="main">
+              <span className="title" style={{ display: "block" }}>
+                No fixed place · {roaming}
+              </span>
+              <span className="sub" style={{ display: "block" }}>
+                Things that travel with you: laptops, the phone, bags
+              </span>
+            </span>
+            <Icon name="down" size={20} className={open ? "flip" : ""} />
+          </button>
+          {open && (
+            <div className="tgrid" style={{ padding: "0 16px 16px" }}>
+              {data?.things.map((t) => (
+                <ThingTile key={t.id} thing={t} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {unplaced > 0 && (
+        <Link to="/tidy#where" className="job nowhere-room">
+          <span className="ntile">{unplaced}</span>
+          <span className="main">
+            <span className="title" style={{ display: "block" }}>
+              Not placed yet · {unplaced}
+            </span>
+            <span className="sub" style={{ display: "block" }}>
+              A gap, not a room. Put them in a box from Tidy up.
+            </span>
+          </span>
+          <span className="btn small">Tidy up</span>
+        </Link>
+      )}
+    </section>
+  );
 }

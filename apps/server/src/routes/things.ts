@@ -122,12 +122,10 @@ export function thingRoutes({ store, ai }: Deps): Router {
       ...(b.sources ? { sources: b.sources } : {}),
     });
     if (b.roams && !b.parentId) store.move(t.id, null, "you", undefined, undefined, true);
-    res
-      .status(201)
-      .json({
-        thing: store.mustGet(t.id),
-        event: store.events({ thingId: t.id, types: ["thing.created"], limit: 1 })[0],
-      });
+    res.status(201).json({
+      thing: store.mustGet(t.id),
+      event: store.events({ thingId: t.id, types: ["thing.created"], limit: 1 })[0],
+    });
   });
 
   r.patch("/things/:id", (req, res) => {

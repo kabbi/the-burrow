@@ -64,7 +64,7 @@ export function Api() {
 
   return (
     <main className="page">
-      <h1 style={{ fontSize: 34 }}>API</h1>
+      <h1 style={{ fontSize: 32 }}>API &amp; tokens</h1>
       <p className="muted" style={{ margin: 0, maxWidth: 760 }}>
         For outside systems such as the PCB rig. Each token acts as an <em>actor</em>: everything it changes
         is recorded under that name in the history, and can be undone there. Full docs at{" "}

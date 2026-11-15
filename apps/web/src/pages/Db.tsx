@@ -79,7 +79,7 @@ export function Db() {
   return (
     <main className="page wide">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ fontSize: 34 }}>Database</h1>
+        <h1 style={{ fontSize: 32 }}>Database</h1>
         <div className="row">
           <span className="muted small mono">data/burrow.sqlite</span>
           <button type="button" className="btn small" onClick={rebuild}>
