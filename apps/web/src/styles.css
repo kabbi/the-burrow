@@ -1131,9 +1131,10 @@ img.contain {
   padding: 0;
 }
 .places-tree ul {
+  /* the guide line runs under the parent's twisty; children start under its thumb */
   margin-left: 22px;
   border-left: 1px solid var(--line);
-  padding-left: 10px;
+  padding-left: 16px;
 }
 .place-row {
   display: flex;
@@ -1199,7 +1200,8 @@ img.contain {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 8px;
+  /* no twisty: leave its column (8px pad + 28px twisty + 10px gap) so thumbs line up with place rows */
+  padding: 4px 8px 4px 46px;
   min-height: 36px;
   font-size: 14px;
 }
