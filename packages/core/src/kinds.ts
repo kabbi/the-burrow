@@ -118,6 +118,20 @@ export const builtinKinds: Kind[] = [
       f("notes", "Notes", "longtext"),
     ],
   },
+  {
+    // People in the household, with or without a Burrow account (D-032). An account points at one.
+    id: "person",
+    name: "Person",
+    parent: null,
+    isPlace: false,
+    physical: false,
+    builtin: true,
+    fields: [
+      f("aliases", "Also called", "list"),
+      f("email", "Email", "text"),
+      f("notes", "Notes", "longtext"),
+    ],
+  },
 ];
 
 export const builtinRelations: RelationType[] = [
@@ -179,6 +193,37 @@ export const builtinRelations: RelationType[] = [
     toKinds: [],
     cardinality: "many",
     symmetric: true,
+    builtin: true,
+  },
+  // Things ↔ people (D-032). Cardinality "many" for owners (shared things), "one" for the buyer.
+  {
+    id: "owned_by",
+    name: "owned by",
+    inverse: "owns",
+    fromKinds: [],
+    toKinds: ["person"],
+    cardinality: "many",
+    symmetric: false,
+    builtin: true,
+  },
+  {
+    id: "bought_by",
+    name: "bought by",
+    inverse: "bought",
+    fromKinds: [],
+    toKinds: ["person"],
+    cardinality: "one",
+    symmetric: false,
+    builtin: true,
+  },
+  {
+    id: "authored_by",
+    name: "author",
+    inverse: "author of",
+    fromKinds: [],
+    toKinds: ["person"],
+    cardinality: "many",
+    symmetric: false,
     builtin: true,
   },
 ];

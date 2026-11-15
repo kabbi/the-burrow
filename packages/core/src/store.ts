@@ -64,6 +64,16 @@ export interface StoreOptions {
   now?: () => string;
 }
 
+/** Actors that write imported data: a move by them is provenance "import", not a person's. */
+const IMPORT_ACTORS = new Set([
+  "import",
+  "homebox",
+  "homebox-import",
+  "homebox-sync",
+  "pcbphoto-import",
+  "migration",
+]);
+
 /** Event types the UI may offer "Undo" for. */
 export const UNDOABLE = new Set([
   "thing.created",
@@ -123,6 +133,11 @@ const COVER_ORDER: AssetRole[] = ["photo", "product", "sprite", "icon", "other",
 export class Store {
   private now: () => string;
   readonly db: Db;
+  /**
+   * Who a write is attributed to when the caller doesn't say: the server points this at the
+   * signed-in account of the current request (D-032). "you" is the pre-accounts actor.
+   */
+  currentActor: () => string = () => "you";
 
   constructor(db: Db, opts: StoreOptions = {}) {
     this.db = db;
@@ -136,7 +151,7 @@ export class Store {
 
   // ------------------------------------------------------------ write side
 
-  append(body: EventBody, actor = "you", undoOf: number | null = null): BurrowEvent {
+  append(body: EventBody, actor = this.currentActor(), undoOf: number | null = null): BurrowEvent {
     return tx(this.db, () => {
       this.validate(body);
       const at = this.now();
@@ -152,7 +167,7 @@ export class Store {
     });
   }
 
-  createThing(input: CreateThingInput, actor = "you"): ThingView {
+  createThing(input: CreateThingInput, actor = this.currentActor()): ThingView {
     const name = input.name.trim();
     if (!name) throw new BurrowError("A thing needs a name");
     const kind = input.kind ?? "thing";
@@ -171,7 +186,12 @@ export class Store {
     return this.mustGet(id);
   }
 
-  change(id: ThingId, patch: ChangeInput, source: FieldSource = "you", actor = "you"): ThingView {
+  change(
+    id: ThingId,
+    patch: ChangeInput,
+    source: FieldSource = "you",
+    actor = this.currentActor(),
+  ): ThingView {
     const t = this.mustGetRaw(id);
     const changes: FieldChange[] = [];
     const add = (field: string, from: unknown, to: unknown) => {
@@ -196,7 +216,7 @@ export class Store {
   move(
     id: ThingId,
     to: ThingId | null,
-    actor = "you",
+    actor = this.currentActor(),
     source?: FieldSource,
     position?: string | null,
     roams = false,
@@ -212,7 +232,7 @@ export class Store {
           id,
           from: t.parentId,
           to,
-          ...(source ? { source } : {}),
+          ...(to ? { source: source ?? (IMPORT_ACTORS.has(actor) ? "import" : "you") } : {}),
           ...(spot ? { position: spot } : {}),
           ...(t.position ? { fromPosition: t.position } : {}),
           ...(roam ? { roams: true } : {}),
@@ -223,7 +243,7 @@ export class Store {
     return this.mustGet(id);
   }
 
-  setStatus(id: ThingId, to: ThingStatus, note?: string, actor = "you"): ThingView {
+  setStatus(id: ThingId, to: ThingStatus, note?: string, actor = this.currentActor()): ThingView {
     const t = this.mustGetRaw(id);
     if (t.status !== to)
       this.append({ type: "thing.status", id, from: t.status, to, ...(note ? { note } : {}) }, actor);
@@ -231,12 +251,12 @@ export class Store {
   }
 
   /** Mark guessed fields as checked by a person (they stop being violet). */
-  confirm(id: ThingId, fields: string[], actor = "you"): ThingView {
+  confirm(id: ThingId, fields: string[], actor = this.currentActor()): ThingView {
     this.append({ type: "thing.confirmed", id, fields }, actor);
     return this.mustGet(id);
   }
 
-  archive(id: ThingId, actor = "you"): ThingView {
+  archive(id: ThingId, actor = this.currentActor()): ThingView {
     this.append({ type: "thing.archived", id }, actor);
     return this.mustGet(id);
   }
@@ -246,12 +266,12 @@ export class Store {
     service: string,
     remoteId: string,
     data: Record<string, unknown> = {},
-    actor = "you",
+    actor = this.currentActor(),
   ): void {
     this.append({ type: "ref.linked", thingId, service, remoteId, data }, actor);
   }
 
-  unlink(thingId: ThingId, service: string, remoteId: string, actor = "you"): void {
+  unlink(thingId: ThingId, service: string, remoteId: string, actor = this.currentActor()): void {
     this.append({ type: "ref.unlinked", thingId, service, remoteId }, actor);
   }
 
@@ -261,7 +281,7 @@ export class Store {
     fromId: ThingId,
     toId: ThingId,
     data: Record<string, unknown> = {},
-    actor = "you",
+    actor = this.currentActor(),
   ): void {
     tx(this.db, () => {
       const rt = this.relationType(type);
@@ -275,7 +295,7 @@ export class Store {
     });
   }
 
-  unrelate(type: string, fromId: ThingId, toId: ThingId, actor = "you"): void {
+  unrelate(type: string, fromId: ThingId, toId: ThingId, actor = this.currentActor()): void {
     const rt = this.relationType(type);
     // Symmetric links are stored once, in whichever direction they were made.
     if (
@@ -287,20 +307,20 @@ export class Store {
     else this.append({ type: "edge.removed", edgeType: type, fromId, toId }, actor);
   }
 
-  defineKind(kind: Omit<Kind, "builtin">, actor = "you"): void {
+  defineKind(kind: Omit<Kind, "builtin">, actor = this.currentActor()): void {
     this.append({ type: "kind.defined", kind }, actor);
   }
 
-  defineRelation(relation: Omit<RelationType, "builtin">, actor = "you"): void {
+  defineRelation(relation: Omit<RelationType, "builtin">, actor = this.currentActor()): void {
     this.append({ type: "relation.defined", relation }, actor);
   }
 
   /** Find a tag by name or alias (case-insensitive), or create it. */
   ensureTag(
     name: string,
-    actor = "you",
+    actor = this.currentActor(),
     parentId: ThingId | null = null,
-    source: FieldSource = actor === "you" ? "you" : "ai",
+    source: FieldSource = actor === "ai" ? "ai" : IMPORT_ACTORS.has(actor) ? "import" : "you",
   ): ThingId {
     const clean = name.trim().replace(/\s+/g, " ");
     if (!clean) throw new BurrowError("A tag needs a name");
@@ -325,7 +345,7 @@ export class Store {
   }
 
   /** Make a thing's tags exactly `names` (created if new). Returns the thing. */
-  setTags(id: ThingId, names: string[], source: FieldSource = "you", actor = "you"): ThingView {
+  setTags(id: ThingId, names: string[], source: FieldSource = "you", actor = this.currentActor()): ThingView {
     return tx(this.db, () => {
       const t = this.mustGetRaw(id);
       const want = new Set(names.filter((n) => n.trim()).map((n) => this.ensureTag(n, actor, null, source)));
@@ -342,7 +362,7 @@ export class Store {
    * (and their aliases) become its aliases so typing them still finds it, nested tags move under
    * it, and the old tags are archived. Returns the events appended (undo them newest first).
    */
-  mergeTags(fromIds: ThingId[], intoId: ThingId, actor = "you"): BurrowEvent[] {
+  mergeTags(fromIds: ThingId[], intoId: ThingId, actor = this.currentActor()): BurrowEvent[] {
     return tx(this.db, () => {
       const before = this.lastSeq();
       const into = this.mustGetRaw(intoId);
@@ -389,7 +409,7 @@ export class Store {
    * Toggle an event: undo it, or, if it is already undone, undo the undo
    * (i.e. redo). Always appends; history is never rewritten.
    */
-  toggleUndo(seq: number, actor = "you"): BurrowEvent {
+  toggleUndo(seq: number, actor = this.currentActor()): BurrowEvent {
     return tx(this.db, () => {
       const e = this.event(seq);
       if (!e) throw new BurrowError(`No event #${seq}`, 404);
@@ -402,7 +422,7 @@ export class Store {
 
   // ------------------------------------------------------------ assets (D-015)
 
-  addAsset(thingId: ThingId, input: AddAssetInput, actor = "you"): Asset {
+  addAsset(thingId: ThingId, input: AddAssetInput, actor = this.currentActor()): Asset {
     this.mustGetRaw(thingId);
     const r = this.db.prepare("select value from kv where key = 'next_asset'").get() as Row | undefined;
     const id = `A-${String(r ? Number(r.value) : 1).padStart(4, "0")}`;
@@ -426,7 +446,7 @@ export class Store {
     return this.mustGetAsset(id);
   }
 
-  changeAsset(assetId: string, patch: AssetPatch, actor = "you"): Asset {
+  changeAsset(assetId: string, patch: AssetPatch, actor = this.currentActor()): Asset {
     const a = this.mustGetAsset(assetId);
     const from: AssetPatch = {};
     const to: AssetPatch = {};
@@ -445,14 +465,14 @@ export class Store {
   }
 
   /** Soft removal (undoable). The file stays on disk. */
-  removeAsset(assetId: string, actor = "you"): void {
+  removeAsset(assetId: string, actor = this.currentActor()): void {
     const a = this.mustGetAsset(assetId);
     if (a.removedAt) return;
     this.append({ type: "asset.removed", thingId: a.thingId, assetId }, actor);
   }
 
   /** Pick the asset the UI shows for a thing; null goes back to automatic. */
-  setCover(thingId: ThingId, assetId: string | null, actor = "you"): ThingView {
+  setCover(thingId: ThingId, assetId: string | null, actor = this.currentActor()): ThingView {
     const t = this.mustGetRaw(thingId);
     const from = this.coverId(t.id);
     if (from !== assetId) this.append({ type: "asset.cover", thingId: t.id, from, to: assetId }, actor);
@@ -1332,6 +1352,7 @@ export class Store {
       }
       case "thing.moved": {
         const t = this.mustGetRaw(b.id);
+        // Old events carry no source: then only the pre-accounts actor "you" meant a person.
         if (b.to) t.meta.parent = { source: b.source ?? (e.actor === "you" ? "you" : "import"), at };
         else delete t.meta.parent;
         this.db
@@ -1515,6 +1536,8 @@ export class Store {
           id: b.id,
           from: t.parentId,
           to: b.from,
+          // Undo is a person's act; without this the actor decided it (only "you" meant a person).
+          ...(b.from ? { source: "you" as const } : {}),
           ...(b.fromPosition ? { position: b.fromPosition } : {}),
           ...(t.position ? { fromPosition: t.position } : {}),
           ...(b.fromRoams ? { roams: true } : {}),
