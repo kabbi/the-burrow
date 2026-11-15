@@ -140,9 +140,6 @@ export function Places() {
     <main className="page">
       <div className="row places-bar">
         <h1>Places</h1>
-        <span className="muted small" title="Drag a box or a thing onto a place to move it">
-          {places.length} places
-        </span>
         <input
           className="input"
           placeholder="Filter places…"

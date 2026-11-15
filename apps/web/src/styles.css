@@ -1330,6 +1330,9 @@ img.contain {
   gap: 1px;
   min-width: 0;
 }
+.pc-cover {
+  text-decoration: none;
+}
 .pc-cover .thumb {
   width: 40px;
   height: 40px;
