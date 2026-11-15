@@ -504,7 +504,7 @@ Adding a shelf's worth of things one photo at a time, with a menu each, was slow
 - **One message for the batch**, updated as guesses come in: a numbered list with links, kind, place,
   and 🎯 "looks like your X" when one clearly matches. Fixes:
   - reply **"2 dog nail clipper"** to rename one. Your name wins, and the AI's other **unchecked**
-    guesses (description, maker, model, AI tags, kind), made for what it *thought* it was, are
+    guesses (description, maker, model, AI tags, kind), made for what it _thought_ it was, are
     redone by the local AI with your name as the caption. They are dropped if the local AI is away.
     Confirmed values and your own stay. The same goes for ✏️ Rename on a single photo.
   - tap a number → that photo's own menu (place, rename, undo; "📎 It's 1: X" when it looks like
