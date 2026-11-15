@@ -106,3 +106,40 @@ export function timeAgo(iso: string): string {
   if (d < 14) return `${d} d ago`;
   return new Date(iso).toLocaleDateString();
 }
+
+/**
+ * Run many writes as one action (Tidy up's "put these 22 in a box"): one refresh, one toast,
+ * and its Undo reverts every event, newest first.
+ */
+export function useBulk() {
+  const refresh = useRefresh();
+  const toast = useToast();
+  const undo = useUndo();
+  return async (fns: (() => Promise<{ event?: BurrowEvent }>)[], text: string) => {
+    const seqs: number[] = [];
+    let failed = 0;
+    for (const fn of fns) {
+      try {
+        const r = await fn();
+        if (r.event?.seq) seqs.push(r.event.seq);
+      } catch {
+        failed++;
+      }
+    }
+    await refresh();
+    toast({
+      text: failed ? `${text} · ${failed} failed` : text,
+      ...(failed && !seqs.length ? { error: true } : {}),
+      ...(seqs.length
+        ? {
+            action: {
+              label: "Undo",
+              run: async () => {
+                for (const s of seqs.toReversed()) await undo.mutateAsync(s);
+              },
+            },
+          }
+        : {}),
+    });
+  };
+}

@@ -80,6 +80,8 @@ export interface Place {
 export interface Overview {
   stats: { things: number; places: number; missing: number; events: number; tags: number; documents: number };
   needsDetails: number;
+  aiChecks: { things: number; fields: number; names: string[] };
+  places: { unplaced: number; roaming: number };
   missing: ThingView[];
   recentlyAdded: ThingView[];
   moves: BurrowEvent[];
@@ -220,6 +222,11 @@ export interface DocDetail {
 }
 
 export type Hits = { hits: SearchHit[] };
+
+export interface TidyData {
+  gaps: ThingView[];
+  aiChecks: { thing: ThingView; fields: string[] }[];
+}
 
 export function usd(n: number | null | undefined): string {
   if (n === null || n === undefined) return "free (local)";

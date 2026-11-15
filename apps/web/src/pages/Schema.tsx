@@ -224,7 +224,7 @@ function KindEditor({
         </label>
         {kind?.builtin && <span className="tag">built in — saving makes it yours</span>}
         {kind && kind.things > 0 && (
-          <Link className="small" to={`/db?t=things&q=${encodeURIComponent(kind.id)}`}>
+          <Link className="small" to={`/workshop/db?t=things&q=${encodeURIComponent(kind.id)}`}>
             {kind.things} things
           </Link>
         )}

@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { get, post, type BurrowEvent, type ThingDetail } from "../lib/api.ts";
+import { eventLabel } from "../lib/events.ts";
+import { Icon } from "../ui/Icon.tsx";
+import { Menu } from "../ui/parts.tsx";
+import { MovePicker } from "../ui/MovePicker.tsx";
 import { timeAgo, useAction, useUndo } from "../lib/hooks.ts";
 import { useSchema } from "../lib/schema.ts";
 import { Facts } from "../components/Facts.tsx";
-import { PlacePicker } from "../components/PlacePicker.tsx";
-import { PathView, StatusLine, ThingCard, Thumb } from "../components/ThingCard.tsx";
+import { StatusPill, ThingCard, Thumb, Where } from "../components/ThingCard.tsx";
 import { AiSuggest } from "../components/AiSuggest.tsx";
 import { TagEditor } from "../components/Tags.tsx";
 import { Relations } from "../components/Relations.tsx";
-import { Assets, ROLE_LABEL } from "../components/Assets.tsx";
+import { Assets } from "../components/Assets.tsx";
 import { BoardViewer } from "../components/BoardViewer.tsx";
 import { LinkEnrich } from "../components/LinkEnrich.tsx";
 import { isUrl } from "../lib/page.ts";
@@ -23,6 +26,7 @@ export function Thing() {
   });
   const { data: schema } = useSchema();
   const act = useAction();
+  const navigate = useNavigate();
   const [moving, setMoving] = useState(false);
   /** The "Add product link" panel: closed, or open (with a pasted URL). */
   const [linkingAt, setLinking] = useState<{ id: string; url?: string } | null>(null);
@@ -70,17 +74,67 @@ export function Thing() {
     </section>
   );
 
+  function menuItems() {
+    return [
+      {
+        label: typeof t.data.url === "string" ? "Read the product link again" : "Add a product link",
+        icon: "link" as const,
+        hidden: isTag || isDoc || Boolean(linking),
+        run: () => setLinking({ id }),
+      },
+      {
+        label: "No fixed place",
+        icon: "bag" as const,
+        hidden: !physical || t.roams || isPlace,
+        run: () =>
+          void act(
+            () => post(`/things/${t.id}/move`, { to: null, roams: true }),
+            `${t.name}: no fixed place`,
+          ),
+      },
+      {
+        label: "Archive",
+        icon: "box" as const,
+        hidden: Boolean(t.archivedAt),
+        run: () => void act(() => post(`/things/${t.id}/archive`), `${t.name} archived`),
+      },
+    ];
+  }
+
+  const missing = t.status === "missing";
+  const markFound = () =>
+    act(() => post(`/things/${t.id}/status`, { status: "ok", note: "found" }), "Marked as found");
+  const notHere = () =>
+    act(
+      () => post(`/things/${t.id}/status`, { status: "missing" }),
+      "Noted. Burrow stops trusting that spot until it turns up.",
+    );
+  const created = data.events.at(-1);
+
   return (
     <main className="page wide thing-page">
+      <div className="thing-back">
+        <button type="button" className="btn ghost small" onClick={() => navigate(-1)}>
+          <Icon name="back" size={18} stroke={2.2} />
+          Back
+        </button>
+        <Menu label="More: product link, archive" items={menuItems()} />
+      </div>
       <section className="panel thing-head">
         <a href="#pictures" className="thing-cover" aria-label="Pictures" tabIndex={isTag ? -1 : 0}>
-          <Thumb thing={t} big />
+          <Thumb thing={t} size="big" />
         </a>
-        <div className="stack grow" style={{ gap: 8, minWidth: 0 }}>
-          <span className="row" style={{ gap: 6 }}>
+        <div className="thing-info">
+          <span className="row" style={{ gap: 8 }}>
             <span className="idbadge">{t.id}</span>
             <span className="tag">{kind?.name ?? t.kind}</span>
             {t.archivedAt && <span className="tag">archived</span>}
+            {created && (
+              <span className="small muted">
+                added {new Date(created.at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}{" "}
+                by {created.actor}
+              </span>
+            )}
           </span>
           <h1 className="thing-title">{t.name}</h1>
           {typeof t.data.productName === "string" && t.data.productName !== t.name && (
@@ -88,90 +142,59 @@ export function Thing() {
           )}
           {(physical || t.parentId) && (
             <span className="row thing-where">
-              {physical && <StatusLine thing={t} />}
-              <PathView thing={t} />
+              <span style={{ color: "var(--muted)" }}>
+                <Icon name={t.roams ? "bag" : "pin"} size={16} />
+              </span>
+              <Where thing={t} chips />
               {t.parentId && <SpotEditor thing={t} spots={data.spots} />}
+              {physical && <StatusPill thing={t} />}
             </span>
           )}
           {!isTag && <TagEditor thing={t} />}
-          <div className="row" style={{ marginTop: 4, gap: 8 }}>
-            <button type="button" className="btn main" onClick={() => setMoving((m) => !m)}>
+        </div>
+        <div className="thing-acts">
+          {missing && physical ? (
+            <button type="button" className="btn main big" onClick={markFound}>
+              <Icon name="check" size={16} stroke={2.4} />
+              Found it
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn main big"
+              aria-expanded={moving}
+              onClick={() => setMoving((m) => !m)}
+            >
+              <Icon name="move" size={16} stroke={2.4} />
               {moving ? "Done" : isTag ? "Nest under…" : t.parentId ? "Move" : "Put somewhere"}
             </button>
-            {physical &&
-              (t.status === "missing" ? (
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() =>
-                    act(
-                      () => post(`/things/${t.id}/status`, { status: "ok", note: "found" }),
-                      "Marked as found",
-                    )
-                  }
-                >
-                  I found it
-                </button>
-              ) : (
-                t.parentId && (
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() =>
-                      act(
-                        () => post(`/things/${t.id}/status`, { status: "missing" }),
-                        "Noted — Burrow stops trusting that spot",
-                      )
-                    }
-                  >
-                    It’s not here
-                  </button>
-                )
-              ))}
-            {isDoc && data.paperlessId && (
-              <Link className="btn" to={`/papers?doc=${data.paperlessId}`}>
-                Open in Papers
-              </Link>
-            )}
-            {!isTag && !isDoc && !linking && (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => setLinking({ id })}
-                title="Or paste a link anywhere on this page"
-              >
-                {typeof t.data.url === "string" ? "Re-read link" : "Add product link"}
-              </button>
-            )}
-            {!t.archivedAt && (
-              <button
-                type="button"
-                className="btn ghost"
-                style={{ marginLeft: "auto" }}
-                onClick={() => act(() => post(`/things/${t.id}/archive`), `${t.name} archived`)}
-              >
-                Archive
-              </button>
-            )}
-          </div>
-          {moving &&
-            (isTag ? (
+          )}
+          {physical && !missing && t.parentId && (
+            <button type="button" className="btn big" onClick={notHere}>
+              It’s not here
+            </button>
+          )}
+          {missing && physical && (
+            <button type="button" className="btn big" onClick={() => setMoving((m) => !m)}>
+              Found it elsewhere
+            </button>
+          )}
+          {isDoc && data.paperlessId && (
+            <Link className="btn big" to={`/papers?doc=${data.paperlessId}`}>
+              Open in Papers
+            </Link>
+          )}
+          <Menu big label="More: product link, archive" items={menuItems()} />
+        </div>
+        {moving && (
+          <div style={{ flexBasis: "100%" }}>
+            {isTag ? (
               <TagParentPicker id={t.id} onDone={() => setMoving(false)} />
             ) : (
-              <PlacePicker
-                label="Move to"
-                autoFocus
-                value={t.parentId}
-                onChange={(to) => {
-                  setMoving(false);
-                  void act(
-                    () => post(`/things/${t.id}/move`, { to }),
-                    to ? "Moved" : "Removed from its place",
-                  );
-                }}
-              />
-            ))}
-        </div>
+              <MovePicker thing={t} onDone={() => setMoving(false)} />
+            )}
+          </div>
+        )}
       </section>
 
       <div className="thing-cols">
@@ -330,7 +353,7 @@ function SpotEditor({ thing, spots }: { thing: ThingDetail["thing"]; spots: stri
           <option key={s} value={s} />
         ))}
       </datalist>
-      <button type="submit" className="btn small main">
+      <button type="submit" className="btn small">
         Save
       </button>
       {thing.position && (
@@ -373,45 +396,6 @@ function TagParentPicker({ id, onDone }: { id: string; onDone: () => void }) {
   );
 }
 
-function label(e: BurrowEvent): string {
-  const b = e.body;
-  switch (b.type) {
-    case "thing.created":
-      return "Added";
-    case "thing.changed":
-      return `Changed ${b.changes.map((c) => c.field.replace(/^data\./, "")).join(", ")}`;
-    case "thing.moved":
-      if (b.to && b.to === b.from) return b.position ? `Spot: ${b.position}` : "Spot cleared";
-      return b.to ? (b.position ? `Moved (${b.position})` : "Moved") : "Taken out of its place";
-    case "thing.status":
-      return b.to === "missing" ? "Reported missing" : b.to === "ok" ? "Found" : "Marked not checked";
-    case "thing.confirmed":
-      return `${b.undo ? "Unconfirmed" : "Confirmed"} ${b.fields.join(", ")}`;
-    case "thing.archived":
-      return b.undo ? "Restored" : "Archived";
-    case "ref.linked":
-      return `Linked to ${b.service}`;
-    case "edge.added":
-      return b.edgeType === "tagged" ? "Tagged" : `Linked (${b.edgeType.replace(/_/g, " ")})`;
-    case "edge.removed":
-      return b.edgeType === "tagged" ? "Untagged" : `Unlinked (${b.edgeType.replace(/_/g, " ")})`;
-    case "asset.added":
-      return `Added ${ROLE_LABEL[b.asset.role].toLowerCase()}`;
-    case "asset.changed":
-      return b.to.thumb !== undefined && Object.keys(b.to).length === 1
-        ? "New picture for a 3D model"
-        : b.to.role
-          ? `Picture is now: ${ROLE_LABEL[b.to.role].toLowerCase()}`
-          : "Picture changed";
-    case "asset.removed":
-      return b.undo ? "Picture restored" : "Picture removed";
-    case "asset.cover":
-      return b.to ? "Cover changed" : "Cover automatic";
-    default:
-      return b.type;
-  }
-}
-
 const HISTORY_SHOWN = 8;
 
 function History({ events }: { events: (BurrowEvent & { undoable: boolean })[] }) {
@@ -424,7 +408,7 @@ function History({ events }: { events: (BurrowEvent & { undoable: boolean })[] }
       <ol className="hist">
         {shown.map((e) => (
           <li key={e.seq} className={e.undone ? "undone" : ""}>
-            <span className="hist-what">{label(e)}</span>
+            <span className="hist-what">{eventLabel(e)}</span>
             <span className="hist-meta">
               {e.actor} · {timeAgo(e.at)}
               {e.undoable && (

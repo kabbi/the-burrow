@@ -5,6 +5,7 @@ import { get, patch, post, type KindField, type ThingView } from "../lib/api.ts"
 import { useAction, type ActionGroup } from "../lib/hooks.ts";
 import { useSchema } from "../lib/schema.ts";
 import { ThingSearch } from "./ThingSearch.tsx";
+import { Verdict } from "../ui/parts.tsx";
 
 const HIDDEN = new Set(["imageUrl", "thumbUrl", "tags"]);
 export const SOURCE_LABEL: Record<string, string> = {
@@ -18,6 +19,19 @@ export const SOURCE_LABEL: Record<string, string> = {
   icons: "icon set",
   app: "from an app (see history)",
 };
+
+/** Grey provenance: "AI · you agreed", "from ikea.com". A person's own values carry no label. */
+function sourceLabel(m: { source: string; confirmed?: boolean }, thing: ThingView): string {
+  if (m.source === "ai") return m.confirmed ? "AI · you agreed" : "AI guess";
+  if (m.source === "page" && typeof thing.data.url === "string") {
+    try {
+      return `from ${new URL(thing.data.url).hostname.replace(/^www\./, "")}`;
+    } catch {
+      // not a URL after all
+    }
+  }
+  return SOURCE_LABEL[m.source] ?? m.source;
+}
 
 function show(v: unknown, f?: KindField): string {
   if (Array.isArray(v)) return v.join(", ");
@@ -205,34 +219,23 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
         <span className="value">{editing === key ? editor(key, f, v) : display(key, f, v, title)}</span>
         <span className="row" style={{ gap: 4, justifyContent: "flex-end" }}>
           {isAi ? (
-            <>
-              <button
-                type="button"
-                className="btn small"
-                onClick={() =>
-                  act(() => post(`/things/${thing.id}/confirm`, { fields: [key] }), `+${label(key)}`, {
-                    group,
-                  })
-                }
-              >
-                Right
-              </button>
-              {key !== "name" && (
-                <button
-                  type="button"
-                  className="btn small"
-                  onClick={() =>
-                    act(() => patch(`/things/${thing.id}`, { data: { [key]: null } }), `-${label(key)}`, {
+            <Verdict
+              what={label(key)}
+              onRight={() =>
+                void act(() => post(`/things/${thing.id}/confirm`, { fields: [key] }), `+${label(key)}`, {
+                  group,
+                })
+              }
+              onWrong={() =>
+                void (key === "name"
+                  ? setEditing("name")
+                  : act(() => patch(`/things/${thing.id}`, { data: { [key]: null } }), `-${label(key)}`, {
                       group,
-                    })
-                  }
-                >
-                  Wrong
-                </button>
-              )}
-            </>
+                    }))
+              }
+            />
           ) : (
-            m && !empty && <span className="muted small">{SOURCE_LABEL[m.source] ?? m.source}</span>
+            m && !empty && m.source !== "you" && <span className="src">{sourceLabel(m, thing)}</span>
           )}
         </span>
       </div>
@@ -263,13 +266,10 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
     <div className="facts">
       {guesses.length > 1 && (
         <div className="guessbar">
-          <span className="dot ai" />
-          <span className="grow small">
-            {guesses.length} AI guesses — check them, or confirm them all at once.
-          </span>
+          <span className="grow small">{guesses.length} AI guesses to check, one by one or all at once.</span>
           <button
             type="button"
-            className="btn small ai"
+            className="btn small ai solid"
             onClick={() =>
               act(
                 () => post(`/things/${thing.id}/confirm`, { fields: guesses }),
@@ -341,7 +341,7 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
       {adding && (
         <p className="muted small" style={{ margin: "0 0 4px" }}>
           Just for this thing. For every {kind?.name.toLowerCase() ?? "thing"}, add it to the kind in{" "}
-          <Link to={`/schema?kind=${thing.kind}`}>Schema</Link>.
+          <Link to={`/workshop/kinds?kind=${thing.kind}`}>Schema</Link>.
         </p>
       )}
     </div>

@@ -258,7 +258,7 @@ export function LinkEnrich({
       )}
 
       <div className="row">
-        <button type="submit" className="btn main" disabled={!url || reading || saving}>
+        <button type="submit" className="btn" disabled={!url || reading || saving}>
           {saving
             ? "Saving…"
             : !page

@@ -100,8 +100,17 @@ export function createApp(deps: Deps) {
     res.json({
       stats: store.stats(),
       needsDetails: store.needsDetails(500).length,
+      aiChecks: (() => {
+        const xs = store.aiUnchecked(500);
+        return {
+          things: xs.length,
+          fields: xs.reduce((n, x) => n + x.fields.length, 0),
+          names: xs.slice(0, 3).map((x) => x.thing.name),
+        };
+      })(),
+      places: (({ unplaced, roaming }) => ({ unplaced, roaming }))(store.placeTree()),
       missing: store.list({ limit: 500 }).filter((t) => t.status === "missing"),
-      recentlyAdded: store.list({ physical: true, limit: 6 }),
+      recentlyAdded: store.list({ physical: true, limit: 8 }),
       moves: store
         .events({ types: ["thing.moved", "thing.status", "thing.created"], limit: 8 })
         .filter((e) => e.actor === "you" || e.actor === "ai"),

@@ -6,17 +6,23 @@ import { useRefresh } from "../lib/hooks.ts";
 /**
  * Pick where a thing lives. Type to filter by any part of the path; the last
  * option creates a new place (inside the highlighted one if you pick "inside").
+ * `allowRoam` adds "No fixed place" (D-026): `onChange(null, undefined, true)`.
  */
 export function PlacePicker({
   value,
   onChange,
   label = "Where",
   autoFocus,
+  allowRoam,
+  roams,
 }: {
   value: string | null;
-  onChange: (id: string | null, place?: Place) => void;
+  onChange: (id: string | null, place?: Place, roams?: boolean) => void;
   label?: string;
   autoFocus?: boolean;
+  allowRoam?: boolean;
+  /** The thing has no fixed place now. */
+  roams?: boolean;
 }) {
   const id = useId();
   const refresh = useRefresh();
@@ -33,12 +39,29 @@ export function PlacePicker({
   }, [q, places]);
 
   const parentForNew = current;
-  const options: { key: string; label: string; hint?: string; run: () => void }[] = matches.map((p) => ({
-    key: p.id,
-    label: p.name,
-    hint: p.path.split(" › ").slice(0, -1).join(" › "),
-    run: () => pick(p),
-  }));
+  const options: { key: string; label: string; hint?: string; dashed?: boolean; run: () => void }[] =
+    matches.map((p) => ({
+      key: p.id,
+      label: p.name,
+      hint: p.path.split(" › ").slice(0, -1).join(" › "),
+      run: () => pick(p),
+    }));
+  if (
+    allowRoam &&
+    !roams &&
+    (!q.trim() || "no fixed place travels carried nowhere".includes(q.trim().toLowerCase()))
+  )
+    options.push({
+      key: "roam",
+      label: "No fixed place",
+      hint: "it travels: laptop, phone, bag",
+      dashed: true,
+      run: () => {
+        onChange(null, undefined, true);
+        setQ("");
+        setOpen(false);
+      },
+    });
   if (q.trim())
     options.push({
       key: "new",
@@ -84,7 +107,7 @@ export function PlacePicker({
             aria-autocomplete="list"
             className="input"
             autoFocus={autoFocus}
-            placeholder={current ? current.path : "Type a room, shelf, box…"}
+            placeholder={current ? current.path : roams ? "No fixed place" : "Type a room, shelf, box…"}
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
@@ -107,8 +130,13 @@ export function PlacePicker({
               } else if (e.key === "Escape") setOpen(false);
             }}
           />
-          {current && (
-            <button type="button" className="btn small" onClick={() => pick(null)} aria-label="Clear place">
+          {(current || roams) && (
+            <button
+              type="button"
+              className="btn small icon"
+              onClick={() => pick(null)}
+              aria-label="Clear place"
+            >
               ×
             </button>
           )}
@@ -118,6 +146,7 @@ export function PlacePicker({
             {options.map((o, i) => (
               <li
                 key={o.key}
+                className={o.dashed ? "dashed" : undefined}
                 role="option"
                 aria-selected={i === hi}
                 onMouseMove={() => i !== hi && setHi(i)}

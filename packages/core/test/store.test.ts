@@ -522,6 +522,20 @@ describe("no fixed place (D-026)", () => {
   });
 });
 
+describe("aiUnchecked", () => {
+  it("lists guessed fields until a person confirms them", () => {
+    const s = store();
+    const t = s.createThing({
+      name: "Desk",
+      data: { description: "A green desk", maker: "IKEA" },
+      sources: { description: "ai", maker: "you" },
+    });
+    expect(s.aiUnchecked().map((x) => [x.thing.id, x.fields])).toEqual([[t.id, ["description"]]]);
+    s.confirm(t.id, ["description"]);
+    expect(s.aiUnchecked()).toEqual([]);
+  });
+});
+
 describe("asset originals, keys and file replacement", () => {
   it("replaces a processed file in place, keeps the original, undoes", () => {
     const s = store();

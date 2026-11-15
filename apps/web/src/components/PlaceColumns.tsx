@@ -331,7 +331,7 @@ function Preview({ item, kind }: { item: ThingView; kind: string }) {
   const qty = item.data.quantity;
   return (
     <aside className="pc-col pc-preview" aria-label="Selected thing">
-      <Thumb thing={item} big />
+      <Thumb thing={item} size="big" />
       <Link to={`/t/${item.id}`} className="pc-title">
         {item.name}
       </Link>

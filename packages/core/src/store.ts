@@ -888,6 +888,31 @@ export class Store {
     return out;
   }
 
+  /**
+   * Things with AI guesses nobody has checked yet (violet in the UI), newest first. The keys are
+   * fields that still hold the guessed value: "name", "kind" or a data key.
+   */
+  aiUnchecked(limit = 200): { thing: ThingView; fields: string[] }[] {
+    const out: { thing: ThingView; fields: string[] }[] = [];
+    const rows = this.db
+      .prepare(
+        `select * from things where archived_at is null and meta like '%"source":"ai"%' order by seq desc`,
+      )
+      .all() as Row[];
+    for (const r of rows) {
+      const t = toThing(r);
+      // Tags and papers have their own pages; an AI-made tag isn't a guess about a thing.
+      if (this.kindIs(t.kind, "tag") || this.kindIs(t.kind, "document")) continue;
+      const fields = Object.entries(t.meta)
+        .filter(([k, m]) => m.source === "ai" && !m.confirmed && k !== "parent")
+        .filter(([k]) => k === "name" || k === "kind" || !isEmpty(t.data[k]))
+        .map(([k]) => k);
+      if (fields.length) out.push({ thing: this.view(t), fields });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
   stats() {
     const one = (sql: string) => Number((this.db.prepare(sql).get() as Row).n);
     return {

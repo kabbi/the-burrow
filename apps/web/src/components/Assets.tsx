@@ -163,7 +163,7 @@ export function Assets({
       )}
 
       <div className="row" style={{ gap: 6 }}>
-        <label className="btn small main">
+        <label className="btn small">
           Take photo
           <input
             type="file"

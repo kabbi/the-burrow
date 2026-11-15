@@ -6,6 +6,8 @@ import {
   post,
   upload,
   type BurrowEvent,
+  type Hits,
+  type Place,
   type Preview,
   type ThingDetail,
   type ThingView,
@@ -18,7 +20,8 @@ import { TagEditor } from "../components/Tags.tsx";
 import { useThingKinds } from "../lib/schema.ts";
 import { AiSuggest } from "../components/AiSuggest.tsx";
 import { aiInput as pageAiInput, isUrl, pageData } from "../lib/page.ts";
-import { PathView, StatusLine, Thumb } from "../components/ThingCard.tsx";
+import { StatusPill, Thumb, Where } from "../components/ThingCard.tsx";
+import { Icon } from "../ui/Icon.tsx";
 import { BlockedHint } from "../components/SendToBurrow.tsx";
 
 const QUICK_KINDS = ["thing", "electronics", "tool", "appliance", "container", "furniture", "room"];
@@ -51,6 +54,8 @@ export function Add() {
   const [nameEdit, setName] = useState<string | null>(null);
   const [kind, setKind] = useState("thing");
   const [placeId, setPlaceId] = useState<string | null>(storedPlace);
+  const [roams, setRoams] = useState(false);
+  const [dupOk, setDupOk] = useState(false);
   const [qty, setQty] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -78,6 +83,18 @@ export function Add() {
     retry: false,
   });
   const page = url && preview.data?.preview ? preview.data.preview : null;
+  const { data: placeData } = useQuery({
+    queryKey: ["places"],
+    queryFn: () => get<{ places: Place[] }>("/places"),
+  });
+  const places = placeData?.places ?? [];
+  // Duplicate check while you type: an exact name you already have.
+  const dname = useDebounced(url ? "" : text.trim(), 250);
+  const dupHits = useQuery({
+    queryKey: ["search", dname, 5],
+    queryFn: () => get<Hits>(`/search?q=${encodeURIComponent(dname)}&limit=5`),
+    enabled: dname.length > 1,
+  });
 
   const name = nameEdit ?? page?.title ?? "";
 
@@ -115,7 +132,8 @@ export function Add() {
       const r = await post<{ thing: ThingView; event: BurrowEvent }>("/things", {
         name: finalName,
         kind,
-        parentId: placeId,
+        parentId: roams ? null : placeId,
+        ...(roams ? { roams: true } : {}),
         data,
         source: "you",
         sources,
@@ -135,6 +153,7 @@ export function Add() {
       setName(null);
       setQty("");
       setPhoto(null);
+      setDupOk(false);
       await refresh();
       inputRef.current?.focus();
     } catch (e) {
@@ -145,168 +164,318 @@ export function Add() {
   }
 
   const last = saved[0];
+  const dup = !url && dupHits.data?.hits.map((h) => h.thing).find((t) => sameName(t.name, finalName));
+  const roomChips = [
+    ...new Map(
+      [
+        ...(placeId && !roams ? [places.find((p) => p.id === placeId)] : []),
+        ...saved.map((x) => places.find((p) => p.id === x.thing.parentId)),
+        ...places.filter((p) => p.depth === 0),
+      ]
+        .filter((p): p is Place => Boolean(p))
+        .map((p) => [p.id, p]),
+    ).values(),
+  ].slice(0, 7);
+
   return (
-    <main className="page">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ fontSize: 34 }}>Add a thing</h1>
-        <Link to="/later" className="small">
-          Needs details →
-        </Link>
-      </div>
+    <main className="page wide">
+      <div className="add-cols">
+        <form
+          className="panel stack add-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <div>
+            <h1 style={{ fontSize: 32 }}>Add a thing</h1>
+            <p className="muted" style={{ margin: "4px 0 0" }}>
+              A name is enough. Or paste a shop link, or take a photo.
+            </p>
+          </div>
 
-      <form
-        className="panel stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
-      >
-        <label className="field">
-          <span>What is it? A name is enough — or paste a product link</span>
-          <input
-            ref={inputRef}
-            className="input"
-            style={{ fontSize: 20, minHeight: 56 }}
-            autoFocus
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="metal calipers · https://www.ikea.com/…"
-            autoComplete="off"
-          />
-        </label>
+          <div className="add-input">
+            <label className="field grow">
+              <span>Name or link</span>
+              <input
+                ref={inputRef}
+                className="input"
+                autoFocus
+                value={text}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  setDupOk(false);
+                }}
+                placeholder="metal calipers · https://www.ikea.com/…"
+                autoComplete="off"
+                enterKeyHint="done"
+              />
+            </label>
+            <label className={`btn add-photo${photo ? " has" : ""}`}>
+              <Icon name="camera" size={20} />
+              {photo ? "1 photo" : "Photo"}
+              <input
+                key={photo ? "has" : "none"}
+                className="sr-only"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+              />
+            </label>
+          </div>
 
-        {url && (
-          <div className="card" style={{ background: "var(--tint)" }}>
-            {page?.image ? (
-              <img className="thumb" src={page.image} alt="" />
-            ) : (
-              <span className="thumb" aria-hidden="true">
-                ↗
+          {dup && !dupOk && (
+            <div className="callout row">
+              <span className="grow">
+                <b style={{ display: "block", color: "var(--ink)" }}>You already have {dup.name}</b>
+                <span className="small">
+                  {dup.id} · {dup.kind}
+                  {dup.path.length
+                    ? ` · ${dup.path.map((p) => p.name).join(" › ")}`
+                    : dup.roams
+                      ? " · no fixed place"
+                      : ""}
+                </span>
               </span>
-            )}
-            <div className="body">
-              {preview.isFetching && <span className="muted">Reading the page…</span>}
-              {!preview.isFetching && !page && (
-                <span className="muted">
-                  Couldn’t read that page{preview.data?.error ? ` (${preview.data.error})` : ""}. Type a name
-                  below.
+              <Link className="btn small" to={`/t/${dup.id}`}>
+                Open it
+              </Link>
+              <button type="button" className="btn small ghost" onClick={() => setDupOk(true)}>
+                It’s a second one
+              </button>
+            </div>
+          )}
+
+          {url && (
+            <div className="callout add-page">
+              {page?.image ? (
+                <img className="thumb" src={page.image} alt="" />
+              ) : (
+                <span className="thumb" aria-hidden="true">
+                  <Icon name="link" />
                 </span>
               )}
-              {!preview.isFetching && preview.data?.blocked && (
-                <BlockedHint onRetry={() => void preview.refetch()} />
-              )}
-              {page && (
-                <>
-                  <span className="muted small">
-                    {page.siteName}
-                    {page.price ? ` · ${page.price}` : ""}
-                    {page.brand ? ` · ${page.brand}` : ""}
+              <div className="stack grow" style={{ gap: 6 }}>
+                {preview.isFetching && <span className="muted">Reading the page…</span>}
+                {!preview.isFetching && !page && (
+                  <span className="muted">
+                    Couldn’t read that page{preview.data?.error ? ` (${preview.data.error})` : ""}. Type a
+                    name below.
                   </span>
-                  {page.description && <span className="small">{page.description.slice(0, 220)}</span>}
-                </>
-              )}
-              <label className="field">
-                <span>Name</span>
-                <input
+                )}
+                {!preview.isFetching && preview.data?.blocked && (
+                  <BlockedHint onRetry={() => void preview.refetch()} />
+                )}
+                {page && (
+                  <>
+                    <span className="small" style={{ fontWeight: 600, color: "var(--ink)" }}>
+                      Read from {page.siteName ?? "the page"}
+                      <span className="muted" style={{ fontWeight: 400 }}>
+                        {" "}
+                        · free · no AI · one Undo for all of it
+                      </span>
+                    </span>
+                    <span className="small">
+                      {[page.brand, page.price].filter(Boolean).join(" · ")}
+                      {page.description ? ` · ${page.description.slice(0, 160)}` : ""}
+                    </span>
+                  </>
+                )}
+                <label className="field">
+                  <span>Name</span>
+                  <input
+                    className="input"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="What you call it at home"
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          <div className="field">
+            <span>Where does it live?</span>
+            <div className="row" style={{ gap: 6 }}>
+              {roomChips.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="chip"
+                  aria-pressed={!roams && placeId === p.id}
+                  onClick={() => {
+                    setPlaceId(p.id);
+                    setRoams(false);
+                  }}
+                  title={p.path}
+                >
+                  {p.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="chip dashed"
+                aria-pressed={roams}
+                onClick={() => {
+                  setRoams(!roams);
+                  setPlaceId(null);
+                }}
+              >
+                <Icon name="bag" size={14} />
+                No fixed place
+              </button>
+              <button
+                type="button"
+                className="chip dashed"
+                aria-pressed={!roams && !placeId}
+                onClick={() => {
+                  setRoams(false);
+                  setPlaceId(null);
+                }}
+              >
+                Not sure yet
+              </button>
+            </div>
+            <PlacePicker
+              label=""
+              value={roams ? null : placeId}
+              onChange={(id) => {
+                setPlaceId(id);
+                setRoams(false);
+              }}
+            />
+            <span className="small muted">
+              {roams
+                ? "It travels: no place to keep track of, and it won’t show up in Tidy up."
+                : "Remembered for the next add. The spot (shelf, drawer) can follow later."}
+            </span>
+          </div>
+
+          <div className="add-two">
+            <div className="field">
+              <span>Kind · optional, AI guesses it</span>
+              <div className="row" style={{ gap: 6 }}>
+                {chipKinds.map(({ id: k }) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className="chip mini"
+                    aria-pressed={kind === k}
+                    onClick={() => setKind(k)}
+                  >
+                    {kinds?.kinds.find((x) => x.id === k)?.name ?? k}
+                  </button>
+                ))}
+                <select
                   className="input"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Name for this thing"
+                  style={{ width: "auto", minHeight: 30, padding: "0 8px" }}
+                  aria-label="Other kind"
+                  value={chipKinds.some((c) => c.id === kind) ? "" : kind}
+                  onChange={(e) => e.target.value && setKind(e.target.value)}
+                >
+                  <option value="">Other…</option>
+                  {kinds?.kinds
+                    .filter((k) => !chipKinds.some((c) => c.id === k.id))
+                    .map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+            <div className="field">
+              <span>How many</span>
+              <span className="stepper">
+                <button
+                  type="button"
+                  aria-label="One less"
+                  onClick={() => setQty(String(Math.max(1, Number(qty || 1) - 1)))}
+                >
+                  −
+                </button>
+                <input
+                  inputMode="numeric"
+                  aria-label="How many"
+                  value={qty}
+                  placeholder="1"
+                  onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ""))}
                 />
-              </label>
+                <button
+                  type="button"
+                  aria-label="One more"
+                  onClick={() => setQty(String(Number(qty || 1) + 1))}
+                >
+                  +
+                </button>
+              </span>
             </div>
           </div>
-        )}
 
-        <div className="grid2">
-          <PlacePicker value={placeId} onChange={(id) => setPlaceId(id)} />
-          <label className="field">
-            <span>How many (optional)</span>
-            <input
-              className="input"
-              inputMode="numeric"
-              value={qty}
-              onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, ""))}
-              placeholder="1"
-            />
-          </label>
-        </div>
+          <div className="row" style={{ borderTop: "1px solid var(--line-3)", paddingTop: 16 }}>
+            <button type="submit" className="btn main big" disabled={!canSave}>
+              {saving
+                ? "Saving…"
+                : dup && !dupOk
+                  ? "Save anyway"
+                  : page
+                    ? "Save with what the page says"
+                    : "Save"}
+            </button>
+            <span className="muted small">
+              Enter saves · it gets an ID now · local AI fills the rest in violet
+            </span>
+          </div>
+        </form>
 
-        <label className="field">
-          <span>Photo (optional) — on a phone this opens the camera</span>
-          <input
-            key={photo ? "has" : "none"}
-            className="input"
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-          />
-        </label>
-
-        <div className="field">
-          <span>Kind</span>
-          <div className="row">
-            {chipKinds.map(({ id: k }) => (
-              <button
-                key={k}
-                type="button"
-                className="chip"
-                aria-pressed={kind === k}
-                onClick={() => setKind(k)}
-              >
-                {kinds?.kinds.find((x) => x.id === k)?.name ?? k}
-              </button>
-            ))}
-            <select
-              className="input"
-              style={{ width: "auto", minHeight: 34 }}
-              aria-label="Other kind"
-              value={chipKinds.some((c) => c.id === kind) ? "" : kind}
-              onChange={(e) => e.target.value && setKind(e.target.value)}
-            >
-              <option value="">Other…</option>
-              {kinds?.kinds
-                .filter((k) => !chipKinds.some((c) => c.id === k.id))
-                .map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.name}
-                  </option>
+        <aside className="stack add-side">
+          <h2 className="eyebrow">Just saved</h2>
+          {last ? (
+            <JustSaved key={last.thing.id} saved={last} onUndo={() => undo.mutate(last.event.seq)} />
+          ) : (
+            <div className="empty small">Nothing yet. Save one and it shows here while AI fills it in.</div>
+          )}
+          {saved.length > 1 && (
+            <>
+              <h2 className="eyebrow">This session</h2>
+              <div className="rows">
+                {saved.slice(1).map((x) => (
+                  <div
+                    className="activity row"
+                    key={x.thing.id}
+                    style={{ flexDirection: "row", flexWrap: "nowrap" }}
+                  >
+                    <Link
+                      to={`/t/${x.thing.id}`}
+                      className="grow"
+                      style={{ fontWeight: 600, color: "var(--ink)" }}
+                    >
+                      {x.thing.name}
+                    </Link>
+                    <span className="idtext">{x.thing.id}</span>
+                    <button type="button" className="btn small" onClick={() => undo.mutate(x.event.seq)}>
+                      Undo
+                    </button>
+                  </div>
                 ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="row">
-          <button type="submit" className="btn main" disabled={!canSave}>
-            {saving ? "Saving…" : "Save (Enter)"}
-          </button>
-          <span className="muted small">Saved right away with an ID. Fill the rest now or later.</span>
-        </div>
-      </form>
-
-      {last && <JustSaved key={last.thing.id} saved={last} onUndo={() => undo.mutate(last.event.seq)} />}
-
-      {saved.length > 1 && (
-        <section className="panel flat">
-          <h2 className="eyebrow" style={{ margin: "12px 0 6px" }}>
-            Added this session
-          </h2>
-          <div className="list">
-            {saved.slice(1).map((s) => (
-              <div className="list-row" key={s.thing.id}>
-                <Link to={`/t/${s.thing.id}`} style={{ flex: 1, fontWeight: 600, color: "inherit" }}>
-                  {s.thing.name}
-                </Link>
-                <span className="idbadge">{s.thing.id}</span>
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+            </>
+          )}
+          <Link to="/tidy" className="small">
+            Tidy up: gaps left for later →
+          </Link>
+        </aside>
+      </div>
     </main>
   );
 }
+
+/** Names that are the same thing to a person: case, spaces and apostrophes don't count. */
+function sameName(a: string, b: string) {
+  return norm(a) === norm(b) && norm(b).length > 1;
+}
+const norm = (s: string) => s.toLowerCase().replace(/[’'`]/g, "").replace(/\s+/g, " ").trim();
 
 function JustSaved({ saved, onUndo }: { saved: Saved; onUndo: () => void }) {
   const { data } = useQuery({
@@ -317,8 +486,9 @@ function JustSaved({ saved, onUndo }: { saved: Saved; onUndo: () => void }) {
   return (
     <section className="panel stack" aria-label="Just saved">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <span className="eyebrow" style={{ color: "var(--ok)" }}>
-          Saved · {t.id}
+        <span className="pill ok">
+          <Icon name="check" size={14} stroke={2.4} />
+          Saved as {t.id}
         </span>
         <div className="row">
           <Link className="btn small" to={`/t/${t.id}`}>
@@ -333,8 +503,8 @@ function JustSaved({ saved, onUndo }: { saved: Saved; onUndo: () => void }) {
         <Thumb thing={t} />
         <div className="stack grow" style={{ gap: 6 }}>
           <strong style={{ fontSize: 20, fontFamily: "var(--font-display)" }}>{t.name}</strong>
-          <StatusLine thing={t} />
-          <PathView thing={t} compact />
+          <Where thing={t} compact />
+          <StatusPill thing={t} />
           {t.archivedAt && <span className="muted">Undone — it’s archived.</span>}
         </div>
       </div>

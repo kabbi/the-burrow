@@ -219,7 +219,7 @@ export function Places() {
       <p className="small muted">
         {data && data.unplaced > 0 && (
           <>
-            <Link to="/later">
+            <Link to="/tidy">
               {data.unplaced} {data.unplaced === 1 ? "thing isn't" : "things aren't"} anywhere yet →
             </Link>{" "}
             ·{" "}

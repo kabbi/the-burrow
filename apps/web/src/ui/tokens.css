@@ -1,0 +1,66 @@
+/*
+ * Burrow design tokens (docs/design-system.md, D-027). Every colour has one meaning:
+ *   orange   = the one main action on a screen       ink   = selected (nav, chips, rows)
+ *   violet   = AI, until a person agrees              red   = wrong: missing, failed
+ *   amber    = heads-up                               green = done, right after an action
+ * Neutral ground, surface and lines carry everything else. Counts are neutral.
+ */
+:root {
+  /* ground and surfaces */
+  --bg: #f4f1ea; /* ground: the page */
+  --panel: #ffffff; /* surface: cards, panels */
+  --sunk: #ede8dd; /* sunken: tiles, placeholders, the nav track */
+  --tint: #fbfaf7; /* hover on surfaces, group headers */
+
+  /* text */
+  --ink: #1c1b19;
+  --ink-2: #4a453d; /* secondary text */
+  --muted: #6b655a; /* labels, meta (4.9:1 on ground) */
+  --faint: #8f887b; /* separators and decoration only, never text you must read */
+
+  /* lines */
+  --line: #e2dacb; /* panel borders */
+  --line-2: #d6cdbb; /* input borders */
+  --line-3: #ede8dd; /* row dividers inside a panel */
+  --dash: #b5ac9b; /* dashed: gaps, pseudo-places, "+ add" affordances */
+
+  /* the one main action */
+  --main: #b8401c;
+  --main-ink: #ffffff;
+  --main-hover: #8a2e12;
+  --link: #b8401c;
+
+  /* AI, unchecked */
+  --ai: #5b3df5;
+  --ai-ink: #3a22c9;
+  --ai-tint: #eeeafe;
+  --ai-row: #f7f5ff;
+  --ai-line: #c9befb;
+
+  /* states */
+  --bad: #b3261e;
+  --bad-tint: #f8e1de;
+  --warn: #8a5f00;
+  --warn-tint: #f6ebcb;
+  --ok: #2f6f5e;
+  --ok-ink: #1f4d41;
+  --ok-tint: #e3efea;
+
+  /* type */
+  --font: "Inter Variable", Inter, system-ui, sans-serif;
+  --font-display: "Space Grotesk", var(--font);
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* shape */
+  --radius-s: 10px; /* controls */
+  --radius: 14px; /* cards, rows */
+  --radius-l: 18px; /* panels */
+  --shadow: 0 1px 0 rgba(28, 27, 25, 0.04), 0 8px 24px -12px rgba(28, 27, 25, 0.18);
+  --shadow-pop: 0 8px 24px rgba(28, 27, 25, 0.25);
+
+  /* layout */
+  --gutter: clamp(16px, 3vw, 32px);
+  --tabbar-h: 68px;
+
+  color-scheme: light;
+}
