@@ -23,7 +23,7 @@ park ideas in `docs/ideas.md`.
 - Testing against the mock paperless writes to the real DB: don't file/link mock docs there.
 - Back up the DB with `VACUUM INTO` before any migration script.
 - Two instances (D-014): dev = this repo; production = Docker in `~/dev/apps/burrow`
-  (burrow.example.com, real data). Ship with `pnpm prod:deploy`; never edit production data while
+  (its own domain, real data). Ship with `pnpm prod:deploy`; never edit production data while
   testing. Ask before deploying if the user didn't ask for it.
 
 ## Conventions

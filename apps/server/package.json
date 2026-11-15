@@ -1,6 +1,7 @@
 {
   "name": "@burrow/server",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env --watch src/main.ts",

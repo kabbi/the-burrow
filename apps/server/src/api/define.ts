@@ -303,6 +303,7 @@ export function openApi(ops: AnyOp[], info: { version: string; server: string })
       title: "Burrow API",
       version: info.version,
       description: DESCRIPTION,
+      license: { name: "MIT", identifier: "MIT" },
     },
     servers: [{ url: info.server }],
     tags: TAGS.filter((t) => usedTags.has(t.name)),

@@ -22,7 +22,7 @@ pnpm --filter @burrow/server import:homebox # one-time HomeBox import (done; ide
 
 ## Production
 
-Runs in Docker from `~/dev/apps/burrow` at https://burrow.example.com (D-014).
+Runs in Docker from `~/dev/apps/burrow`, behind your own domain (`BURROW_PUBLIC_URL`, D-014).
 
 ```bash
 pnpm prod:deploy           # checks → build burrow:<sha> → back up live DB → restart → health check
@@ -77,3 +77,7 @@ data/           burrow.sqlite + media/ (gitignored; back up both)
 ```
 
 Read [docs/architecture.md](docs/architecture.md) first, then [docs/decisions.md](docs/decisions.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE).

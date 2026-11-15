@@ -1,6 +1,7 @@
 {
   "name": "burrow",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,magenta \"pnpm --filter @burrow/server dev\" \"pnpm --filter @burrow/web dev\"",

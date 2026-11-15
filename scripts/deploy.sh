@@ -11,6 +11,8 @@ IMAGE=burrow
 PORT=${BURROW_PORT:-4200}
 KEEP_BACKUPS=30
 KEEP_IMAGES=5
+# The public URL lives in the production .env (BURROW_PUBLIC_URL), not in this repo.
+PUBLIC_URL=$(sed -n 's/^BURROW_PUBLIC_URL=//p' "$APP_DIR/.env" 2>/dev/null | tail -n 1)
 
 cd "$REPO"
 VERSION=$(git rev-parse --short HEAD)
@@ -41,7 +43,7 @@ docker compose --project-directory "$APP_DIR" up -d --remove-orphans
 step "wait for $VERSION to be healthy"
 for _ in $(seq 1 30); do
   if curl -fsS "http://localhost:$PORT/api/health" 2>/dev/null | grep -q "\"version\":\"$VERSION\""; then
-    echo "  up: http://localhost:$PORT  ·  https://burrow.example.com"
+    echo "  up: http://localhost:$PORT${PUBLIC_URL:+  ·  $PUBLIC_URL}"
     old=$(docker image ls "$IMAGE" --format '{{.Tag}} {{.CreatedAt}}' | grep -v '^latest ' | sort -k2 -r | awk '{print $1}' | tail -n +$((KEEP_IMAGES + 1)))
     for t in $old; do docker image rm "$IMAGE:$t" >/dev/null 2>&1 || true; done
     exit 0

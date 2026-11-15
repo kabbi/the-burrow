@@ -296,7 +296,7 @@ versioned API. The web app keeps its own unversioned `/api`, which can change wi
   answer) drives the route _and_ the OpenAPI 3.1 document at `/api/v1/openapi.json` (public, no
   token). zod 4's own JSON Schema output; shared shapes are components. Readable docs at **`/api/v1`**:
   Redoc's standalone bundle served from our own `node_modules` (no CDN), themed like Burrow. The
-  document passes `redocly lint` (only warning: no license, it's private). The API page renders the
+  document passes `redocly lint` (MIT license, D-035). The API page renders the
   reference from that document; the tests check every answer against its documented schema, so
   docs can't drift.
 - Chosen over GraphQL: the core is already REST-ish with zod everywhere, outside systems are simple
@@ -648,3 +648,18 @@ and one button, **Not the same**.
   Good enough for "potential"; the thresholds are constants at the top of the file.
 - Not done: **merge** (move pictures, links and papers onto the kept thing, old ID redirects), and
   a regular `vision.refresh()` outside the bot. Both in ideas.md.
+
+## D-035 · Public repo: MIT, no private host names (2026-11-15)
+
+The repo is going public under the MIT license (`LICENSE`, `license` in every package.json and in
+the OpenAPI document). Before that, the git history was rewritten (`git filter-branch`) so the
+production domain, the tailnet name and the Telegram bot's username never appear in it; the docs
+say `burrow.example.com`, `fedora.example.com` and `worky.<tailnet>.ts.net` instead. Commit hashes
+from before 2026-11-15 changed, so older production image tags (`burrow:<sha>`) no longer match a
+commit.
+
+- Real host names live only in `.env` files: production's `BURROW_PUBLIC_URL` (also read by
+  `scripts/deploy.sh` for its "up" line) and dev's `BURROW_DEV_HOSTS` (extra Vite `allowedHosts`).
+- Keep it that way: no private domains, tailnet names, bot usernames, tokens or chat ids in
+  committed files. LAN machine names (`fedora`, `worky`) and local paths are fine.
+- `.claude/` (local agent settings) is ignored.
