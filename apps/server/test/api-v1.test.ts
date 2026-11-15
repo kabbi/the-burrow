@@ -58,7 +58,10 @@ const picture = (color: string) =>
 
 beforeAll(async () => {
   const store = Store.open(":memory:", tokenMigrations);
-  deps = createDeps({ ...config, mediaDir: mkdtempSync(join(tmpdir(), "burrow-v1-")) }, { store });
+  deps = createDeps(
+    { ...config, auth: false, mediaDir: mkdtempSync(join(tmpdir(), "burrow-v1-")) },
+    { store },
+  );
   ops = v1Ops(deps);
   rig = deps.tokens.create({ name: "PCB rig", actor: "pcb-rig", scopes: ["write"] }).token;
   reader = deps.tokens.create({ name: "Dashboard", actor: "dashboard", scopes: ["read"] }).token;

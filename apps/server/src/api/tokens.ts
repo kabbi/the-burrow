@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { BurrowError, type Db, type Migration } from "@burrow/core";
+import { ACTOR_RE, RESERVED_ACTORS } from "../auth/accounts.ts";
 
 // API tokens for outside systems (D-020). Only a hash is stored; the token itself is shown once.
 // Each token acts as an actor: every event it causes is recorded under that name.
@@ -30,9 +31,7 @@ export const SCOPE_INFO: Record<Scope, string> = {
   schema: "Define kinds and link types. Includes read.",
 };
 
-/** Names people and Burrow itself already write under: an app can't pretend to be one of them. */
-const RESERVED = new Set(["you", "ai", "burrow", "system", "import", "paperless", "homebox", "telegram"]);
-export const ACTOR_RE = /^[a-z][a-z0-9-]{1,39}$/;
+export { ACTOR_RE };
 
 export interface ApiToken {
   id: string;
@@ -73,7 +72,15 @@ export class Tokens {
     if (!name) throw new BurrowError("A token needs a name");
     if (!ACTOR_RE.test(input.actor))
       throw new BurrowError("Actor: 2–40 lowercase letters, digits and -, starting with a letter");
-    if (RESERVED.has(input.actor)) throw new BurrowError(`"${input.actor}" is reserved for Burrow itself`);
+    // An app can't pretend to be Burrow itself or a person (D-032). Several tokens may share an actor.
+    if (RESERVED_ACTORS.has(input.actor))
+      throw new BurrowError(`"${input.actor}" is reserved for Burrow itself`);
+    const person = this.db
+      .prepare("select 1 from sqlite_master where type = 'table' and name = 'accounts'")
+      .get()
+      ? this.db.prepare("select 1 from accounts where username = ?").get(input.actor)
+      : null;
+    if (person) throw new BurrowError(`"${input.actor}" is a person's username`, 409);
     const scopes = [...new Set(input.scopes)].filter((s) => SCOPES.includes(s));
     if (!scopes.length) throw new BurrowError("Pick at least one scope");
     const token = `bur_${randomBytes(24).toString("base64url")}`;

@@ -79,7 +79,7 @@ beforeAll(async () => {
   // Never write test files into the real media dir.
   const mediaDir = mkdtempSync(join(tmpdir(), "burrow-media-"));
   const deps = createDeps(
-    { ...config, mediaDir },
+    { ...config, auth: false, mediaDir },
     { store, ai, paperless: new PaperlessMock(), inboxTagNames: ["inbox"], sf3d: fakeSf3d },
   );
   server = createApp(deps).listen(0);

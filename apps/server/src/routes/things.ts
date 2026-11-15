@@ -121,7 +121,7 @@ export function thingRoutes({ store, ai }: Deps): Router {
       ...(b.source ? { source: b.source } : {}),
       ...(b.sources ? { sources: b.sources } : {}),
     });
-    if (b.roams && !b.parentId) store.move(t.id, null, "you", undefined, undefined, true);
+    if (b.roams && !b.parentId) store.move(t.id, null, undefined, undefined, undefined, true);
     res.status(201).json({
       thing: store.mustGet(t.id),
       event: store.events({ thingId: t.id, types: ["thing.created"], limit: 1 })[0],
@@ -152,7 +152,7 @@ export function thingRoutes({ store, ai }: Deps): Router {
         roams: z.boolean().optional(),
       })
       .parse(req.body);
-    const t = store.move(req.params.id, b.to, "you", undefined, b.position, b.roams ?? false);
+    const t = store.move(req.params.id, b.to, undefined, undefined, b.position, b.roams ?? false);
     // Putting something somewhere by hand means you know where it is.
     if (t.status === "missing") store.setStatus(t.id, "ok", "placed by hand");
     res.json({
@@ -288,10 +288,11 @@ export function applySuggestion(
   if (desc.toLowerCase() === s.name.toLowerCase() || desc.toLowerCase() === t.name.toLowerCase())
     delete data.description;
   const source: FieldSource = "ai";
-  store.change(id, patch, source, "ai");
+  // The person who asked for (or kept) the guess is the actor; the values stay "ai" (violet).
+  store.change(id, patch, source);
   // No AI tags (D-030): tags carry human meaning a product page can't tell.
   if (!reject.has("parent") && s.placeId && !t.parentId && store.getRaw(s.placeId)) {
-    store.move(id, s.placeId, "ai", "ai");
+    store.move(id, s.placeId, undefined, "ai");
   }
   return store.mustGet(id);
 }

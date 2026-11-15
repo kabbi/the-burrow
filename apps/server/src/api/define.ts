@@ -2,6 +2,7 @@ import express, { Router, type Request, type RequestHandler } from "express";
 import { z } from "zod";
 import { BurrowError, type Store } from "@burrow/core";
 import { allows, SCOPE_INFO, SCOPES, type ApiToken, type Scope, type Tokens } from "./tokens.ts";
+import { runAs } from "../auth/context.ts";
 
 // One definition per operation drives both the HTTP route (validation, auth, attribution)
 // and the OpenAPI document, so the docs can't drift from what the server does (D-020).
@@ -98,7 +99,8 @@ export function bindOps(ops: AnyOp[], deps: { store: Store; tokens: Tokens }): R
         .set("www-authenticate", 'Bearer realm="burrow"')
         .json({ error: secret ? "Unknown or revoked token" : "Send Authorization: Bearer <token>" });
     res.locals.token = token;
-    next();
+    // Anything the operation writes without naming an actor is still the token's (D-032).
+    runAs(token.actor, next);
   };
   const json = express.json({ limit: "5mb" });
   const raw = express.raw({ type: () => true, limit: 200 * 1024 * 1024 });

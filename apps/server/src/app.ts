@@ -25,6 +25,9 @@ import { bindOps, openApi } from "./api/define.ts";
 import { v1Ops } from "./api/v1.ts";
 import { docsRoutes } from "./api/docs.ts";
 import { tokenRoutes } from "./routes/tokens.ts";
+import { Accounts } from "./auth/accounts.ts";
+import { currentActor } from "./auth/context.ts";
+import { authRoutes, COOKIE, readCookie, requireAccount } from "./routes/auth.ts";
 
 export interface Deps {
   config: Config;
@@ -39,12 +42,15 @@ export interface Deps {
   sf3d: Sf3d;
   vision: VisualMatcher;
   tokens: Tokens;
+  accounts: Accounts;
 }
 
 export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
   const store =
     overrides.store ??
     Store.open(config.db, [...aiMigrations, ...telegramMigrations, ...visionMigrations, ...tokenMigrations]);
+  // Writes that don't name an actor are the signed-in person's (D-032).
+  store.currentActor = currentActor;
   const ollama = new OllamaProvider(config.ai.ollamaUrl);
   const lmstudio = new LmStudioProvider(config.ai.lmstudioUrl);
   const anthropic = new AnthropicProvider(config.ai.anthropicKey);
@@ -74,6 +80,7 @@ export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps 
     sf3d: new Sf3d(config.sf3dUrl),
     vision: new ImageIndex(store, config.mediaDir, config.modelsDir),
     tokens: new Tokens(store.db),
+    accounts: overrides.accounts ?? new Accounts(store),
     ...overrides,
   };
 }
@@ -81,6 +88,8 @@ export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps 
 export function createApp(deps: Deps) {
   const app = express();
   app.disable("x-powered-by");
+  // Behind traefik (production): trust its X-Forwarded-Proto, so session cookies get `Secure`.
+  app.set("trust proxy", "loopback, linklocal, uniquelocal");
   app.use(express.json({ limit: "2mb" }));
 
   // The public, token-authenticated API for outside systems (D-020), described by its own OpenAPI document.
@@ -92,6 +101,7 @@ export function createApp(deps: Deps) {
   app.use("/api/v1", (_req, res) => res.status(404).json({ error: "Not found (see /api/v1/openapi.json)" }));
 
   const api = express.Router();
+  api.use(requireAccount(deps));
   api.get("/health", (_req, res) => res.json({ ok: true, version: process.env.BURROW_VERSION ?? "dev" }));
 
   api.get("/overview", async (_req, res) => {
@@ -111,14 +121,20 @@ export function createApp(deps: Deps) {
       places: (({ unplaced, roaming }) => ({ unplaced, roaming }))(store.placeTree()),
       missing: store.list({ limit: 500 }).filter((t) => t.status === "missing"),
       recentlyAdded: store.list({ physical: true, limit: 8 }),
-      moves: store
-        .events({ types: ["thing.moved", "thing.status", "thing.created"], limit: 8 })
-        .filter((e) => e.actor === "you" || e.actor === "ai"),
+      // What people did (and AI on their behalf), not imports or apps.
+      moves: (() => {
+        const people = new Set(["you", "ai", ...deps.accounts.list().map((a) => a.username)]);
+        return store
+          .events({ types: ["thing.moved", "thing.status", "thing.created"], limit: 30 })
+          .filter((e) => people.has(e.actor))
+          .slice(0, 8);
+      })(),
       papers: { mode: paperless.mode, inbox: inboxCount },
       ai: deps.ai.spend(),
     });
   });
 
+  api.use(authRoutes(deps));
   api.use(thingRoutes(deps));
   api.use(schemaRoutes(deps));
   api.use(assetRoutes(deps));
@@ -132,6 +148,15 @@ export function createApp(deps: Deps) {
   // Files Burrow owns (photos, models…), content-addressed so they can be cached forever.
   // Uploaded SVGs could carry scripts: a strict CSP keeps them inert if opened directly.
   mkdirSync(deps.config.mediaDir, { recursive: true });
+  // A session (the web app) or an API token (apps fetching their pictures) opens /media.
+  app.use("/media", (req, res, next) => {
+    if (!deps.config.auth) return next();
+    const secret = readCookie(req, COOKIE);
+    if (secret && deps.accounts.session(secret)) return next();
+    const h = req.get("authorization") ?? "";
+    if (h.startsWith("Bearer ") && deps.tokens.verify(h.slice(7).trim())) return next();
+    res.status(401).type("text/plain").send("Sign in to Burrow first");
+  });
   app.use(
     "/media",
     express.static(deps.config.mediaDir, {

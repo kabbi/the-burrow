@@ -3,6 +3,7 @@ import type { Migration, Store, ThingView } from "@burrow/core";
 import type { Deps } from "../app.ts";
 import type { Ingested } from "../media.ts";
 import type { PhotoSuggestion } from "../ai/tasks.ts";
+import { runAs } from "../auth/context.ts";
 import { applySuggestion } from "../routes/things.ts";
 import { esc, type BotApi, type Keyboard, type TgCallback, type TgMessage, type TgUpdate } from "./api.ts";
 
@@ -126,7 +127,14 @@ export class PhotoBot {
 
   // ------------------------------------------------------------ updates
 
+  /** Each update acts as the Burrow account linked to the sender's Telegram id (D-032). */
   async handle(u: TgUpdate) {
+    const from = u.callback_query?.from ?? u.message?.from;
+    const account = from ? this.deps.accounts.byTelegram(from.id) : null;
+    return runAs(account?.username ?? "telegram", () => this.handleUpdate(u));
+  }
+
+  private async handleUpdate(u: TgUpdate) {
     if (u.callback_query) return this.onCallback(u.callback_query);
     const m = u.message;
     if (!m) return;
@@ -167,9 +175,20 @@ export class PhotoBot {
       if (b) return this.onBatchReply(b, text);
     }
     if (/^\/(start|help)\b/.test(text)) return this.send(m.chat.id, HELP);
+    if (/^\/me\b/.test(text)) return this.send(m.chat.id, this.whoami(m));
     const q = text.replace(/^\/find(@\w+)?\s*/, "").trim();
     if (!q) return this.send(m.chat.id, "What should I look for? E.g. “glue gun”.");
     return this.find(m.chat.id, q);
+  }
+
+  /** Which Burrow account this Telegram user is, and how to link one. */
+  private whoami(m: TgMessage): string {
+    const id = m.from?.id;
+    if (!id) return "I can't tell who you are here.";
+    const a = this.deps.accounts.byTelegram(id);
+    return a
+      ? `You are <b>${esc(a.name)}</b> (${esc(a.username)}) in Burrow. What you do here is recorded under that name.`
+      : `Your Telegram id is <code>${id}</code>. Put it on your account page in Burrow (${esc(this.deps.config.publicUrl)}/account) so what you add here is recorded under your name.`;
   }
 
   /** Text that isn't a reply: find things and say where they are. */
@@ -370,7 +389,7 @@ export class PhotoBot {
       const c = this.insert(chatId, "added", caption, null);
       c.photos = [photo];
       // Nobody has said what it is yet: name and kind stay unchecked (AI) until the guess or you fill them.
-      c.thingId = this.store.createThing({ name: PLACEHOLDER, source: "ai" }, "you").id;
+      c.thingId = this.store.createThing({ name: PLACEHOLDER, source: "ai" }).id;
       c.assetIds = this.addPhotos(c, c.thingId);
       c.extra = { batchOf: b.id, pending: true };
       this.save(c);
@@ -497,9 +516,9 @@ export class PhotoBot {
   private undoBatch(b: Session) {
     for (const c of this.items(b)) {
       if (c.status === "added" && c.thingId && !this.store.get(c.thingId)?.archivedAt)
-        this.store.archive(c.thingId, "you");
+        this.store.archive(c.thingId);
       if (c.status === "attached")
-        for (const id of c.assetIds) if (!this.store.asset(id)?.removedAt) this.store.removeAsset(id, "you");
+        for (const id of c.assetIds) if (!this.store.asset(id)?.removedAt) this.store.removeAsset(id);
       c.status = "discarded";
       c.thingId = null;
       c.assetIds = [];
@@ -514,7 +533,7 @@ export class PhotoBot {
    */
   private async rename(s: Session, name: string) {
     const id = s.thingId!;
-    this.store.change(id, { name }, "you", "you");
+    this.store.change(id, { name }, "you");
     const t = this.store.mustGet(id);
     const stale = Object.entries(t.meta)
       .filter(([k]) => !["name", "kind", "parent"].includes(k))
@@ -772,7 +791,7 @@ export class PhotoBot {
       case "m": {
         // It wasn't new after all: the photo goes to the thing you have.
         if (s.status !== "added" || !s.thingId || !arg) return "Already done";
-        this.store.archive(s.thingId, "you");
+        this.store.archive(s.thingId);
         this.attach(s, arg);
         await this.renderDone(s);
         return "Photo added";
@@ -796,7 +815,7 @@ export class PhotoBot {
         return "Undone";
       case "v":
         if (s.status !== "attached" || !s.thingId || !s.assetIds[0]) return "Already done";
-        this.store.setCover(s.thingId, s.assetIds[0], "you");
+        this.store.setCover(s.thingId, s.assetIds[0]);
         await this.renderDone(s);
         return "Cover set";
       case "u":
@@ -816,14 +835,11 @@ export class PhotoBot {
 
   private create(s: Session, name?: string) {
     const sg = s.suggestion;
-    const t = this.store.createThing(
-      {
-        name: name ?? sg?.name ?? s.caption ?? "Photo from Telegram",
-        // A typed name is yours; everything else the AI filled in stays violet until confirmed.
-        ...(sg ? { source: "ai" as const, ...(name ? { sources: { name: "you" as const } } : {}) } : {}),
-      },
-      "you",
-    );
+    const t = this.store.createThing({
+      name: name ?? sg?.name ?? s.caption ?? "Photo from Telegram",
+      // A typed name is yours; everything else the AI filled in stays violet until confirmed.
+      ...(sg ? { source: "ai" as const, ...(name ? { sources: { name: "you" as const } } : {}) } : {}),
+    });
     // The place guess is offered as a button, not applied: a photo doesn't say where it was taken.
     if (sg) applySuggestion(this.store, t.id, sg, new Set(["parent", ...(name ? ["name"] : [])]));
     s.thingId = t.id;
@@ -843,29 +859,25 @@ export class PhotoBot {
   private addPhotos(s: Session, thingId: string): string[] {
     return s.photos.map(
       (p) =>
-        this.store.addAsset(
-          thingId,
-          {
-            role: "photo",
-            file: p.file,
-            mime: p.mime,
-            bytes: p.bytes,
-            ...(p.width ? { width: p.width } : {}),
-            ...(p.height ? { height: p.height } : {}),
-            ...(p.thumb ? { thumb: p.thumb } : {}),
-            source: "you",
-            data: { via: "telegram" },
-          },
-          "you",
-        ).id,
+        this.store.addAsset(thingId, {
+          role: "photo",
+          file: p.file,
+          mime: p.mime,
+          bytes: p.bytes,
+          ...(p.width ? { width: p.width } : {}),
+          ...(p.height ? { height: p.height } : {}),
+          ...(p.thumb ? { thumb: p.thumb } : {}),
+          source: "you",
+          data: { via: "telegram" },
+        }).id,
     );
   }
 
   private async undo(s: Session): Promise<string> {
     if (s.status === "added" && s.thingId) {
-      this.store.archive(s.thingId, "you");
+      this.store.archive(s.thingId);
     } else if (s.status === "attached") {
-      for (const id of s.assetIds) if (!this.store.asset(id)?.removedAt) this.store.removeAsset(id, "you");
+      for (const id of s.assetIds) if (!this.store.asset(id)?.removedAt) this.store.removeAsset(id);
     } else return "Nothing to undo";
     s.status = "ready";
     s.thingId = null;
@@ -888,7 +900,7 @@ export class PhotoBot {
   private place(s: Session, placeId: string, spot?: string): string {
     const p = this.store.mustGet(placeId);
     const ids = this.targets(s);
-    for (const id of ids) this.store.move(id, placeId, "you", undefined, spot ?? null);
+    for (const id of ids) this.store.move(id, placeId, undefined, undefined, spot ?? null);
     const recent = [placeId, ...this.recentPlaces().filter((x) => x !== placeId)].slice(0, 5);
     this.setState("recent_places", JSON.stringify(recent));
     delete s.extra.spot;
@@ -1274,6 +1286,7 @@ const HELP = [
   "• Several photos at once = several things: each becomes a new thing, named by the AI. Fix any of them afterwards (reply “2 dog nail clipper”), or tap 🔗 if they were all one thing.",
   "• A caption helps: a name, or an id like B-0042.",
   "• Text without a photo searches: “glue gun” → where it is.",
+  "• /me: which Burrow account you are here.",
   "",
   "Photos are recognised by the local AI. Claude is only used if you tap a button that shows its price.",
 ].join("\n");

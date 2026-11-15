@@ -17,7 +17,8 @@
     "prod:import-homebox": "docker exec burrow node --disable-warning=ExperimentalWarning apps/server/src/scripts/import-homebox.ts",
     "prod:migrate-assets": "docker exec burrow node --disable-warning=ExperimentalWarning apps/server/src/scripts/migrate-0004-assets.ts",
     "prod:migrate-roams": "docker exec burrow node --disable-warning=ExperimentalWarning apps/server/src/scripts/migrate-0005-roams.ts",
-    "prod:token": "docker exec burrow node --disable-warning=ExperimentalWarning apps/server/src/scripts/token.ts"
+    "prod:token": "docker exec burrow node --disable-warning=ExperimentalWarning apps/server/src/scripts/token.ts",
+    "prod:account": "docker exec -it burrow node --disable-warning=ExperimentalWarning apps/server/src/scripts/account.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

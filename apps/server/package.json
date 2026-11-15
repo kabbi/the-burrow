@@ -11,12 +11,14 @@
     "migrate:0002": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/migrate-0002.ts",
     "migrate:0004": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/migrate-0004-assets.ts",
     "import:pcbphoto": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/import-pcbphoto.ts",
-    "token": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/token.ts"
+    "token": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/token.ts",
+    "account": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/account.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.107.0",
     "@burrow/core": "workspace:*",
     "@iconify-json/mdi": "1.2.3",
+    "@simplewebauthn/server": "14.1.0",
     "express": "^5.3.0",
     "onnxruntime-web": "1.30.0",
     "redoc": "2.5.1",

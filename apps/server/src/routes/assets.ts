@@ -150,7 +150,7 @@ export function assetRoutes({ store, media, sf3d }: Deps): Router {
     const thumb = await media.thumbnail(req.body).catch(() => {
       throw new BurrowError("Not a picture");
     });
-    const next = store.changeAsset(a.id, { thumb }, req.query.auto === "1" ? "burrow" : "you");
+    const next = store.changeAsset(a.id, { thumb }, req.query.auto === "1" ? "burrow" : undefined);
     res.json(reply(a.thingId, { asset: withRef(next) }));
   });
 

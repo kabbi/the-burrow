@@ -158,7 +158,12 @@ beforeEach(async () => {
   const ai = new AiGateway(store.db, [local, claude], { loadImage: (f) => media.forModel(f) });
   ai.register(photoThingTask(store));
   deps = createDeps(
-    { ...config, mediaDir: media.dir, telegram: { token: "x", enabled: true, chats: [String(CHAT)] } },
+    {
+      ...config,
+      auth: false,
+      mediaDir: media.dir,
+      telegram: { token: "x", enabled: true, chats: [String(CHAT)] },
+    },
     {
       store,
       ai,
