@@ -956,6 +956,11 @@ img.contain {
   padding: 8%;
   background: var(--sunk);
 }
+/* % padding is relative to the container's width, which blanks thumbs in wide rows;
+   thumbs scale font-size with their box (20px/56, 40px/120, 14px/32), so use em */
+.thumb.contain {
+  padding: 0.3em;
+}
 .assets {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
