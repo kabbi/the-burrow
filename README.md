@@ -7,6 +7,19 @@ for documents; Burrow links to them and adds what paperless doesn't know (where 
 The web UI is built for the real questions at home: "where's my…", "add this quickly", "file this
 paper".
 
+![Find: "Where's my…" search, jobs for when you have a minute, recently added things and the thing of the day](docs/images/find.webp)
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/thing-xray.webp" alt="A PCB's page: both sides photographed at true scale, shown as an X-ray overlay"></td>
+    <td width="50%"><img src="docs/images/places-columns.webp" alt="Places in Finder-style columns: Living Room › IVAR shelf › Crate › Modubox › LEDs"></td>
+  </tr>
+  <tr>
+    <td>A thing's page: both sides of a board at true scale, as an X-ray</td>
+    <td>Places as columns, down to the compartment</td>
+  </tr>
+</table>
+
 > Status: Nov 2026. Core with schema-as-data, Find/home dashboard, Add, Papers inbox, Tags, Schema,
 > Database browser.
 
