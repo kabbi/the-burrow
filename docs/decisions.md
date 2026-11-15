@@ -523,6 +523,6 @@ AI tag suggestions were wrong about nine times out of ten. Tags in Burrow carry 
 the trip", "mum's"), which a name, a photo or a product page can't tell. So the `suggest-thing` and
 `photo-thing` tasks no longer ask for tags: the field is gone from the schema and the prompt, which
 also saves output tokens and the list of existing tags in the prompt. `applySuggestion` adds none.
-Tags a person sets are unchanged. AI tags already in the DB stay as unchecked guesses: confirm or
-remove them in Tidy up, and Telegram's rename still drops them. To bring tags back, restore the
+Tags a person sets are unchanged. AI tags already in the DB stay violet on the thing page (✓ to keep,
+× to remove), and Telegram's rename still drops them. To bring tags back, restore the
 field and add a rule like "only reuse an existing tag that clearly applies".
