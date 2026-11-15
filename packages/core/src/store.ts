@@ -55,6 +55,8 @@ export interface ChangeInput {
   kind?: string;
   /** null or undefined values remove the key. */
   data?: Record<string, unknown>;
+  /** Per-field provenance ("name", "kind" or a data key), overriding the call's `source`. */
+  sources?: Record<string, FieldSource>;
 }
 
 export interface StoreOptions {
@@ -173,7 +175,8 @@ export class Store {
     const changes: FieldChange[] = [];
     const add = (field: string, from: unknown, to: unknown) => {
       if (same(from, to)) return;
-      changes.push({ field, from, to, source, fromMeta: t.meta[metaKey(field)] ?? null });
+      const src = patch.sources?.[field.replace(/^data\./, "")] ?? source;
+      changes.push({ field, from, to, source: src, fromMeta: t.meta[metaKey(field)] ?? null });
     };
     if (patch.name !== undefined) add("name", t.name, patch.name.trim());
     if (patch.kind !== undefined) add("kind", t.kind, patch.kind);

@@ -26,6 +26,9 @@ export const builtinKinds: Kind[] = [
     physical: true,
     builtin: true,
     fields: [
+      // The shop's name for it ("BOLLPOJKE bureau, pin/blanc, 90x55 cm"); `name` is what the
+      // household calls it ("Dmitry's table"). Both are searched (D-023).
+      f("productName", "Product name", "text"),
       f("description", "Description", "longtext"),
       f("quantity", "Quantity", "number"),
       f("maker", "Maker", "text"),

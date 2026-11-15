@@ -81,6 +81,28 @@ describe("Store", () => {
     expect(s.events({ thingId: t.id }).find((e) => e.seq === ev.seq)?.undone).toBe(false);
   });
 
+  it("records a source per field in one change", () => {
+    const s = store();
+    const t = s.createThing({ name: "Dmitry's table" });
+    s.change(
+      t.id,
+      { data: { url: "https://shop.test/p", productName: "BOLLPOJKE bureau", maker: "IKEA" } },
+      "page",
+      "you",
+    );
+    let v = s.mustGet(t.id);
+    expect(v.meta.productName?.source).toBe("page");
+    s.change(
+      t.id,
+      { name: "My table", data: { url: "https://shop.test/q" }, sources: { url: "you" } },
+      "page",
+    );
+    v = s.mustGet(t.id);
+    expect(v.meta.url?.source).toBe("you");
+    expect(v.meta.name?.source).toBe("page");
+    expect(s.search("bollpojke").map((h) => h.thing.id)).toEqual([t.id]);
+  });
+
   it("undoes moves, status and creation", () => {
     const s = store();
     const a = s.createThing({ name: "Living room", kind: "room" });
