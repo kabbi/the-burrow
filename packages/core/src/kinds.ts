@@ -195,6 +195,17 @@ export const builtinRelations: RelationType[] = [
     symmetric: true,
     builtin: true,
   },
+  // "These two aren't duplicates" (D-034): Tidy up's duplicate job stops offering the pair.
+  {
+    id: "not_same",
+    name: "not the same as",
+    inverse: "not the same as",
+    fromKinds: [],
+    toKinds: [],
+    cardinality: "many",
+    symmetric: true,
+    builtin: true,
+  },
   // Things ↔ people (D-032). Cardinality "many" for owners (shared things), "one" for the buyer.
   {
     id: "owned_by",

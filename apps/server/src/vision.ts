@@ -37,10 +37,19 @@ export interface VisualHit {
   score: number;
 }
 
+export interface LookPairs {
+  /** Best picture-pair score per thing pair, keyed "a|b" with a < b. */
+  scores: Map<string, number>;
+  /** Things with at least one indexed picture. */
+  pictured: Set<string>;
+}
+
 /** What the bot needs (a fake in tests). */
 export interface VisualMatcher {
   similar(file: string, limit?: number, exclude?: Set<string>): Promise<VisualHit[]>;
   refresh(): Promise<number>;
+  /** Look-alike pairs among already-indexed pictures, at least `min` ("a|b", a < b). */
+  pairs?(min: number): LookPairs;
 }
 
 export class ImageIndex implements VisualMatcher {
@@ -50,6 +59,7 @@ export class ImageIndex implements VisualMatcher {
   private session: Promise<ort.InferenceSession> | null = null;
   private cache = new Map<string, Float32Array>();
   private queue: Promise<unknown> = Promise.resolve();
+  private pairCache: { key: string; value: LookPairs } | null = null;
 
   constructor(store: Store, mediaDir: string, modelDir: string) {
     this.store = store;
@@ -107,6 +117,40 @@ export class ImageIndex implements VisualMatcher {
       .map(([thingId, score]) => ({ thingId, score }))
       .toSorted((a, b) => b.score - a.score)
       .slice(0, limit);
+  }
+
+  /**
+   * Look-alike pairs among pictures already indexed (no new embedding: cheap, synchronous). Best
+   * picture pair per thing pair. Rotations aren't tried, so this misses some a photo search finds.
+   * Kept until the log or the index changes.
+   */
+  pairs(min: number): LookPairs {
+    const v = this.store.db
+      .prepare(
+        "select (select coalesce(max(seq), 0) from events) || ':' || (select count(*) from image_vectors) v",
+      )
+      .get() as { v: string };
+    const key = `${v.v}:${min}`;
+    if (this.pairCache?.key === key) return this.pairCache.value;
+    const pics: { thingId: string; v: Float32Array }[] = [];
+    for (const p of this.pictures()) {
+      const vec = this.cache.get(p.file) ?? this.fromDb(p.file);
+      if (vec && vec.length > 1) pics.push({ thingId: p.thingId, v: vec });
+    }
+    const scores = new Map<string, number>();
+    for (let i = 0; i < pics.length; i++)
+      for (let j = i + 1; j < pics.length; j++) {
+        const a = pics[i]!;
+        const b = pics[j]!;
+        if (a.thingId === b.thingId || a.v.length !== b.v.length) continue;
+        const s = dot(a.v, b.v);
+        if (s < min) continue;
+        const k = a.thingId < b.thingId ? `${a.thingId}|${b.thingId}` : `${b.thingId}|${a.thingId}`;
+        if (s > (scores.get(k) ?? -1)) scores.set(k, s);
+      }
+    const value = { scores, pictured: new Set(pics.map((p) => p.thingId)) };
+    this.pairCache = { key, value };
+    return value;
   }
 
   /** Our own photos and shop pictures of live things (icons and models don't say what it looks like). */

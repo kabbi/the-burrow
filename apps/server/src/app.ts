@@ -19,6 +19,7 @@ import { assetRoutes } from "./routes/assets.ts";
 import { Media } from "./media.ts";
 import { Sf3d } from "./adapters/sf3d.ts";
 import { telegramMigrations } from "./telegram/bot.ts";
+import { findDuplicates } from "./duplicates.ts";
 import { ImageIndex, visionMigrations, type VisualMatcher } from "./vision.ts";
 import { Tokens, tokenMigrations } from "./api/tokens.ts";
 import { bindOps, openApi } from "./api/define.ts";
@@ -122,6 +123,10 @@ export function createApp(deps: Deps) {
         };
       })(),
       places: (({ unplaced, roaming }) => ({ unplaced, roaming }))(store.placeTree()),
+      duplicates: (() => {
+        const xs = findDuplicates(store, deps.vision);
+        return { pairs: xs.length, names: xs.slice(0, 3).map((x) => x.a.name) };
+      })(),
       missing: store.list({ limit: 500 }).filter((t) => t.status === "missing"),
       recentlyAdded: store.list({ physical: true, limit: 8 }),
       // What people did (and AI on their behalf), not imports or apps.

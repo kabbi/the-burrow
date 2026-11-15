@@ -5,6 +5,7 @@ import type { Deps } from "../app.ts";
 import { BlockedError, fetchPreview, parsePreview, rememberCapture } from "../link-preview.ts";
 import { ThingSuggestion } from "../ai/tasks.ts";
 import { withRef } from "./assets.ts";
+import { findDuplicates } from "../duplicates.ts";
 
 const Source = z.enum(["you", "ai", "page", "file", "homebox", "paperless", "import"]);
 const Data = z.record(z.string(), z.unknown());
@@ -27,7 +28,7 @@ const PatchBody = z.object({
   source: Source.optional(),
 });
 
-export function thingRoutes({ store, ai }: Deps): Router {
+export function thingRoutes({ store, ai, vision }: Deps): Router {
   const r = Router();
 
   r.get("/search", (req, res) => {
@@ -223,9 +224,13 @@ export function thingRoutes({ store, ai }: Deps): Router {
       : new Date().toISOString().slice(0, 10);
     res.json({ day, picks: store.thingsOfTheDay(day) });
   });
-  /** Tidy up: gaps, unchecked AI guesses and tags nothing else uses, for grouping into jobs. */
+  /** Tidy up: gaps, unchecked AI guesses and things you may have twice, for grouping into jobs. */
   r.get("/tidy", (_req, res) =>
-    res.json({ gaps: store.needsDetails(1000), aiChecks: store.aiUnchecked(500) }),
+    res.json({
+      gaps: store.needsDetails(1000),
+      aiChecks: store.aiUnchecked(500),
+      duplicates: findDuplicates(store, vision),
+    }),
   );
 
   r.post("/preview", async (req, res) => {
