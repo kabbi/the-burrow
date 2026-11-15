@@ -392,7 +392,9 @@ function IconPicker({ initial, onPick }: { initial: string; onPick: (set: string
           <span className="muted small">No icons match — try a simpler word.</span>
         )}
       </div>
-      <span className="muted small">Icons: Tabler (MIT), Lucide (ISC) and Material Design Icons (Apache-2.0).</span>
+      <span className="muted small">
+        Icons: Tabler (MIT), Lucide (ISC) and Material Design Icons (Apache-2.0).
+      </span>
     </div>
   );
 }
