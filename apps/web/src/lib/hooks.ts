@@ -29,6 +29,17 @@ export function useUndo() {
   });
 }
 
+/**
+ * Rapid similar actions (confirming five AI guesses in a row) share one toast: each one
+ * adds its item, and the toast's Undo reverts them all, newest first.
+ */
+export interface ActionGroup {
+  key: string;
+  text: (items: string[]) => string;
+}
+const groups = new Map<string, { items: string[]; seqs: number[]; until: number }>();
+const GROUP_MS = 10_000;
+
 /** Run a write, show a toast with Undo, refresh queries. */
 export function useAction() {
   const refresh = useRefresh();
@@ -37,13 +48,43 @@ export function useAction() {
   return async <T extends { event?: BurrowEvent }>(
     fn: () => Promise<T>,
     text: string | ((r: T) => string),
+    opts: { group?: ActionGroup } = {},
   ) => {
     try {
       const r = await fn();
       await refresh();
       const seq = r.event?.seq;
+      const item = typeof text === "function" ? text(r) : text;
+      const g = opts.group;
+      if (g) {
+        const now = Date.now();
+        const prev = groups.get(g.key);
+        const cur =
+          prev && prev.until > now
+            ? { items: [...prev.items, item], seqs: [...prev.seqs], until: now + GROUP_MS }
+            : { items: [item], seqs: [] as number[], until: now + GROUP_MS };
+        if (seq) cur.seqs.push(seq);
+        groups.set(g.key, cur);
+        const seqs = cur.seqs;
+        toast({
+          key: g.key,
+          text: g.text(cur.items),
+          ...(seqs.length
+            ? {
+                action: {
+                  label: "Undo",
+                  run: async () => {
+                    groups.delete(g.key);
+                    for (const s of [...seqs].reverse()) await undo.mutateAsync(s);
+                  },
+                },
+              }
+            : {}),
+        });
+        return r;
+      }
       toast({
-        text: typeof text === "function" ? text(r) : text,
+        text: item,
         ...(seq ? { action: { label: "Undo", run: () => undo.mutateAsync(seq).then(() => {}) } } : {}),
       });
       return r;

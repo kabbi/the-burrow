@@ -56,7 +56,12 @@ export function TagEditor({ thing }: { thing: ThingView }) {
                 className="tagx"
                 aria-label={`${t.name} is right`}
                 onClick={() =>
-                  act(() => post(`/things/${thing.id}/tags/${t.id}/confirm`), `Kept “${t.name}”`)
+                  act(() => post(`/things/${thing.id}/tags/${t.id}/confirm`), t.name, {
+                    group: {
+                      key: `tags:${thing.id}`,
+                      text: (names) => `Kept ${names.map((n) => `“${n}”`).join(", ")}`,
+                    },
+                  })
                 }
               >
                 ✓

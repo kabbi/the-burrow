@@ -162,7 +162,8 @@ export function thingRoutes({ store, ai }: Deps): Router {
 
   r.post("/things/:id/confirm", (req, res) => {
     const { fields } = z.object({ fields: z.array(z.string()).min(1) }).parse(req.body);
-    res.json({ thing: store.confirm(req.params.id, fields) });
+    const t = store.confirm(req.params.id, fields);
+    res.json({ thing: t, event: store.events({ thingId: t.id, limit: 1 })[0] });
   });
 
   r.post("/things/:id/archive", (req, res) => {

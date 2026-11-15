@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { get, patch, post, type KindField, type ThingView } from "../lib/api.ts";
-import { useAction } from "../lib/hooks.ts";
+import { useAction, type ActionGroup } from "../lib/hooks.ts";
 import { useSchema } from "../lib/schema.ts";
 import { ThingSearch } from "./ThingSearch.tsx";
 
@@ -41,6 +41,19 @@ function parseInput(raw: string, f: KindField | undefined, old: unknown): unknow
   return t;
 }
 
+/** Right / Wrong on AI guesses share one toast: "Confirmed Maker, Model · removed Price". */
+const reviewGroup = (thingId: string): ActionGroup => ({
+  key: `guesses:${thingId}`,
+  text: (items) => {
+    const ok = items.filter((i) => i.startsWith("+")).map((i) => i.slice(1));
+    const no = items.filter((i) => i.startsWith("-")).map((i) => i.slice(1));
+    return [ok.length ? `Confirmed ${ok.join(", ")}` : "", no.length ? `removed ${no.join(", ")}` : ""]
+      .filter(Boolean)
+      .join(" · ")
+      .replace(/^r/, "R");
+  },
+});
+
 /**
  * Every fact Burrow holds about a thing: the kind's declared fields (empty ones
  * too, so they're easy to fill), then any extra fields. Provenance on the right;
@@ -53,6 +66,9 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
+  /** Empty fields opened from the "Add" line (they stay until the page changes). */
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const group = reviewGroup(thing.id);
 
   const declared = new Map(fields.map((f) => [f.key, f]));
   const extra = Object.keys(thing.data).filter((k) => !declared.has(k) && !HIDDEN.has(k));
@@ -194,7 +210,9 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
                 type="button"
                 className="btn small"
                 onClick={() =>
-                  act(() => post(`/things/${thing.id}/confirm`, { fields: [key] }), `${label(key)} confirmed`)
+                  act(() => post(`/things/${thing.id}/confirm`, { fields: [key] }), `+${label(key)}`, {
+                    group,
+                  })
                 }
               >
                 Right
@@ -204,10 +222,9 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
                   type="button"
                   className="btn small"
                   onClick={() =>
-                    act(
-                      () => patch(`/things/${thing.id}`, { data: { [key]: null } }),
-                      `Removed the guessed ${label(key)}`,
-                    )
+                    act(() => patch(`/things/${thing.id}`, { data: { [key]: null } }), `-${label(key)}`, {
+                      group,
+                    })
                   }
                 >
                   Wrong
@@ -222,8 +239,48 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
     );
   };
 
+  const isEmpty = (k: string) => {
+    const v = thing.data[k];
+    return v === undefined || v === null || v === "";
+  };
+  // Empty optional fields fold into one "Add" line; wanted ones stay visible as a nudge.
+  const folded = fields.filter(
+    (f) => isEmpty(f.key) && !f.wanted && editing !== f.key && !revealed.has(f.key),
+  );
+  const foldedKeys = new Set(folded.map((f) => f.key));
+  const guesses = [...fields.map((f) => f.key), ...extra, "name"].filter(
+    (k) => thing.meta[k]?.source === "ai" && !thing.meta[k]?.confirmed,
+  );
+  const open = (f: KindField) => {
+    setRevealed((r) => new Set(r).add(f.key));
+    if (f.type !== "boolean" && f.type !== "select") {
+      setDraft("");
+      setEditing(f.key);
+    }
+  };
+
   return (
     <div className="facts">
+      {guesses.length > 1 && (
+        <div className="guessbar">
+          <span className="dot ai" />
+          <span className="grow small">
+            {guesses.length} AI guesses — check them, or confirm them all at once.
+          </span>
+          <button
+            type="button"
+            className="btn small ai"
+            onClick={() =>
+              act(
+                () => post(`/things/${thing.id}/confirm`, { fields: guesses }),
+                `Confirmed ${guesses.length} guesses`,
+              )
+            }
+          >
+            All right
+          </button>
+        </div>
+      )}
       {row("name", undefined)}
       <div className="fact">
         <span className="label">Kind</span>
@@ -250,25 +307,42 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
             : ""}
         </span>
       </div>
-      {fields.map((f) => row(f.key, f))}
+      {fields.filter((f) => !foldedKeys.has(f.key)).map((f) => row(f.key, f))}
       {extra.map((k) => row(k, undefined))}
-      {adding ? (
+      {!adding && (
+        <div className="fact addline">
+          <span className="label">Add</span>
+          <span className="value row" style={{ gap: "4px 6px" }}>
+            {folded.map((f) => (
+              <button key={f.key} type="button" className="chip mini" onClick={() => open(f)}>
+                {f.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="chip mini dashed"
+              onClick={() => setAdding(true)}
+              title={`Just for this thing. For every ${kind?.name.toLowerCase() ?? "thing"}, add it to the kind in Schema.`}
+            >
+              + own field
+            </button>
+          </span>
+          <span />
+        </div>
+      )}
+      {adding && (
         <AddField
           onDone={async (key, value) => {
             setAdding(false);
             if (key) await save(key, value);
           }}
         />
-      ) : (
-        <div className="fact">
-          <button type="button" className="linkbtn small" onClick={() => setAdding(true)}>
-            + extra field
-          </button>
-          <span className="muted small" style={{ gridColumn: "2 / -1" }}>
-            Just for this thing. For every {kind?.name.toLowerCase() ?? "thing"}, add it to the kind in{" "}
-            <Link to={`/schema?kind=${thing.kind}`}>Schema</Link>.
-          </span>
-        </div>
+      )}
+      {adding && (
+        <p className="muted small" style={{ margin: "0 0 4px" }}>
+          Just for this thing. For every {kind?.name.toLowerCase() ?? "thing"}, add it to the kind in{" "}
+          <Link to={`/schema?kind=${thing.kind}`}>Schema</Link>.
+        </p>
       )}
     </div>
   );
