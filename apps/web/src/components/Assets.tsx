@@ -53,6 +53,8 @@ export function Assets({
   const refresh = useRefresh();
   const [open, setOpen] = useState<AssetView | null>(null);
   const [adding, setAdding] = useState<null | "link" | "icon">(null);
+  /** The add options stay folded behind one line until asked for. */
+  const [more, setMore] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
   const { data: cfg } = useQuery({
@@ -158,68 +160,80 @@ export function Assets({
         </div>
       ) : (
         <p className="muted small" style={{ margin: 0 }}>
-          No pictures yet. Take a photo, add a shop picture or an icon — or drop files here.
+          No pictures yet. Drop files here, or add one below.
         </p>
       )}
 
-      <div className="row" style={{ gap: 6 }}>
-        <label className="btn small">
-          Take photo
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            hidden
-            onChange={(e) => {
-              void send([...(e.target.files ?? [])], "photo");
-              e.target.value = "";
-            }}
-          />
-        </label>
-        <label
-          className="btn small"
-          title="Pictures come in as our photos (change it on the picture); .glb / .stl are 3D models"
-        >
-          Upload
-          <input
-            type="file"
-            multiple
-            accept="image/*,.glb,.stl"
-            hidden
-            onChange={(e) => {
-              void send([...(e.target.files ?? [])]);
-              e.target.value = "";
-            }}
-          />
-        </label>
+      {!more && !adding && (
         <button
           type="button"
-          className="btn small"
-          aria-pressed={adding === "link"}
-          onClick={() => setAdding(adding === "link" ? null : "link")}
+          className="chip dashed"
+          style={{ alignSelf: "flex-start" }}
+          onClick={() => setMore(true)}
         >
-          Link
+          + Photo, picture, icon or 3D model
         </button>
-        <button
-          type="button"
-          className="btn small"
-          aria-pressed={adding === "icon"}
-          onClick={() => setAdding(adding === "icon" ? null : "icon")}
-        >
-          Icon
-        </button>
-        {cfg?.sf3d.ok && source && (
+      )}
+      {(more || adding) && (
+        <div className="row" style={{ gap: 6 }}>
+          <label className="btn small">
+            Take photo
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={(e) => {
+                void send([...(e.target.files ?? [])], "photo");
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <label
+            className="btn small"
+            title="Pictures come in as our photos (change it on the picture); .glb / .stl are 3D models"
+          >
+            Upload
+            <input
+              type="file"
+              multiple
+              accept="image/*,.glb,.stl"
+              hidden
+              onChange={(e) => {
+                void send([...(e.target.files ?? [])]);
+                e.target.value = "";
+              }}
+            />
+          </label>
           <button
             type="button"
             className="btn small"
-            disabled={Boolean(busy)}
-            title={`Make a 3D model with Stable Fast 3D on the local GPU (${cfg.sf3d.device ?? "?"}), free`}
-            onClick={() => void makeModel()}
+            aria-pressed={adding === "link"}
+            onClick={() => setAdding(adding === "link" ? null : "link")}
           >
-            3D model
+            Link
           </button>
-        )}
-      </div>
+          <button
+            type="button"
+            className="btn small"
+            aria-pressed={adding === "icon"}
+            onClick={() => setAdding(adding === "icon" ? null : "icon")}
+          >
+            Icon
+          </button>
+          {cfg?.sf3d.ok && source && (
+            <button
+              type="button"
+              className="btn small"
+              disabled={Boolean(busy)}
+              title={`Make a 3D model with Stable Fast 3D on the local GPU (${cfg.sf3d.device ?? "?"}), free`}
+              onClick={() => void makeModel()}
+            >
+              3D model
+            </button>
+          )}
+        </div>
+      )}
       {busy && (
         <p className="small muted" style={{ margin: 0 }}>
           {busy}

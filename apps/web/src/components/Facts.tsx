@@ -6,6 +6,7 @@ import { useAction, type ActionGroup } from "../lib/hooks.ts";
 import { useSchema } from "../lib/schema.ts";
 import { ThingSearch } from "./ThingSearch.tsx";
 import { Verdict } from "../ui/parts.tsx";
+import { Icon } from "../ui/Icon.tsx";
 
 const HIDDEN = new Set(["imageUrl", "thumbUrl", "tags"]);
 export const SOURCE_LABEL: Record<string, string> = {
@@ -209,6 +210,7 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
     return (
       <div key={key} className={`fact${isAi ? " ai" : ""}`}>
         <span className="label">
+          {isAi && <Icon name="sparkle" size={13} label="AI guess" className="filled" />}
           {key === "name" ? "Name" : label(key)}
           {f?.wanted && empty && (
             <span className="tag" style={{ marginLeft: 6 }}>
@@ -251,9 +253,6 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
     (f) => isEmpty(f.key) && !f.wanted && editing !== f.key && !revealed.has(f.key),
   );
   const foldedKeys = new Set(folded.map((f) => f.key));
-  const guesses = [...fields.map((f) => f.key), ...extra, "name"].filter(
-    (k) => thing.meta[k]?.source === "ai" && !thing.meta[k]?.confirmed,
-  );
   const open = (f: KindField) => {
     setRevealed((r) => new Set(r).add(f.key));
     if (f.type !== "boolean" && f.type !== "select") {
@@ -264,23 +263,6 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
 
   return (
     <div className="facts">
-      {guesses.length > 1 && (
-        <div className="guessbar">
-          <span className="grow small">{guesses.length} AI guesses to check, one by one or all at once.</span>
-          <button
-            type="button"
-            className="btn small ai solid"
-            onClick={() =>
-              act(
-                () => post(`/things/${thing.id}/confirm`, { fields: guesses }),
-                `Confirmed ${guesses.length} guesses`,
-              )
-            }
-          >
-            All right
-          </button>
-        </div>
-      )}
       {row("name", undefined)}
       <div className="fact">
         <span className="label">Kind</span>
@@ -289,6 +271,11 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
             className="input"
             value={thing.kind}
             aria-label="Kind"
+            title={
+              kind?.parent
+                ? `${kind.name} extends ${schema?.kinds.find((k) => k.id === kind.parent)?.name ?? kind.parent}`
+                : undefined
+            }
             style={{ maxWidth: 280 }}
             onChange={(e) =>
               act(() => patch(`/things/${thing.id}`, { kind: e.target.value }), "Kind changed")
@@ -301,11 +288,7 @@ export function Facts({ thing, fields }: { thing: ThingView; fields: KindField[]
             ))}
           </select>
         </span>
-        <span className="muted small">
-          {kind?.parent
-            ? `extends ${schema?.kinds.find((k) => k.id === kind.parent)?.name ?? kind.parent}`
-            : ""}
-        </span>
+        <span />
       </div>
       {fields.filter((f) => !foldedKeys.has(f.key)).map((f) => row(f.key, f))}
       {extra.map((k) => row(k, undefined))}
@@ -397,4 +380,39 @@ function RefName({ id }: { id: string }) {
     queryFn: () => get<{ thing: ThingView }>(`/things/${id}`),
   });
   return <Link to={`/t/${id}`}>{data?.thing.name ?? id}</Link>;
+}
+
+/** Unconfirmed AI guesses among a thing's facts (for "N AI guesses to check · All right"). */
+export function guessKeys(thing: ThingView, fields: KindField[]): string[] {
+  const declared = new Set(fields.map((f) => f.key));
+  const extra = Object.keys(thing.data).filter((k) => !declared.has(k) && !HIDDEN.has(k));
+  return [...fields.map((f) => f.key), ...extra, "name"].filter(
+    (k) => thing.meta[k]?.source === "ai" && !thing.meta[k]?.confirmed,
+  );
+}
+
+/** The facts panel's header action: "All right" while guesses wait, else Suggest details. */
+export function GuessesHeader({ thing, fields }: { thing: ThingView; fields: KindField[] }) {
+  const act = useAction();
+  const guesses = guessKeys(thing, fields);
+  if (!guesses.length) return null;
+  return (
+    <span className="row" style={{ gap: 10 }}>
+      <span className="small" style={{ color: "var(--ai)" }}>
+        {guesses.length === 1 ? "1 AI guess to check" : `${guesses.length} AI guesses to check`}
+      </span>
+      <button
+        type="button"
+        className="btn small ai solid"
+        onClick={() =>
+          act(
+            () => post(`/things/${thing.id}/confirm`, { fields: guesses }),
+            `Confirmed ${guesses.length} guesses`,
+          )
+        }
+      >
+        All right
+      </button>
+    </span>
+  );
 }

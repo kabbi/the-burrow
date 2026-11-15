@@ -469,3 +469,23 @@ The "Burrow — unified design" canvas settled the look. Until now the web app h
 Not done (parked in ideas.md): remembering "Don't group" per kind (Workshop › Groups), duplicate
 merging, snoozing a job, grouping by top tag or import, Papers' receipt matching by date. The phone
 camera-first Add and the bot were left as they are.
+
+## D-028 · Thing of the day; quieter AI guesses; fewer buttons (2026-11-15)
+
+From the second pass on the design canvas.
+
+- **Thing of the day** (Find, top of the side column; first under the search box on phones): one small,
+  useful nudge about one thing. `Store.thingsOfTheDay(day)` returns up to three picks, one per reason:
+  _check_ (placed, and nobody moved, found or confirmed its place in 30 days: "Still there?" → confirms
+  `parent`, or "It's not here"), _photo_ (no photo of our own: take one right from the card), _field_
+  (a wanted field is empty: type it in on the card). Physical things only, never missing ones.
+  Picks are an FNV hash of day + id, so they hold all day and change at the viewer's midnight
+  (`GET /today?day=YYYY-MM-DD`); "Another one" steps through the three. Done shows a green pill with
+  Undo. Nothing is stored: skipping is free.
+- **AI guesses**: no violet row background any more. The label is violet with a small filled sparkle,
+  the value violet ink, and Right / Wrong are two borderless round icons in a fixed 84 px column.
+  "N AI guesses to check · All right" sits in the panel header, replacing the model picker while
+  guesses wait.
+- **Fewer buttons**: Find's jobs are whole-row links with a chevron (no inner button); activity Undo
+  is a quiet link shown on hover; Tidy's AI rows keep only "All right"; the pictures panel folds its
+  five add buttons behind one "+ Photo, picture, icon or 3D model" line.

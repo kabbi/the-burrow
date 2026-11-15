@@ -22,6 +22,7 @@ import type {
   RelationView,
   TagRef,
   SearchHit,
+  DailyPick,
   Thing,
   ThingId,
   ThingStatus,
@@ -889,6 +890,70 @@ export class Store {
   }
 
   /**
+   * Thing of the day (D-028): up to three picks for `day` (YYYY-MM-DD), one per reason, the same
+   * all day and different tomorrow. Physical things only, never places, tags or papers.
+   */
+  thingsOfTheDay(day: string, checkAfterDays = 30): DailyPick[] {
+    const rows = this.db
+      .prepare(
+        `select t.* from things t join kinds k on k.id = t.kind
+         where t.archived_at is null and k.is_place = 0 and k.physical = 1`,
+      )
+      .all() as Row[];
+    const things = rows.map(toThing).filter((t) => t.status !== "missing");
+    if (!things.length) return [];
+    const rank = (id: string) => hash(`${day}:${id}`);
+    const pickOne = <T extends { id: string }>(xs: T[]) =>
+      xs.length ? xs.reduce((a, b) => (rank(a.id) <= rank(b.id) ? a : b)) : null;
+
+    // Last time a person saw it: a move, a status change or a confirmed place.
+    const seen = new Map(
+      (
+        this.db
+          .prepare(
+            `select thing_id, max(at) at from events where undo_of is null and (
+               type in ('thing.created', 'thing.moved', 'thing.status')
+               or (type = 'thing.confirmed' and body like '%"parent"%'))
+             group by thing_id`,
+          )
+          .all() as { thing_id: string; at: string }[]
+      ).map((r) => [r.thing_id, r.at]),
+    );
+    const cutoff = Date.parse(`${day}T00:00:00Z`) - checkAfterDays * 86_400_000;
+    const stale = things.filter((t) => t.parentId && Date.parse(seen.get(t.id) ?? t.createdAt) < cutoff);
+    const withPhoto = new Set(
+      (
+        this.db
+          .prepare("select distinct thing_id from assets where role = 'photo' and removed_at is null")
+          .all() as { thing_id: string }[]
+      ).map((r) => r.thing_id),
+    );
+    const noPhoto = things.filter((t) => !withPhoto.has(t.id) && t.data.tier !== 0);
+    const gaps = things.flatMap((t) => {
+      if (t.data.tier === 0) return [];
+      const f = this.fieldsOf(t.kind).find((x) => x.wanted && isEmpty(t.data[x.key]));
+      return f ? [{ id: t.id, t, f }] : [];
+    });
+
+    const out: DailyPick[] = [];
+    const check = pickOne(stale);
+    if (check)
+      out.push({ thing: this.view(check), why: "check", lastSeen: seen.get(check.id) ?? check.createdAt });
+    const photo = pickOne(noPhoto.filter((t) => t.id !== check?.id));
+    if (photo) out.push({ thing: this.view(photo), why: "photo" });
+    const gap = pickOne(gaps.filter((g) => !out.some((o) => o.thing.id === g.id)));
+    if (gap)
+      out.push({
+        thing: this.view(gap.t),
+        why: "field",
+        field: { key: gap.f.key, label: gap.f.label, type: gap.f.type },
+      });
+    // Rotate which reason comes first, so the card isn't always "still there?".
+    const shift = out.length ? hash(day) % out.length : 0;
+    return [...out.slice(shift), ...out.slice(0, shift)];
+  }
+
+  /**
    * Things with AI guesses nobody has checked yet (violet in the UI), newest first. The keys are
    * fields that still hold the guessed value: "name", "kind" or a data key.
    */
@@ -1531,6 +1596,13 @@ function currentValue(t: Thing, field: string): unknown {
   if (field === "name") return t.name;
   if (field === "kind") return t.kind;
   return t.data[field.slice(5)] ?? null;
+}
+
+/** A small stable string hash (FNV-1a), for picks that stay the same all day. */
+function hash(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return h >>> 0;
 }
 
 function isEmpty(v: unknown) {

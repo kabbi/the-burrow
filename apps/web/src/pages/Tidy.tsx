@@ -334,9 +334,6 @@ function AiJob({ checks }: { checks: TidyData["aiChecks"] }) {
               <Icon name="check" size={16} stroke={2.6} />
               All right
             </button>
-            <Link to={`/t/${t.id}`} className="btn small">
-              Check one by one
-            </Link>
           </div>
         </div>
       ))}

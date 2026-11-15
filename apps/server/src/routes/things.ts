@@ -216,6 +216,13 @@ export function thingRoutes({ store, ai }: Deps): Router {
   });
 
   r.get("/needs-details", (_req, res) => res.json({ things: store.needsDetails(200) }));
+  /** Thing of the day (D-028). `day` is the viewer's local date, so the pick changes at their midnight. */
+  r.get("/today", (req, res) => {
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day))
+      ? String(req.query.day)
+      : new Date().toISOString().slice(0, 10);
+    res.json({ day, picks: store.thingsOfTheDay(day) });
+  });
   /** Tidy up: gaps, unchecked AI guesses and tags nothing else uses, for grouping into jobs. */
   r.get("/tidy", (_req, res) =>
     res.json({ gaps: store.needsDetails(1000), aiChecks: store.aiUnchecked(500) }),

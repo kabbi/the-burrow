@@ -114,13 +114,11 @@ button.tile:hover {
 }
 .fact {
   display: grid;
-  grid-template-columns: 130px minmax(0, 1fr) auto;
-  gap: 14px;
+  grid-template-columns: 150px minmax(0, 1fr) 84px;
+  gap: 16px;
   align-items: center;
-  min-height: 52px;
-  padding: 6px 10px;
-  margin: 0 -10px;
-  border-radius: 10px;
+  min-height: 48px;
+  padding: 4px 0;
   border-top: 1px solid var(--line-3);
 }
 .fact:first-child {
@@ -128,6 +126,9 @@ button.tile:hover {
 }
 .fact .label {
   color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .fact .value {
   min-width: 0;
@@ -151,16 +152,8 @@ button.tile:hover {
 .factvalue:hover {
   background: var(--tint);
 }
-.fact.ai {
-  background: var(--ai-row);
-  border-top-color: transparent;
-}
-.fact.ai + .fact {
-  border-top-color: transparent;
-}
 .fact.ai .label {
   color: var(--ai);
-  font-weight: 600;
 }
 .fact.ai .value {
   color: var(--ai-ink);
@@ -173,7 +166,7 @@ button.tile:hover {
   .fact {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 2px 10px;
-    padding: 8px 10px;
+    padding: 8px 0;
   }
   .fact .label {
     grid-column: 1 / -1;
@@ -1789,4 +1782,72 @@ a.pc-title:hover {
 }
 .tidy-head .main {
   flex: 1 1 0;
+}
+
+/* ---------------------------------------------------------------- thing of the day (D-028) */
+
+.tod-thing {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  text-decoration: none;
+  color: var(--ink);
+}
+.tod-thing:hover {
+  color: var(--ink);
+}
+.tod-thing:hover .tname {
+  text-decoration: underline;
+}
+.thumb.tod {
+  width: 84px;
+  height: 84px;
+  border-radius: 12px;
+  font-size: 28px;
+}
+.job-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+a.job:hover .job-go {
+  color: var(--ink);
+}
+@media (hover: hover) {
+  .activity .on-hover {
+    opacity: 0;
+  }
+  .activity:hover .on-hover,
+  .activity:focus-within .on-hover {
+    opacity: 1;
+  }
+}
+@media (max-width: 1000px) {
+  /* One column: the daily pick comes first, under the search box. */
+  .find-cols {
+    display: flex;
+    flex-direction: column;
+  }
+  .find-cols > .stack:first-child,
+  .find-side {
+    display: contents;
+  }
+  .tod {
+    order: -1;
+  }
+}
+@media (max-width: 720px) {
+  a.job {
+    flex-wrap: nowrap;
+  }
+  a.job .main {
+    flex: 1 1 0;
+  }
+  .job-go {
+    font-size: 0;
+    gap: 0;
+  }
 }

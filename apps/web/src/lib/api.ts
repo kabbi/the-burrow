@@ -4,6 +4,7 @@ import type {
   AssetRef,
   AssetRole,
   BurrowEvent,
+  DailyPick,
   Kind,
   KindField,
   RelationType,
@@ -12,7 +13,17 @@ import type {
   ThingView,
 } from "@burrow/core/types";
 
-export type { PlaceNode, AssetRole, BurrowEvent, Kind, KindField, RelationType, RelationView, ThingView };
+export type {
+  DailyPick,
+  PlaceNode,
+  AssetRole,
+  BurrowEvent,
+  Kind,
+  KindField,
+  RelationType,
+  RelationView,
+  ThingView,
+};
 
 /** An asset plus the URLs to draw it. */
 export type AssetView = Asset & AssetRef;

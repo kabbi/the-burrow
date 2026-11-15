@@ -60,6 +60,9 @@ money, counts and keys (`.mono`, `.idtext`, `.idbadge`, `.count`).
 - **Jobs** (`.job` in `.rows`): count tile, title, one grey line of why, one action. Find and Tidy up.
 - **Auto groups**: 12+ alike results (same kind) fold into one row with a stack picture and a "why"
   line; they open by themselves when they are the only result. Search only, for now.
+- **AI guesses**: violet label with a filled sparkle, violet value, borderless ✓ ✕ icons (`Verdict`); "All right" in the panel header.
+- **Thing of the day** (D-028): one card on Find with one nudge and at most two actions plus "Another one".
+- **Fewer buttons**: a row that is a link has no button inside; rare actions fold behind one line or ⋯.
 - **Feedback**: toasts bottom left (above the tab bar on phones), 10 s, grouped repeats share one
   Undo (`useAction` `group`, `useBulk` for many writes).
 

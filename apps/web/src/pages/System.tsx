@@ -222,14 +222,17 @@ export function System() {
               <span className="src">from ikea.com</span>
             </div>
             <div className="fact ai">
-              <span className="label">Description</span>
+              <span className="label">
+                <Icon name="sparkle" size={13} className="filled" />
+                Description
+              </span>
               <span className="value">A digital piano with 88 weighted keys.</span>
               <Verdict what="description" onRight={() => {}} onWrong={() => {}} />
             </div>
           </div>
           <p className="small muted" style={{ margin: 0 }}>
-            You = no label. Anyone else = grey label. Unchecked AI = violet with ✓ ✕; “All right” clears them
-            all.
+            You = no label. Anyone else = grey label. Unchecked AI = violet label with a sparkle, violet text,
+            and two quiet ✓ ✕ icons (not buttons); “All right” in the panel header clears them all.
           </p>
         </section>
         <section className="panel stack">

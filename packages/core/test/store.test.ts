@@ -522,6 +522,24 @@ describe("no fixed place (D-026)", () => {
   });
 });
 
+describe("thingsOfTheDay (D-028)", () => {
+  it("picks one per reason, stable within a day", () => {
+    const s = store();
+    const room = s.createThing({ name: "Cellar", kind: "room" });
+    for (let i = 0; i < 6; i++) s.createThing({ name: `Box ${i}`, kind: "thing", parentId: room.id });
+    s.createThing({ name: "Fridge", kind: "appliance", parentId: room.id });
+    s.createThing({ name: "Tag", kind: "tag" });
+    const a = s.thingsOfTheDay("2027-01-01");
+    expect(a.map((p) => p.why).toSorted()).toEqual(["check", "field", "photo"]);
+    expect(new Set(a.map((p) => p.thing.id)).size).toBe(3);
+    expect(a.every((p) => p.thing.kind !== "tag" && p.thing.kind !== "room")).toBe(true);
+    expect(a.find((p) => p.why === "field")!.thing.name).toBe("Fridge");
+    expect(s.thingsOfTheDay("2027-01-01")).toEqual(a);
+    // Seen recently: no "still there?" question.
+    expect(s.thingsOfTheDay("2026-11-20").some((p) => p.why === "check")).toBe(false);
+  });
+});
+
 describe("aiUnchecked", () => {
   it("lists guessed fields until a person confirms them", () => {
     const s = store();

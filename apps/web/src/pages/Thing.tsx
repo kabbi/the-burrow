@@ -8,7 +8,7 @@ import { Menu } from "../ui/parts.tsx";
 import { MovePicker } from "../ui/MovePicker.tsx";
 import { timeAgo, useAction, useUndo } from "../lib/hooks.ts";
 import { useSchema } from "../lib/schema.ts";
-import { Facts } from "../components/Facts.tsx";
+import { Facts, GuessesHeader, guessKeys } from "../components/Facts.tsx";
 import { StatusPill, ThingCard, Thumb, Where } from "../components/ThingCard.tsx";
 import { AiSuggest } from "../components/AiSuggest.tsx";
 import { TagEditor } from "../components/Tags.tsx";
@@ -238,7 +238,8 @@ export function Thing() {
           <section className="panel stack">
             <div className="row panel-head">
               <h2 className="eyebrow grow">What Burrow knows</h2>
-              {!isTag && !isDoc && (
+              <GuessesHeader thing={t} fields={data.fields} />
+              {!isTag && !isDoc && guessKeys(t, data.fields).length === 0 && (
                 <AiSuggest
                   compact
                   thingId={t.id}

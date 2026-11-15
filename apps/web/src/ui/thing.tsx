@@ -6,7 +6,13 @@ import { Icon } from "./Icon.tsx";
 import { MovePicker } from "./MovePicker.tsx";
 
 /** The thing's cover picture (D-015), or its initial. Icons and sprites are drawn whole. */
-export function Thumb({ thing, size }: { thing: Pick<ThingView, "name" | "cover">; size?: "small" | "big" }) {
+export function Thumb({
+  thing,
+  size,
+}: {
+  thing: Pick<ThingView, "name" | "cover">;
+  size?: "small" | "big" | "tod";
+}) {
   const c = thing.cover;
   const big = size === "big";
   const src = big ? (c?.imageUrl ?? c?.thumbUrl) : (c?.thumbUrl ?? c?.imageUrl);

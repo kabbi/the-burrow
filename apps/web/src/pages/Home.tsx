@@ -9,6 +9,7 @@ import { isUrl } from "../lib/page.ts";
 import { Icon } from "../ui/Icon.tsx";
 import { SecHead } from "../ui/parts.tsx";
 import { ThingRow, ThingTile, Thumb } from "../ui/thing.tsx";
+import { ThingOfTheDay } from "../components/ThingOfTheDay.tsx";
 
 /** Find: the home page. One question, one box; below it what needs you and what changed. */
 export function Home() {
@@ -422,11 +423,9 @@ function Dashboard() {
                         {j.sub}
                       </span>
                     </span>
-                    <span
-                      className={`btn small${j.ai ? " ai" : ""}`}
-                      style={j.ai ? {} : { borderColor: "var(--ink)" }}
-                    >
+                    <span className="job-go">
                       {j.btn}
+                      <Icon name="next" size={16} stroke={2.2} />
                     </span>
                   </Link>
                 ))}
@@ -453,7 +452,10 @@ function Dashboard() {
             <Link to="/workshop/ai">AI log</Link>
           </p>
         </div>
-        <Activity />
+        <aside className="stack find-side" style={{ gap: 28 }}>
+          <ThingOfTheDay />
+          <Activity />
+        </aside>
       </div>
     </>
   );
@@ -479,7 +481,7 @@ function Activity() {
   }, [data]);
   if (!entries.length) return null;
   return (
-    <aside className="stack find-side" style={{ gap: 10 }}>
+    <section className="stack" style={{ gap: 10 }}>
       <SecHead title="What changed · per thing" />
       <div className="rows">
         {entries.map((x) => {
@@ -519,7 +521,7 @@ function Activity() {
                 {undoable.length > 0 && (
                   <button
                     type="button"
-                    className="btn small"
+                    className={`linkbtn quiet small${allUndone ? "" : " on-hover"}`}
                     onClick={async () => {
                       for (const e of undoable) await undo.mutateAsync(e.seq);
                     }}
@@ -532,6 +534,6 @@ function Activity() {
           );
         })}
       </div>
-    </aside>
+    </section>
   );
 }

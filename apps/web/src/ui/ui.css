@@ -468,16 +468,17 @@ main.page.narrow {
 .linkbtn.quiet {
   color: var(--ink-2);
 }
+/* Right / Wrong on an AI guess: two quiet violet icons, not two more buttons. */
 .verdict {
   display: inline-flex;
-  gap: 6px;
+  gap: 2px;
 }
 .verdict button {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
-  border: 1px solid var(--ai-line);
-  background: var(--panel);
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
   color: var(--ai);
   cursor: pointer;
   display: flex;
@@ -487,6 +488,10 @@ main.page.narrow {
 }
 .verdict button:hover {
   background: var(--ai-tint);
+}
+svg.icon.filled {
+  fill: currentColor;
+  stroke: none;
 }
 
 /* ---------------------------------------------------------------- surfaces */

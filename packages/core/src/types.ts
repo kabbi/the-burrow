@@ -346,6 +346,19 @@ export interface BurrowEvent {
   undone?: boolean;
 }
 
+/**
+ * Thing of the day (D-028): one small, useful nudge about one thing. `check`: still where Burrow
+ * thinks? `photo`: no photo of your own yet. `field`: a wanted field is empty.
+ */
+export interface DailyPick {
+  thing: ThingView;
+  why: "check" | "photo" | "field";
+  /** For `field`: which one, its label and type. */
+  field?: { key: string; label: string; type: FieldType };
+  /** For `check`: when someone last moved, found or confirmed it. */
+  lastSeen?: string;
+}
+
 export interface SearchHit {
   thing: ThingView;
   score: number;
