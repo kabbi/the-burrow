@@ -71,7 +71,8 @@ fields HomeBox still owns.
 - `media.ts`: content-addressed files, type sniffing, thumbnails (sharp). `icons.ts`: bundled
   Material Design Icons search. `routes/assets.ts`: upload, from-url, icon, cover, poster, 3D generation via
   `adapters/sf3d.ts` (Stable Fast 3D on the local GPU).
-- `link-preview.ts`: OpenGraph / JSON-LD product reading (free, no AI). `POST /things/:id/from-page`
+- `link-preview.ts`: OpenGraph / JSON-LD product reading (free, no AI). Pages from the
+  "Send to Burrow" bookmarklet come in via `POST /capture` and are kept in memory for `/preview` (D-024). `POST /things/:id/from-page`
   (in `routes/assets.ts`) applies chosen page values, the shop picture and the cover (D-023).
 - `vision.ts`: "looks like" search: DINOv2-small vectors on the CPU (onnxruntime-web), cached per
   media file in `image_vectors` (D-019).

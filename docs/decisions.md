@@ -361,3 +361,23 @@ screen read pages; on a thing's page the Link fact was a plain text field.
   summary (`autoStart`). Local models run right away (D-017); a paid model shows its price and
   waits (D-007). It runs with `keep: ["name"]`, so the AI never renames a thing you named.
 - Pages that can't be read (shops that block bots) still let you save the bare link.
+
+## D-024 · "Send to Burrow" bookmarklet for shops that block bots (2026-11-15)
+
+Some shops sit behind anti-bot services (Maisons du Monde: DataDome). The server's `/preview` gets
+a 403 no matter the headers: DataDome checks the TLS fingerprint and IP and runs a JS challenge,
+and headless Chrome gets a captcha too. Your own browser passes, so it reads the page for us.
+
+- **Bookmarklet** (`SendToBurrow.tsx`, offered next to "Couldn't read that page" when the shop
+  blocked us): on the shop page it form-POSTs `location.href` + the head bits (title, meta,
+  canonical, JSON-LD, from the live DOM) to `POST /api/capture` in a new tab. A top-level form
+  post avoids CORS and cookies. Its target is the origin it was dragged from (dev or production).
+- **`/api/capture`** runs the same `parsePreview`, keeps the result in memory (24 h, 200 pages)
+  and redirects 303 to `/add?name=<url>`. `/preview` answers from those captures first, so Add,
+  "Add product link" and "read again" all see the page.
+- **Blocked detection**: `/preview` names the anti-bot (DataDome, Cloudflare challenge,
+  PerimeterX, Akamai) from response headers and returns `blocked: true`.
+
+Costs: desktop only (bookmarklets are awkward on phones); captures are lost on restart; anyone on
+the network can post a capture (same as the rest of the open `/api`). A shop with a strict CSP
+`form-action` would block the post. Shop pictures on a protected CDN may still fail to download.

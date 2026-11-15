@@ -157,3 +157,11 @@ applied in one go, the shop picture became the cover, then gemma-4-31b (LM Studi
 added description, model and 4 tags, and kept "Dmitry's table" as the name. Re-reading
 after setting the maker by hand shows "Ikea (yours)" unticked and the picture as "already kept". On
 phones the review rows stack (checkbox | label, value); empty cells and "—" are hidden there.
+
+## 2026-11-15 · Reading a DataDome-protected shop (Maisons du Monde)
+
+- `curl` with Firefox UA + French `Accept-Language`: 403, `x-datadome: protected`.
+- Headless Chrome (agent-browser): captcha page, no OpenGraph, no JSON-LD.
+- Kept: the bookmarklet (D-024). Checked end to end with agent-browser: it captured title and
+  picture from a page into the dev Add screen. Not yet tried on Maisons du Monde itself (headless
+  is blocked there); try in a real browser.

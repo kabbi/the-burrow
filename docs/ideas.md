@@ -133,3 +133,9 @@ Loosely ordered. ✓ = done in some form.
 - Token expiry dates and per-token place restrictions (e.g. "only inside Workshop").
 - Generate a typed TS client from the spec for pcb-photo-maker (openapi-typescript).
 - Telegram bot: "where's my…" and "add from photo" from the phone.
+
+## Product pages (D-024)
+
+- Paid scraping API (ScrapingBee, ZenRows, …) for anti-bot shops from the phone, where the
+  bookmarklet doesn't fit. Costs per request: quote it like AI calls.
+- Phone: a share target (PWA `share_target`) only gets the URL; would need the paid route above.
