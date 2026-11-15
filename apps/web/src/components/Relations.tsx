@@ -8,6 +8,9 @@ import { ThingSearch } from "./ThingSearch.tsx";
 
 type Rel = ThingDetail["relations"][number];
 
+/** Shown elsewhere: tags have their own row; "not the same as" is Tidy up's bookkeeping (D-034). */
+const HIDDEN = new Set(["tagged", "not_same"]);
+
 /**
  * Typed links to other things, grouped by how they read from this side
  * ("accessories", "replaced by"…). Tags are shown separately.
@@ -25,7 +28,7 @@ export function Relations({
   const { data: schema } = useSchema();
   const [choice, setChoice] = useState("");
   const [adding, setAdding] = useState(false);
-  const shown = relations.filter((r) => r.type !== "tagged");
+  const shown = relations.filter((r) => !HIDDEN.has(r.type));
   const groups = new Map<string, Rel[]>();
   for (const r of shown) groups.set(r.label, [...(groups.get(r.label) ?? []), r]);
 
@@ -34,7 +37,7 @@ export function Relations({
   // Each relation type can be added from either end: "accessory of →" or "← accessories", when
   // this thing may stand on that end (only a person "owns").
   const choices = (schema?.relations ?? [])
-    .filter((rt) => rt.id !== "tagged")
+    .filter((rt) => !HIDDEN.has(rt.id))
     .flatMap((rt) =>
       rt.symmetric
         ? [{ key: `${rt.id}:out`, label: rt.name, ok: isA(thingKind, rt.fromKinds) }]

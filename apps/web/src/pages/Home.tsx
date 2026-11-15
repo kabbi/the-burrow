@@ -362,6 +362,17 @@ function Dashboard() {
       btn: "Check them",
       ai: true,
     });
+  if (data.duplicates.pairs)
+    jobs.push({
+      n: data.duplicates.pairs,
+      title:
+        data.duplicates.pairs === 1
+          ? "1 pair that may be the same thing"
+          : `${data.duplicates.pairs} pairs that may be the same thing`,
+      sub: data.duplicates.names.join(", ") + (data.duplicates.pairs > 3 ? ", …" : ""),
+      to: "/tidy#twice",
+      btn: "Compare",
+    });
   if (data.papers.inbox)
     jobs.push({
       n: data.papers.inbox,

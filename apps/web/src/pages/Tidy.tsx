@@ -1,7 +1,16 @@
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { get, patch, post, type KindField, type Place, type TidyData, type ThingView } from "../lib/api.ts";
+import {
+  get,
+  patch,
+  post,
+  type DuplicatePair,
+  type KindField,
+  type Place,
+  type TidyData,
+  type ThingView,
+} from "../lib/api.ts";
 import { useAction, useBulk } from "../lib/hooks.ts";
 import { useSchema } from "../lib/schema.ts";
 import { isUrl } from "../lib/page.ts";
@@ -46,6 +55,16 @@ export function Tidy() {
           .map((x) => x.thing.name)
           .join(", ")}${data.aiChecks.length > 3 ? ", …" : ""} · Right or Wrong, one thing at a time`,
         things: data.aiChecks.map((x) => x.thing),
+      });
+    }
+    if (data.duplicates.length) {
+      const n = data.duplicates.length;
+      out.push({
+        id: "twice",
+        n,
+        title: n === 1 ? "1 pair that may be the same thing" : `${n} pairs that may be the same thing`,
+        sub: "Same name or look-alike pictures. Open both to compare, or say they're not the same.",
+        things: [],
       });
     }
     // One job per wanted field ("3 appliances without a serial number").
@@ -105,6 +124,7 @@ export function Tidy() {
             </button>
             {isOpen && j.id === "where" && <PlaceJob things={j.things} />}
             {isOpen && j.id === "ai" && data && <AiJob checks={data.aiChecks} />}
+            {isOpen && j.id === "twice" && data && <TwiceJob pairs={data.duplicates} />}
             {isOpen && j.field && (
               <FieldJob things={j.things} field={j.field} label={j.label!} type={j.type!} />
             )}
@@ -345,6 +365,57 @@ function show(v: unknown): string {
   if (v === undefined || v === null) return "—";
   const s = Array.isArray(v) ? v.join(", ") : String(v);
   return s.length > 90 ? `${s.slice(0, 90)}…` : s;
+}
+
+// ------------------------------------------------------------------ you may have it twice
+
+function TwiceJob({ pairs }: { pairs: DuplicatePair[] }) {
+  const act = useAction();
+  return (
+    <div className="tidy-body stack" style={{ gap: 0, padding: 0 }}>
+      {pairs.slice(0, 40).map((p) => (
+        <div key={`${p.a.id}-${p.b.id}`} className="trow twice">
+          <div className="twice-pair">
+            {[p.a, p.b].map((t) => (
+              <div key={t.id} className="twice-one">
+                <Thumb thing={t} />
+                <div className="main">
+                  <div className="name">
+                    <Link to={`/t/${t.id}`}>{t.name}</Link>
+                    <span className="idtext">{t.id}</span>
+                  </div>
+                  <Where thing={t} compact />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="twice-foot">
+            <span className="why">{why(p)}</span>
+            <button
+              type="button"
+              className="btn small"
+              onClick={() =>
+                act(
+                  () => post(`/things/${p.a.id}/relations`, { type: "not_same", otherId: p.b.id }),
+                  `${p.a.name} ≠ ${p.b.name}`,
+                  { group: { key: "tidy-twice", text: (xs) => `Not the same: ${xs.join(" · ")}` } },
+                )
+              }
+            >
+              Not the same
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function why(p: DuplicatePair) {
+  const pct = p.looks !== undefined ? `${Math.round(p.looks * 100)}% alike` : null;
+  if (p.why === "name") return pct ? `Same name · ${pct}` : "Same name";
+  if (p.why === "looks") return `Look the same · ${pct}`;
+  return pct ? `Similar names · ${pct}` : "Similar names";
 }
 
 // ------------------------------------------------------------------ wanted fields

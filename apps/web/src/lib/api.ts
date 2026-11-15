@@ -97,6 +97,7 @@ export interface Overview {
   needsDetails: number;
   aiChecks: { things: number; fields: number; names: string[] };
   places: { unplaced: number; roaming: number };
+  duplicates: { pairs: number; names: string[] };
   missing: ThingView[];
   recentlyAdded: ThingView[];
   moves: BurrowEvent[];
@@ -241,6 +242,17 @@ export type Hits = { hits: SearchHit[] };
 export interface TidyData {
   gaps: ThingView[];
   aiChecks: { thing: ThingView; fields: string[] }[];
+  duplicates: DuplicatePair[];
+}
+
+/** Two things you may have twice (D-034). */
+export interface DuplicatePair {
+  a: ThingView;
+  b: ThingView;
+  /** name: same name · looks: pictures look the same · both: alike pictures and similar names. */
+  why: "name" | "looks" | "both";
+  looks?: number;
+  words: number;
 }
 
 export function usd(n: number | null | undefined): string {
