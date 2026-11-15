@@ -190,6 +190,7 @@ export class Store {
   /**
    * Put a thing inside another (or nowhere). `position` is the spot inside it ("shelf 3"):
    * undefined keeps the current spot when staying put and clears it when moving elsewhere.
+   * `roams` (only with `to: null`) means "no fixed place" instead of "not placed yet" (D-026).
    */
   move(
     id: ThingId,
@@ -197,11 +198,13 @@ export class Store {
     actor = "you",
     source?: FieldSource,
     position?: string | null,
+    roams = false,
   ): ThingView {
     const t = this.mustGetRaw(id);
     const pos = position === undefined ? (t.parentId === to ? t.position : null) : position?.trim() || null;
     const spot = to ? pos : null;
-    if (t.parentId !== to || t.position !== spot)
+    const roam = !to && roams;
+    if (t.parentId !== to || t.position !== spot || t.roams !== roam)
       this.append(
         {
           type: "thing.moved",
@@ -211,6 +214,8 @@ export class Store {
           ...(source ? { source } : {}),
           ...(spot ? { position: spot } : {}),
           ...(t.position ? { fromPosition: t.position } : {}),
+          ...(roam ? { roams: true } : {}),
+          ...(t.roams ? { fromRoams: true } : {}),
         },
         actor,
       );
@@ -493,6 +498,8 @@ export class Store {
       kind?: string;
       parentId?: ThingId | null;
       places?: boolean;
+      /** Only things with no fixed place (D-026). */
+      roams?: boolean;
       /** Only physical, non-place things (no tags, documents, rooms). */
       physical?: boolean;
       archived?: boolean;
@@ -515,6 +522,7 @@ export class Store {
         args.push(opts.parentId);
       }
     }
+    if (opts.roams !== undefined) where.push(`roams = ${opts.roams ? 1 : 0}`);
     if (opts.physical) where.push("kind in (select id from kinds where physical = 1 and is_place = 0)");
     if (opts.places !== undefined)
       where.push(`kind ${opts.places ? "" : "not "}in (select id from kinds where is_place = 1)`);
@@ -549,16 +557,19 @@ export class Store {
    * Every place with item counts (direct and nested), for the Places tree.
    * Sorted by spot then name, numbers in order ("shelf 2" before "shelf 10").
    */
-  placeTree(): { places: PlaceNode[]; unplaced: number } {
+  placeTree(): { places: PlaceNode[]; unplaced: number; roaming: number } {
     const kinds = new Map(this.kinds().map((k) => [k.id, k]));
     const rows = this.db
-      .prepare("select id, name, kind, parent_id, position, status from things where archived_at is null")
+      .prepare(
+        "select id, name, kind, parent_id, position, roams, status from things where archived_at is null",
+      )
       .all() as {
       id: string;
       name: string;
       kind: string;
       parent_id: string | null;
       position: string | null;
+      roams: number;
       status: ThingStatus;
     }[];
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -577,11 +588,13 @@ export class Store {
           status: r.status,
         });
     let unplaced = 0;
+    let roaming = 0;
     for (const r of rows) {
       const k = kinds.get(r.kind);
       if (!k || k.isPlace || !k.physical) continue;
       if (!r.parent_id) {
-        unplaced++;
+        if (r.roams) roaming++;
+        else unplaced++;
         continue;
       }
       const direct = nodes.get(r.parent_id);
@@ -595,7 +608,7 @@ export class Store {
     const places = [...nodes.values()].toSorted(
       (a, b) => cmp.compare(a.position ?? "", b.position ?? "") || cmp.compare(a.name, b.name),
     );
-    return { places, unplaced };
+    return { places, unplaced, roaming };
   }
 
   /** Spots already used inside a place, for suggestions ("shelf 1", "shelf 2"…). */
@@ -970,7 +983,7 @@ export class Store {
     const kind = this.kind(t.kind);
     if (!kind || kind.isPlace || t.archivedAt || t.data.tier === 0) return [];
     const gaps: string[] = [];
-    if (kind.physical && !t.parentId) gaps.push("where");
+    if (kind.physical && !t.parentId && !t.roams) gaps.push("where");
     for (const f of this.fieldsOf(kind.id)) if (f.wanted && isEmpty(t.data[f.key])) gaps.push(f.key);
     return gaps;
   }
@@ -1038,6 +1051,7 @@ export class Store {
         needThing(b.id);
         if (b.position && b.position.length > 80)
           throw new BurrowError("Keep the spot short (80 characters)");
+        if (b.roams && b.to) throw new BurrowError("A thing with a place can't also have no fixed place");
         if (b.to) {
           needThing(b.to);
           // "inside" rules: exactly one parent (a column), and no loops.
@@ -1183,8 +1197,10 @@ export class Store {
         if (b.to) t.meta.parent = { source: b.source ?? (e.actor === "you" ? "you" : "import"), at };
         else delete t.meta.parent;
         this.db
-          .prepare("update things set parent_id = ?, position = ?, meta = ?, updated_at = ? where id = ?")
-          .run(b.to, b.to ? (b.position ?? null) : null, json(t.meta), at, b.id);
+          .prepare(
+            "update things set parent_id = ?, position = ?, roams = ?, meta = ?, updated_at = ? where id = ?",
+          )
+          .run(b.to, b.to ? (b.position ?? null) : null, !b.to && b.roams ? 1 : 0, json(t.meta), at, b.id);
         this.reindexTree(b.id);
         break;
       }
@@ -1363,6 +1379,8 @@ export class Store {
           to: b.from,
           ...(b.fromPosition ? { position: b.fromPosition } : {}),
           ...(t.position ? { fromPosition: t.position } : {}),
+          ...(b.fromRoams ? { roams: true } : {}),
+          ...(t.roams ? { fromRoams: true } : {}),
         };
       }
       case "thing.status":
@@ -1560,6 +1578,7 @@ function toThing(r: Row): Thing {
     meta: parse(r.meta, {}),
     parentId: (r.parent_id as string | null) ?? null,
     position: (r.position as string | null) ?? null,
+    roams: Number(r.roams ?? 0) === 1,
     status: r.status as ThingStatus,
     createdAt: String(r.created_at),
     updatedAt: String(r.updated_at),

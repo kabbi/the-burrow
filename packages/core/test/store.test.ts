@@ -486,6 +486,42 @@ describe("places: positions and tree", () => {
   });
 });
 
+describe("no fixed place (D-026)", () => {
+  it("is not a gap, survives undo and rebuild, and clears when placed", () => {
+    const s = store();
+    const room = s.createThing({ name: "Office", kind: "room" });
+    const laptop = s.createThing({ name: "MacBook Air", kind: "electronics", parentId: room.id });
+    s.move(laptop.id, null, "you", undefined, undefined, true);
+    let t = s.mustGet(laptop.id);
+    expect([t.parentId, t.roams, t.gaps.includes("where")]).toEqual([null, true, false]);
+    expect(s.placeTree()).toMatchObject({ unplaced: 0, roaming: 1 });
+    expect(s.list({ roams: true }).map((x) => x.id)).toEqual([laptop.id]);
+
+    // Undo puts it back in the room; redo makes it roam again.
+    const ev = s.events({ thingId: laptop.id, types: ["thing.moved"], limit: 1 })[0]!;
+    s.toggleUndo(ev.seq);
+    expect(s.mustGet(laptop.id)).toMatchObject({ parentId: room.id, roams: false });
+    const undo = s.events({ thingId: laptop.id, types: ["thing.moved"], limit: 1 })[0]!;
+    s.toggleUndo(undo.seq);
+    expect(s.mustGet(laptop.id)).toMatchObject({ parentId: null, roams: true });
+
+    // "Not placed yet" is a different nowhere: a gap again.
+    s.move(laptop.id, null);
+    t = s.mustGet(laptop.id);
+    expect([t.roams, t.gaps.includes("where")]).toEqual([false, true]);
+    s.move(laptop.id, null, "you", undefined, undefined, true);
+    s.move(laptop.id, room.id);
+    expect(s.mustGet(laptop.id).roams).toBe(false);
+    const back = s.events({ thingId: laptop.id, types: ["thing.moved"], limit: 1 })[0]!;
+    s.toggleUndo(back.seq);
+    expect(s.mustGet(laptop.id).roams).toBe(true);
+
+    const snap = snapshot(s);
+    s.rebuild();
+    expect(snapshot(s)).toEqual(snap);
+  });
+});
+
 describe("asset originals, keys and file replacement", () => {
   it("replaces a processed file in place, keeps the original, undoes", () => {
     const s = store();

@@ -404,3 +404,28 @@ Confirming five AI guesses stacked five toasts.
   tag ✓. `POST /things/:id/confirm` now returns its event, so confirms are undoable from a toast.
 - **Links**: the add form opens from "+ link to another thing". **History**: newest 8, "Show all",
   undo as a small link.
+
+## D-026 · "No fixed place": things that travel (2026-11-15)
+
+Laptops, the phone, the Steam Deck, a bag: they have no home spot, and that's fine. Until now the
+only ways to say so were "not placed yet" (a gap: it nags in Needs details forever) or a fake room
+"Nowhere specific" (counted as a room, shown in pickers, and "Nowhere specific › MacBook" looks like
+a real path).
+
+- **Stored as a state of the "inside" relation**, not a place and not a field: `things.roams` (0/1),
+  set only with `parent_id = null`. `thing.moved` carries `roams: true` (and `fromRoams` so undo can
+  restore it). Moving into any place clears it; moving to nowhere without it means "not placed yet".
+  The core rejects `roams` together with a parent.
+- **Not a gap**: `gaps` skips "where" for roaming things; `placeTree()` counts `roaming` apart from
+  `unplaced`; `list({ roams })` and `GET /things?roams=1` list them.
+- **UI word**: "No fixed place" (dashed chip with a bag icon), next to "Not placed yet" (dashed, no
+  icon) — two different nowheres. Pickers offer it as the last option; Places shows it as a pseudo
+  room. History says "No fixed place now".
+- **API**: `roams` on create / upsert / move (`parentId: null, roams: true`) and on every thing.
+- **Migration**: `migrate-0005-roams.ts` (`pnpm prod:migrate-roams`) turns the contents of a top-level
+  room named "Nowhere specific" (or "Nowhere", "Carried", "No fixed place") into roaming things and
+  archives the empty room. Dev had the room with nothing in it.
+
+Considered: a built-in pseudo place thing (a real row with a magic id, would show in counts, paths,
+pickers, the API and the FTS path); a kind flag (it's about this laptop, not all electronics); a
+`status` value (status is about trusting the location, and a roaming thing can still be missing).

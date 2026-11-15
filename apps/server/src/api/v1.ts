@@ -48,6 +48,10 @@ const Placement = {
     .default(false)
     .describe("Create the places of parentPath that don't exist yet (rooms at the top, containers inside)."),
   position: z.string().max(80).nullable().optional().describe('Spot inside the place ("top shelf").'),
+  roams: z
+    .boolean()
+    .optional()
+    .describe("With parentId null: no fixed place (it travels: laptop, phone) instead of not placed yet."),
 };
 
 const Writing = {
@@ -313,6 +317,7 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
         parent: z.string().optional().describe('Directly inside this thing; "" = not inside anything'),
         places: flag.describe("1: only places, 0: no places"),
         physical: flag.describe("1: only physical things that aren't places"),
+        roams: flag.describe("1: only things with no fixed place, 0: none of them"),
         archived: flag.describe("1: include archived things"),
         order: z.enum(["recent", "name"]).default("recent"),
         limit: z.coerce.number().int().min(1).max(500).default(100),
@@ -327,6 +332,7 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
             : {}),
           ...(q.places !== undefined ? { places: q.places } : {}),
           ...(q.physical ? { physical: true } : {}),
+          ...(q.roams !== undefined ? { roams: q.roams } : {}),
           ...(q.archived ? { archived: true } : {}),
           order: q.order,
           limit: q.limit,
@@ -396,6 +402,7 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
             actor,
           );
           if (b.position) store.move(t.id, t.parentId, actor, b.source, b.position);
+          else if (b.roams && !t.parentId) store.move(t.id, null, actor, b.source, null, true);
           tags(t.id, b, actor);
           if (b.ref) store.link(t.id, b.ref.service, b.ref.remoteId, b.ref.data ?? {}, actor);
           return { thing: store.mustGet(t.id) };
@@ -439,7 +446,7 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
           const t = store.mustGet(params.id);
           const to = place(b, actor);
           if (to === undefined) throw new BurrowError("Give parentId or parentPath");
-          store.move(t.id, to, actor, b.source, b.position);
+          store.move(t.id, to, actor, b.source, b.position, b.roams ?? false);
           return { thing: store.mustGet(t.id) };
         }),
     }),
@@ -547,7 +554,11 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
       tag: "Places",
       summary: "Places with counts of what is inside",
       scope: "read",
-      response: z.object({ places: z.array(S.PlaceNode), unplaced: z.number().int() }),
+      response: z.object({
+        places: z.array(S.PlaceNode),
+        unplaced: z.number().int(),
+        roaming: z.number().int().describe("Things with no fixed place."),
+      }),
       run: () => store.placeTree(),
     }),
 
@@ -686,6 +697,7 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
               actor,
             );
             if (b.position) store.move(t.id, t.parentId, actor, b.source, b.position);
+            else if (b.roams && !t.parentId) store.move(t.id, null, actor, b.source, null, true);
             tags(t.id, b, actor);
             store.link(t.id, p.service, p.remoteId, b.refData ?? {}, actor);
             return { thing: store.mustGet(t.id), created: true, skipped: [] };
@@ -700,7 +712,7 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
               parentId !== t.parentId
             )
               skipped.push("parent");
-            else store.move(t.id, parentId, actor, b.source, b.position);
+            else store.move(t.id, parentId, actor, b.source, b.position, b.roams ?? false);
           }
           tags(t.id, b, actor);
           if (b.refData && JSON.stringify(b.refData) !== JSON.stringify(ref.data))

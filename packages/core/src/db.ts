@@ -144,6 +144,10 @@ export const coreMigrations: Migration[] = [
       create unique index assets_key on assets(thing_id, key) where key is not null;
     `,
   },
+  {
+    id: "core/007-roams",
+    sql: `alter table things add column roams integer not null default 0;`,
+  },
 ];
 
 export function openDb(path: string, extra: Migration[] = []): Db {

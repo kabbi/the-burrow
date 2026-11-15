@@ -13,6 +13,8 @@ const CreateBody = z.object({
   name: z.string().min(1).max(500),
   kind: z.string().optional(),
   parentId: z.string().nullable().optional(),
+  /** No fixed place (D-026); only without a parent. */
+  roams: z.boolean().optional(),
   data: Data.optional(),
   source: Source.optional(),
   sources: z.record(z.string(), Source).optional(),
@@ -40,6 +42,7 @@ export function thingRoutes({ store, ai }: Deps): Router {
         ...(q.kind ? { kind: String(q.kind) } : {}),
         ...(q.parent !== undefined ? { parentId: q.parent === "" ? null : String(q.parent) } : {}),
         ...(q.places !== undefined ? { places: q.places === "1" } : {}),
+        ...(q.roams !== undefined ? { roams: q.roams === "1" } : {}),
         limit: Math.min(Number(q.limit ?? 100), 500),
         offset: Number(q.offset ?? 0),
         order: q.order === "name" ? "name" : "recent",
@@ -118,7 +121,8 @@ export function thingRoutes({ store, ai }: Deps): Router {
       ...(b.source ? { source: b.source } : {}),
       ...(b.sources ? { sources: b.sources } : {}),
     });
-    res.status(201).json({ thing: t, event: store.events({ thingId: t.id, limit: 1 })[0] });
+    if (b.roams && !b.parentId) store.move(t.id, null, "you", undefined, undefined, true);
+    res.status(201).json({ thing: store.mustGet(t.id), event: store.events({ thingId: t.id, types: ["thing.created"], limit: 1 })[0] });
   });
 
   r.patch("/things/:id", (req, res) => {
@@ -141,9 +145,11 @@ export function thingRoutes({ store, ai }: Deps): Router {
         to: z.string().nullable(),
         /** Spot inside `to` ("shelf 3"); omitted = keep when staying, clear when moving. */
         position: z.string().max(80).nullable().optional(),
+        /** With `to: null`: no fixed place (D-026) instead of "not placed yet". */
+        roams: z.boolean().optional(),
       })
       .parse(req.body);
-    const t = store.move(req.params.id, b.to, "you", undefined, b.position);
+    const t = store.move(req.params.id, b.to, "you", undefined, b.position, b.roams ?? false);
     // Putting something somewhere by hand means you know where it is.
     if (t.status === "missing") store.setStatus(t.id, "ok", "placed by hand");
     res.json({

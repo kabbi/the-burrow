@@ -90,6 +90,7 @@ export const Thing = component(
       .describe('Provenance per field: "name", "kind", "parent" or a data key'),
     parentId: z.string().nullable().describe("The place it is inside"),
     position: z.string().nullable().describe('Spot inside the parent ("shelf 3")'),
+    roams: z.boolean().describe("No fixed place: it travels (laptop, phone). Not a gap, unlike no parent."),
     status: z.enum(["ok", "unverified", "missing"]),
     createdAt: time(),
     updatedAt: time(),

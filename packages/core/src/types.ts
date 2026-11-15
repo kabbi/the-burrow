@@ -38,6 +38,11 @@ export interface Thing {
   parentId: ThingId | null;
   /** Where exactly inside the parent: "shelf 3", "top left". Set with the move (D-016). */
   position: string | null;
+  /**
+   * No fixed place (D-026): it travels or lives wherever (laptop, phone, Steam Deck). Only
+   * with no parent; not a gap, unlike a thing nobody has placed yet.
+   */
+  roams: boolean;
   status: ThingStatus;
   createdAt: string;
   updatedAt: string;
@@ -275,6 +280,9 @@ export type EventBody =
       /** Spot inside `to` (D-016); absent in old events = none. */
       position?: string | null;
       fromPosition?: string | null;
+      /** Moved to "no fixed place" (D-026); only with `to: null`. */
+      roams?: boolean;
+      fromRoams?: boolean;
     }
   | { type: "thing.status"; id: ThingId; from: ThingStatus; to: ThingStatus; note?: string }
   | { type: "thing.confirmed"; id: ThingId; fields: string[]; undo?: boolean }
