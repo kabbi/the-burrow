@@ -53,7 +53,6 @@ export function Assets({
   const refresh = useRefresh();
   const [open, setOpen] = useState<AssetView | null>(null);
   const [adding, setAdding] = useState<null | "link" | "icon">(null);
-  const [role, setRole] = useState<AssetRole>("photo");
   const [busy, setBusy] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
   const { data: cfg } = useQuery({
@@ -62,7 +61,7 @@ export function Assets({
     staleTime: 30_000,
   });
 
-  const send = async (files: File[], as: AssetRole = role) => {
+  const send = async (files: File[], as: AssetRole = "photo") => {
     for (const f of files) {
       setBusy(`Uploading ${f.name}…`);
       await act(
@@ -93,6 +92,7 @@ export function Assets({
 
   return (
     <section
+      id="pictures"
       className={`panel stack${drag ? " dropping" : ""}`}
       onDragOver={(e) => {
         e.preventDefault();
@@ -105,20 +105,7 @@ export function Assets({
         void send([...e.dataTransfer.files]);
       }}
     >
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 className="eyebrow">Pictures & models · {assets.length}</h2>
-        {coverId && (
-          <button
-            type="button"
-            className="btn small ghost"
-            onClick={() =>
-              act(() => post(`/things/${thingId}/cover`, { assetId: null }), "Cover picked automatically")
-            }
-          >
-            Pick cover automatically
-          </button>
-        )}
-      </div>
+      <h2 className="eyebrow">Pictures & models · {assets.length}</h2>
 
       {assets.length > 0 ? (
         <div className="assets">
@@ -129,6 +116,7 @@ export function Assets({
                 className="asset-pic"
                 onClick={() => setOpen(a)}
                 aria-label={`Open ${ROLE_LABEL[a.role]}`}
+                title={`${ROLE_LABEL[a.role]}${a.id === shownId ? (a.id === coverId ? " · cover" : " · cover (automatic)") : ""}${typeof a.data.view === "string" ? ` · ${a.data.view} side` : ""}`}
               >
                 {a.thumbUrl ? (
                   <img
@@ -141,68 +129,41 @@ export function Assets({
                   <span className="asset-ph">{a.role === "model" ? "3D" : "?"}</span>
                 )}
                 {a.role === "model" && <span className="badge3d">3D</span>}
+                {a.source === "ai" && <span className="badgeai">AI</span>}
               </button>
-              <figcaption className="stack" style={{ gap: 4 }}>
-                <span className="row" style={{ gap: 4, justifyContent: "space-between" }}>
-                  <select
-                    className="input mini"
-                    value={a.role}
-                    aria-label="What is this"
-                    onChange={(e) => act(() => patch(`/assets/${a.id}`, { role: e.target.value }), "Changed")}
-                  >
-                    {(a.role === "model" ? (["model"] as AssetRole[]) : PICTURE_ROLES).map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABEL[r]}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="tagx"
-                    aria-label="Remove"
-                    title="Remove"
-                    onClick={() => act(() => del(`/assets/${a.id}`), `${ROLE_LABEL[a.role]} removed`)}
-                  >
-                    ×
-                  </button>
+              {a.id === shownId ? (
+                <span
+                  className="asset-star on"
+                  title={a.id === coverId ? "Cover" : "Cover (picked automatically)"}
+                >
+                  ★
                 </span>
-                {a.id === shownId ? (
-                  <span className="small shown-note">
-                    {a.id === coverId ? "★ Cover" : "Cover (automatic)"}
-                  </span>
-                ) : a.thumbUrl ? (
+              ) : (
+                a.thumbUrl && (
                   <button
                     type="button"
-                    className="btn small"
+                    className="asset-star"
+                    title="Use as cover"
+                    aria-label="Use as cover"
                     onClick={() =>
                       act(() => post(`/things/${thingId}/cover`, { assetId: a.id }), "Cover changed")
                     }
                   >
-                    Use as cover
+                    ☆
                   </button>
-                ) : (
-                  <span className="small muted">no picture yet</span>
-                )}
-                {typeof a.data.view === "string" && (
-                  <span className="small muted">
-                    {a.data.view} side{a.originalUrl ? " · original kept" : ""}
-                  </span>
-                )}
-                {a.source === "ai" && (
-                  <span className="small ai-note">made by {String(a.data.generator ?? "AI")}</span>
-                )}
-              </figcaption>
+                )
+              )}
             </figure>
           ))}
         </div>
       ) : (
         <p className="muted small" style={{ margin: 0 }}>
-          No pictures yet. Add a photo, a shop picture, an icon or a 3D model — or drop files here.
+          No pictures yet. Take a photo, add a shop picture or an icon — or drop files here.
         </p>
       )}
 
-      <div className="row">
-        <label className="btn main">
+      <div className="row" style={{ gap: 6 }}>
+        <label className="btn small main">
           Take photo
           <input
             type="file"
@@ -215,8 +176,11 @@ export function Assets({
             }}
           />
         </label>
-        <label className="btn">
-          Upload…
+        <label
+          className="btn small"
+          title="Pictures come in as our photos (change it on the picture); .glb / .stl are 3D models"
+        >
+          Upload
           <input
             type="file"
             multiple
@@ -228,45 +192,31 @@ export function Assets({
             }}
           />
         </label>
-        <select
-          className="input"
-          style={{ width: "auto", minHeight: 36 }}
-          value={role}
-          onChange={(e) => setRole(e.target.value as AssetRole)}
-          aria-label="Upload as"
-          title="What uploaded pictures are (3D files are always models)"
-        >
-          {PICTURE_ROLES.filter((r) => r !== "icon").map((r) => (
-            <option key={r} value={r}>
-              as {ROLE_LABEL[r].toLowerCase()}
-            </option>
-          ))}
-        </select>
         <button
           type="button"
-          className="btn"
+          className="btn small"
           aria-pressed={adding === "link"}
           onClick={() => setAdding(adding === "link" ? null : "link")}
         >
-          From a link
+          Link
         </button>
         <button
           type="button"
-          className="btn"
+          className="btn small"
           aria-pressed={adding === "icon"}
           onClick={() => setAdding(adding === "icon" ? null : "icon")}
         >
-          Pick an icon
+          Icon
         </button>
         {cfg?.sf3d.ok && source && (
           <button
             type="button"
-            className="btn"
+            className="btn small"
             disabled={Boolean(busy)}
-            title={`Stable Fast 3D on the local GPU (${cfg.sf3d.device ?? "?"}), free`}
+            title={`Make a 3D model with Stable Fast 3D on the local GPU (${cfg.sf3d.device ?? "?"}), free`}
             onClick={() => void makeModel()}
           >
-            Make 3D model
+            3D model
           </button>
         )}
       </div>
@@ -284,7 +234,7 @@ export function Assets({
               () =>
                 post<AssetsReply>(`/things/${thingId}/assets/from-url`, {
                   url,
-                  role: role === "photo" ? "product" : role,
+                  role: "product",
                 }),
               "Picture saved",
             );
@@ -325,7 +275,16 @@ export function Assets({
         </div>
       )}
 
-      {open && <Lightbox asset={open} onClose={() => setOpen(null)} />}
+      {open && (
+        <Lightbox
+          key={open.id}
+          asset={assets.find((a) => a.id === open.id) ?? open}
+          thingId={thingId}
+          isShown={open.id === shownId}
+          isChosen={open.id === coverId}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </section>
   );
 }
@@ -397,7 +356,21 @@ function IconPicker({ initial, onPick }: { initial: string; onPick: (set: string
   );
 }
 
-function Lightbox({ asset, onClose }: { asset: AssetView; onClose: () => void }) {
+function Lightbox({
+  asset,
+  thingId,
+  isShown,
+  isChosen,
+  onClose,
+}: {
+  asset: AssetView;
+  thingId: string;
+  /** It is the cover shown now; `isChosen`: picked by hand (else automatic). */
+  isShown: boolean;
+  isChosen: boolean;
+  onClose: () => void;
+}) {
+  const act = useAction();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     ref.current?.showModal();
@@ -406,7 +379,12 @@ function Lightbox({ asset, onClose }: { asset: AssetView; onClose: () => void })
     ROLE_LABEL[asset.role],
     asset.width && asset.height ? `${asset.width}×${asset.height}` : null,
     `${(asset.bytes / 1024 / 1024).toFixed(asset.bytes > 1e6 ? 1 : 2)} MB`,
-    asset.source !== "you" ? `from ${asset.source}` : null,
+    typeof asset.data.view === "string" ? `${asset.data.view} side` : null,
+    asset.source === "ai"
+      ? `made by ${String(asset.data.generator ?? "AI")}`
+      : asset.source !== "you"
+        ? `from ${asset.source}`
+        : null,
     typeof asset.data.license === "string"
       ? `${String(asset.data.setName ?? "")} · ${asset.data.license}`
       : null,
@@ -431,6 +409,62 @@ function Lightbox({ asset, onClose }: { asset: AssetView; onClose: () => void })
           <img src={asset.fileUrl} alt="" className={asset.role === "icon" ? "contain" : ""} />
         )}
         <div className="row" style={{ justifyContent: "space-between" }}>
+          <span className="row" style={{ gap: 6 }}>
+            <select
+              className="input mini"
+              style={{ flex: "none" }}
+              value={asset.role}
+              aria-label="What is this"
+              onChange={(e) => act(() => patch(`/assets/${asset.id}`, { role: e.target.value }), "Changed")}
+            >
+              {(asset.role === "model" ? (["model"] as AssetRole[]) : PICTURE_ROLES).map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ))}
+            </select>
+            {isShown ? (
+              isChosen ? (
+                <button
+                  type="button"
+                  className="btn small"
+                  title="Let Burrow pick the cover (our photo first)"
+                  onClick={() =>
+                    act(
+                      () => post(`/things/${thingId}/cover`, { assetId: null }),
+                      "Cover picked automatically",
+                    )
+                  }
+                >
+                  ★ Cover · pick automatically
+                </button>
+              ) : (
+                <span className="small muted">★ Cover (automatic)</span>
+              )
+            ) : (
+              asset.thumbUrl && (
+                <button
+                  type="button"
+                  className="btn small"
+                  onClick={() =>
+                    act(() => post(`/things/${thingId}/cover`, { assetId: asset.id }), "Cover changed")
+                  }
+                >
+                  Use as cover
+                </button>
+              )
+            )}
+            <button
+              type="button"
+              className="btn small ghost"
+              onClick={() => {
+                onClose();
+                void act(() => del(`/assets/${asset.id}`), `${ROLE_LABEL[asset.role]} removed`);
+              }}
+            >
+              Remove
+            </button>
+          </span>
           <span className="muted small">{facts.join(" · ")}</span>
           <span className="row">
             {typeof asset.data.url === "string" && (
