@@ -23,6 +23,7 @@ import { ImageIndex, visionMigrations, type VisualMatcher } from "./vision.ts";
 import { Tokens, tokenMigrations } from "./api/tokens.ts";
 import { bindOps, openApi } from "./api/define.ts";
 import { v1Ops } from "./api/v1.ts";
+import { docsRoutes } from "./api/docs.ts";
 import { tokenRoutes } from "./routes/tokens.ts";
 
 export interface Deps {
@@ -86,6 +87,7 @@ export function createApp(deps: Deps) {
   const ops = v1Ops(deps);
   const spec = openApi(ops, { version: process.env.BURROW_VERSION ?? "dev", server: "/api/v1" });
   app.get("/api/v1/openapi.json", (_req, res) => res.json(spec));
+  app.use(docsRoutes());
   app.use("/api/v1", bindOps(ops, deps));
   app.use("/api/v1", (_req, res) => res.status(404).json({ error: "Not found (see /api/v1/openapi.json)" }));
 

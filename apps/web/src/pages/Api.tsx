@@ -67,8 +67,11 @@ export function Api() {
       <h1 style={{ fontSize: 34 }}>API</h1>
       <p className="muted" style={{ margin: 0, maxWidth: 760 }}>
         For outside systems such as the PCB rig. Each token acts as an <em>actor</em>: everything it changes
-        is recorded under that name in the history, and can be undone there. The reference below is generated
-        from{" "}
+        is recorded under that name in the history, and can be undone there. Full docs at{" "}
+        <a href="/api/v1" target="_blank" rel="noreferrer">
+          <span className="mono">/api/v1</span>
+        </a>
+        ; the reference below is generated from{" "}
         <a href="/api/v1/openapi.json" target="_blank" rel="noreferrer">
           <span className="mono">/api/v1/openapi.json</span>
         </a>{" "}

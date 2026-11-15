@@ -44,8 +44,8 @@ the other).
 ## API for other systems
 
 `/api/v1` is for outside systems (the PCB rig, scripts): Bearer tokens made on the API page
-(`/integrations`), each acting as a named actor that shows up in history (D-020). It describes itself
-at `/api/v1/openapi.json` (OpenAPI 3.1); the API page renders the reference.
+(`/integrations`), each acting as a named actor that shows up in history (D-020). Readable docs at
+`/api/v1`; the machine-readable spec at `/api/v1/openapi.json` (OpenAPI 3.1).
 
 ```sh
 curl -H "Authorization: Bearer $BURROW_TOKEN" -X PUT https://burrow.example.com/api/v1/refs/my-app/42 \

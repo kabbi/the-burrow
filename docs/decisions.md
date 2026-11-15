@@ -293,7 +293,9 @@ versioned API. The web app keeps its own unversioned `/api`, which can change wi
   place (same asset id, stays the cover); `GET /events?after=<seq>` is a change feed.
 - **Self-describing**: one `op({...})` definition per operation (zod for params, query, body and
   answer) drives the route _and_ the OpenAPI 3.1 document at `/api/v1/openapi.json` (public, no
-  token). zod 4's own JSON Schema output; shared shapes are components. The API page renders the
+  token). zod 4's own JSON Schema output; shared shapes are components. Readable docs at **`/api/v1`**:
+  Redoc's standalone bundle served from our own `node_modules` (no CDN), themed like Burrow. The
+  document passes `redocly lint` (only warning: no license, it's private). The API page renders the
   reference from that document; the tests check every answer against its documented schema, so
   docs can't drift.
 - Chosen over GraphQL: the core is already REST-ish with zod everywhere, outside systems are simple

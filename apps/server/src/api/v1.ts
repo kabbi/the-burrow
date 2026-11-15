@@ -60,54 +60,90 @@ const Writing = {
     .describe("Add these tags, keep the others."),
 };
 
-const ThingCreate = z.object({
-  name: z.string().min(1).max(500),
-  kind: z.string().optional().describe('Kind id (default "thing")'),
-  data: Data.optional(),
-  sources: z.record(z.string(), S.Source).optional().describe("Per-field provenance overrides."),
-  ref: z
-    .object({ service: RefParams.shape.service, remoteId: RefParams.shape.remoteId, data: Data.optional() })
-    .optional()
-    .describe("Link it to your own id in the same step."),
-  ...Placement,
-  ...Writing,
-});
+const ThingCreate = z
+  .object({
+    name: z.string().min(1).max(500),
+    kind: z.string().optional().describe('Kind id (default "thing")'),
+    data: Data.optional(),
+    sources: z.record(z.string(), S.Source).optional().describe("Per-field provenance overrides."),
+    ref: z
+      .object({ service: RefParams.shape.service, remoteId: RefParams.shape.remoteId, data: Data.optional() })
+      .optional()
+      .describe("Link it to your own id in the same step."),
+    ...Placement,
+    ...Writing,
+  })
+  .meta({
+    examples: [
+      {
+        name: "Hot glue gun",
+        kind: "tool",
+        data: { maker: "Bosch", description: "Melts 7 mm glue sticks" },
+        parentPath: "Workshop / Shelf 2",
+        position: "top",
+        tags: ["glue", "crafts"],
+        ref: { service: "my-app", remoteId: "item-42" },
+      },
+    ],
+  });
 
-const ThingPatch = z.object({
-  name: z.string().min(1).max(500).optional(),
-  kind: z.string().optional(),
-  data: Data.optional(),
-  keepYours: z
-    .boolean()
-    .default(false)
-    .describe("Leave fields a person set in Burrow alone (they are listed in `skipped`)."),
-  ...Writing,
-});
+const ThingPatch = z
+  .object({
+    name: z.string().min(1).max(500).optional(),
+    kind: z.string().optional(),
+    data: Data.optional(),
+    keepYours: z
+      .boolean()
+      .default(false)
+      .describe("Leave fields a person set in Burrow alone (they are listed in `skipped`)."),
+    ...Writing,
+  })
+  .meta({
+    examples: [{ data: { model: "GluePen", quantity: 2 }, addTags: ["cordless"] }],
+  });
 
-const ThingUpsert = z.object({
-  name: z.string().min(1).max(500).optional().describe("Needed when the ref is new."),
-  kind: z.string().optional(),
-  data: Data.optional(),
-  refData: Data.optional().describe("Stored on the ref itself (your own bookkeeping)."),
-  keepYours: z
-    .boolean()
-    .default(true)
-    .describe("Leave fields a person set in Burrow alone (default). Skipped ones are listed."),
-  ...Placement,
-  ...Writing,
-});
+const ThingUpsert = z
+  .object({
+    name: z.string().min(1).max(500).optional().describe("Needed when the ref is new."),
+    kind: z.string().optional(),
+    data: Data.optional(),
+    refData: Data.optional().describe("Stored on the ref itself (your own bookkeeping)."),
+    keepYours: z
+      .boolean()
+      .default(true)
+      .describe("Leave fields a person set in Burrow alone (default). Skipped ones are listed."),
+    ...Placement,
+    ...Writing,
+  })
+  .meta({
+    examples: [
+      {
+        name: "ESP32 DevKitC",
+        kind: "pcb",
+        data: { slug: "esp32-devkitc", revision: "v4", width_mm: 54.4, height_mm: 27.9 },
+        parentPath: "Workshop / PCB drawer",
+        createPlaces: true,
+        addTags: ["esp32"],
+        refData: { library: "main" },
+      },
+    ],
+  });
 
-const AssetMeta = z.object({
-  role: z.enum(ASSET_ROLES).optional().describe("Default: photo for pictures, model for .glb/.stl"),
-  label: z.string().max(200).optional(),
-  key: z
-    .string()
-    .max(200)
-    .optional()
-    .describe("Your stable id for this file. Uploading the same key again replaces the file in place."),
-  data: Data.optional().describe("Provenance and facts about the file (replaces the stored object)."),
-  source: S.Source.default("app"),
-});
+const AssetMeta = z
+  .object({
+    role: z.enum(ASSET_ROLES).optional().describe("Default: photo for pictures, model for .glb/.stl"),
+    label: z.string().max(200).optional(),
+    key: z
+      .string()
+      .max(200)
+      .optional()
+      .describe("Your stable id for this file. Uploading the same key again replaces the file in place."),
+    data: Data.optional().describe("Provenance and facts about the file (replaces the stored object)."),
+    source: S.Source.default("app"),
+  })
+  .meta({
+    examples: [{ role: "photo", key: "pcbphoto:cap-0193", label: "Top", data: { view: "top", pxPerMm: 20 } }],
+  });
 
 const ThingReply = z.object({ thing: S.Thing });
 

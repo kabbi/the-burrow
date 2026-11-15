@@ -239,6 +239,13 @@ describe("API v1", () => {
       [...JSON.stringify(spec).matchAll(/#\/components\/schemas\/(\w+)/g)].map((m) => m[1]!),
     );
     for (const r of refs) expect(spec.components.schemas).toHaveProperty(r);
+    // …and has a readable version (Redoc, served locally).
+    const html = await fetch(`${base}/api/v1`);
+    expect(html.headers.get("content-type")).toMatch(/html/);
+    expect(await html.text()).toContain("/api/v1/openapi.json");
+    const js = await fetch(`${base}/api/v1/redoc.standalone.js`);
+    expect(js.status).toBe(200);
+    expect(js.headers.get("content-type")).toMatch(/javascript/);
     expect(
       (await fetch(`${base}/api/v1/nope`, { headers: { authorization: `Bearer ${reader}` } })).status,
     ).toBe(404);

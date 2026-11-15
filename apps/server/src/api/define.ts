@@ -194,6 +194,12 @@ const toSchema = (s: z.ZodType, io: "input" | "output") => {
   >;
 };
 
+/** A JSON body; its first schema example doubles as the media type's example (what doc viewers show). */
+const jsonBody = (schema: Record<string, unknown>) =>
+  Array.isArray(schema.examples) && schema.examples.length
+    ? { schema, example: schema.examples[0] }
+    : { schema };
+
 /** Path and query parameters, one per object key. */
 function parameters(s: Obj | undefined, where: "path" | "query") {
   if (!s) return [];
@@ -257,7 +263,7 @@ export function openApi(ops: AnyOp[], info: { version: string; server: string })
           },
         }
       : o.body
-        ? { required: true, content: { "application/json": { schema: toSchema(o.body, "input") } } }
+        ? { required: true, content: { "application/json": jsonBody(toSchema(o.body, "input")) } }
         : undefined;
     const err = (d: string) => ({
       description: d,

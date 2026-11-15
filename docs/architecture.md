@@ -79,7 +79,7 @@ fields HomeBox still owns.
 - `api/` (D-020): the public `/api/v1` for outside systems. `define.ts` (one `op()` per operation →
   route with token auth, scope check and actor attribution, plus the OpenAPI 3.1 document),
   `v1.ts` (the operations), `schemas.ts` (documented answer shapes), `tokens.ts` (`api_tokens`,
-  hashed secrets). `routes/tokens.ts` manages tokens for the web app's API page.
+  hashed secrets), `docs.ts` (Redoc page at `/api/v1`). `routes/tokens.ts` manages tokens for the web app's API page.
 - `routes/*`: thin HTTP layer; zod validates input; errors map to status codes in `app.ts`.
 
 ## Web (`apps/web`)
