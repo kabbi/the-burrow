@@ -39,7 +39,7 @@ export function BoardViewer({ assets }: { assets: AssetView[] }) {
   // Both sides share the rig's scale, so one stage in image pixels fits either.
   const W = Math.max(...shown.map((a) => a.width!));
   const H = Math.max(...shown.map((a) => a.height!));
-  const s = Math.min(boxW / W, 520 / H, 1.5);
+  const s = Math.min(boxW / W, 400 / H, 1.5);
   const place = (a: AssetView) => ({
     left: ((W - a.width!) / 2) * s,
     top: ((H - a.height!) / 2) * s,

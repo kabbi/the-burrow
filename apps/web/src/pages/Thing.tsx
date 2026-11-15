@@ -55,192 +55,205 @@ export function Thing() {
   const isDoc = kind?.isDocument ?? t.kind === "document";
   const physical = kind?.physical ?? true;
 
+  const isPlace = kind?.isPlace ?? false;
+
+  const inside = data.children.length > 0 && (
+    <section className="stack">
+      <h2 className="eyebrow">
+        {isTag ? "Nested tags" : "Inside"} · {data.children.length}
+      </h2>
+      <div className="grid2">
+        {data.children.map((c) => (
+          <ThingCard key={c.id} thing={c} compact />
+        ))}
+      </div>
+    </section>
+  );
+
   return (
-    <main className="page">
-      <section className="panel stack">
-        <div className="row" style={{ alignItems: "flex-start", gap: 18 }}>
+    <main className="page wide thing-page">
+      <section className="panel thing-head">
+        <a href="#pictures" className="thing-cover" aria-label="Pictures" tabIndex={isTag ? -1 : 0}>
           <Thumb thing={t} big />
-          <div className="stack grow" style={{ gap: 8 }}>
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="row" style={{ gap: 6 }}>
-                <span className="idbadge" style={{ fontSize: 14 }}>
-                  {t.id}
-                </span>
-                <span className="tag">{kind?.name ?? t.kind}</span>
-              </span>
-              {t.archivedAt && <span className="tag">archived</span>}
-            </div>
-            <h1 style={{ fontSize: 30 }}>{t.name}</h1>
-            {typeof t.data.productName === "string" && t.data.productName !== t.name && (
-              <ProductName
-                name={t.data.productName}
-                url={typeof t.data.url === "string" ? t.data.url : null}
-              />
-            )}
-            {physical && <StatusLine thing={t} />}
-            <PathView thing={t} />
-            {t.parentId && <SpotEditor thing={t} spots={data.spots} />}
-            {!isTag && <TagEditor thing={t} />}
-            <div className="row" style={{ marginTop: 6 }}>
-              <button type="button" className="btn main" onClick={() => setMoving((m) => !m)}>
-                {moving ? "Done" : isTag ? "Nest under…" : t.parentId ? "Move" : "Put somewhere"}
-              </button>
-              {physical &&
-                (t.status === "missing" ? (
+        </a>
+        <div className="stack grow" style={{ gap: 8, minWidth: 0 }}>
+          <span className="row" style={{ gap: 6 }}>
+            <span className="idbadge">{t.id}</span>
+            <span className="tag">{kind?.name ?? t.kind}</span>
+            {t.archivedAt && <span className="tag">archived</span>}
+          </span>
+          <h1 className="thing-title">{t.name}</h1>
+          {typeof t.data.productName === "string" && t.data.productName !== t.name && (
+            <ProductName name={t.data.productName} url={typeof t.data.url === "string" ? t.data.url : null} />
+          )}
+          {(physical || t.parentId) && (
+            <span className="row thing-where">
+              {physical && <StatusLine thing={t} />}
+              <PathView thing={t} />
+              {t.parentId && <SpotEditor thing={t} spots={data.spots} />}
+            </span>
+          )}
+          {!isTag && <TagEditor thing={t} />}
+          <div className="row" style={{ marginTop: 4, gap: 8 }}>
+            <button type="button" className="btn main" onClick={() => setMoving((m) => !m)}>
+              {moving ? "Done" : isTag ? "Nest under…" : t.parentId ? "Move" : "Put somewhere"}
+            </button>
+            {physical &&
+              (t.status === "missing" ? (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() =>
+                    act(
+                      () => post(`/things/${t.id}/status`, { status: "ok", note: "found" }),
+                      "Marked as found",
+                    )
+                  }
+                >
+                  I found it
+                </button>
+              ) : (
+                t.parentId && (
                   <button
                     type="button"
                     className="btn"
                     onClick={() =>
                       act(
-                        () => post(`/things/${t.id}/status`, { status: "ok", note: "found" }),
-                        "Marked as found",
+                        () => post(`/things/${t.id}/status`, { status: "missing" }),
+                        "Noted — Burrow stops trusting that spot",
                       )
                     }
                   >
-                    I found it
+                    It’s not here
                   </button>
-                ) : (
-                  t.parentId && (
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() =>
-                        act(
-                          () => post(`/things/${t.id}/status`, { status: "missing" }),
-                          "Noted — Burrow stops trusting that spot",
-                        )
-                      }
-                    >
-                      It’s not here
-                    </button>
-                  )
-                ))}
-              {isDoc && data.paperlessId && (
-                <Link className="btn" to={`/papers?doc=${data.paperlessId}`}>
-                  Open in Papers
-                </Link>
-              )}
-              {!isTag && !isDoc && !linking && (
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setLinking({ id })}
-                  title="Or paste a link anywhere on this page"
-                >
-                  {typeof t.data.url === "string" ? "Re-read link" : "Add product link"}
-                </button>
-              )}
-              {!t.archivedAt && (
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => act(() => post(`/things/${t.id}/archive`), `${t.name} archived`)}
-                >
-                  Archive
-                </button>
-              )}
-            </div>
-            {moving &&
-              (isTag ? (
-                <TagParentPicker id={t.id} onDone={() => setMoving(false)} />
-              ) : (
-                <PlacePicker
-                  label="Move to"
-                  autoFocus
-                  value={t.parentId}
-                  onChange={(to) => {
-                    setMoving(false);
-                    void act(
-                      () => post(`/things/${t.id}/move`, { to }),
-                      to ? "Moved" : "Removed from its place",
-                    );
-                  }}
-                />
+                )
               ))}
+            {isDoc && data.paperlessId && (
+              <Link className="btn" to={`/papers?doc=${data.paperlessId}`}>
+                Open in Papers
+              </Link>
+            )}
+            {!isTag && !isDoc && !linking && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setLinking({ id })}
+                title="Or paste a link anywhere on this page"
+              >
+                {typeof t.data.url === "string" ? "Re-read link" : "Add product link"}
+              </button>
+            )}
+            {!t.archivedAt && (
+              <button
+                type="button"
+                className="btn ghost"
+                style={{ marginLeft: "auto" }}
+                onClick={() => act(() => post(`/things/${t.id}/archive`), `${t.name} archived`)}
+              >
+                Archive
+              </button>
+            )}
           </div>
+          {moving &&
+            (isTag ? (
+              <TagParentPicker id={t.id} onDone={() => setMoving(false)} />
+            ) : (
+              <PlacePicker
+                label="Move to"
+                autoFocus
+                value={t.parentId}
+                onChange={(to) => {
+                  setMoving(false);
+                  void act(
+                    () => post(`/things/${t.id}/move`, { to }),
+                    to ? "Moved" : "Removed from its place",
+                  );
+                }}
+              />
+            ))}
         </div>
       </section>
 
-      {linking && !isTag && !isDoc && (
-        <section className="panel stack">
-          <h2 className="eyebrow">Fill in from a product page</h2>
-          <LinkEnrich
-            key={linking.url ?? ""}
-            thing={t}
-            assets={data.assets}
-            {...(linking.url ? { initialUrl: linking.url } : {})}
-            onClose={() => setLinking(null)}
-          />
-        </section>
-      )}
+      <div className="thing-cols">
+        <div className="thing-main">
+          {linking && !isTag && !isDoc && (
+            <section className="panel stack">
+              <h2 className="eyebrow">Fill in from a product page</h2>
+              <LinkEnrich
+                key={linking.url ?? ""}
+                thing={t}
+                assets={data.assets}
+                {...(linking.url ? { initialUrl: linking.url } : {})}
+                onClose={() => setLinking(null)}
+              />
+            </section>
+          )}
 
-      {data.assets.some((a) => a.data.view === "top" || a.data.view === "bottom") && (
-        <BoardViewer key={t.id} assets={data.assets} />
-      )}
+          {data.assets.some((a) => a.data.view === "top" || a.data.view === "bottom") && (
+            <BoardViewer key={t.id} assets={data.assets} />
+          )}
 
-      {!isTag && (
-        <Assets
-          thingId={t.id}
-          thingName={t.name}
-          assets={data.assets}
-          coverId={data.coverId}
-          shownId={t.cover?.id ?? null}
-        />
-      )}
+          {isPlace && inside}
 
-      {isTag && (
-        <section className="stack">
-          <h2 className="eyebrow">Tagged · {data.tagged.length} (including nested tags)</h2>
-          {data.tagged.length ? (
-            <div className="grid2">
-              {data.tagged.map((c) => (
-                <ThingCard key={c.id} thing={c} compact />
-              ))}
+          {isTag && (
+            <section className="stack">
+              <h2 className="eyebrow">Tagged · {data.tagged.length} (including nested tags)</h2>
+              {data.tagged.length ? (
+                <div className="grid2">
+                  {data.tagged.map((c) => (
+                    <ThingCard key={c.id} thing={c} compact />
+                  ))}
+                </div>
+              ) : (
+                <p className="muted small">Nothing tagged yet.</p>
+              )}
+            </section>
+          )}
+
+          <section className="panel stack">
+            <div className="row panel-head">
+              <h2 className="eyebrow grow">What Burrow knows</h2>
+              {!isTag && !isDoc && (
+                <AiSuggest
+                  compact
+                  thingId={t.id}
+                  input={{ name: t.name, ...(typeof t.data.url === "string" ? { url: t.data.url } : {}) }}
+                  onApplied={() => {}}
+                />
+              )}
             </div>
-          ) : (
-            <p className="muted small">Nothing tagged yet.</p>
+            <Facts thing={t} fields={data.fields} />
+          </section>
+
+          {!isPlace && inside}
+        </div>
+
+        <aside className="thing-side">
+          {!isTag && (
+            <Assets
+              thingId={t.id}
+              thingName={t.name}
+              assets={data.assets}
+              coverId={data.coverId}
+              shownId={t.cover?.id ?? null}
+            />
           )}
-        </section>
-      )}
 
-      <section className="panel stack">
-        <h2 className="eyebrow">What Burrow knows</h2>
-        {!isTag && !isDoc && (
-          <AiSuggest
-            thingId={t.id}
-            input={{ name: t.name, ...(typeof t.data.url === "string" ? { url: t.data.url } : {}) }}
-            onApplied={() => {}}
-          />
-        )}
-        <Facts thing={t} fields={data.fields} />
-      </section>
-
-      {!isTag && (
-        <section className="panel stack">
-          <h2 className="eyebrow">Links</h2>
-          <Relations thingId={t.id} relations={data.relations} />
-          {!isDoc && !data.relations.some((r) => r.type === "has_document") && (
-            <p className="muted small" style={{ margin: 0 }}>
-              Receipts and manuals: link them from the <Link to="/papers">Papers inbox</Link>.
-            </p>
+          {!isTag && (
+            <section className="panel stack">
+              <h2 className="eyebrow">Links</h2>
+              <Relations thingId={t.id} relations={data.relations} />
+              {!isDoc && !data.relations.some((r) => r.type === "has_document") && (
+                <p className="muted small" style={{ margin: 0 }}>
+                  Receipts and manuals: link them from the <Link to="/papers">Papers inbox</Link>.
+                </p>
+              )}
+            </section>
           )}
-        </section>
-      )}
 
-      {data.children.length > 0 && (
-        <section className="stack">
-          <h2 className="eyebrow">
-            {isTag ? "Nested tags" : "Inside"} · {data.children.length}
-          </h2>
-          <div className="grid2">
-            {data.children.map((c) => (
-              <ThingCard key={c.id} thing={c} compact />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <History events={data.events} />
+          <History key={t.id} events={data.events} />
+        </aside>
+      </div>
     </main>
   );
 }
@@ -274,29 +287,27 @@ function SpotEditor({ thing, spots }: { thing: ThingDetail["thing"]; spots: stri
       position ? `Spot: ${position}` : "Spot cleared",
     );
   };
+  // The spot itself shows in the path; this is just the small way to set or change it.
   if (!editing)
     return (
-      <span className="row small" style={{ gap: 6 }}>
-        {thing.position ? (
-          <span className="muted">
-            Spot in {parent}: <strong style={{ color: "var(--ink)" }}>{thing.position}</strong>
-          </span>
-        ) : null}
-        <button
-          type="button"
-          className="btn small ghost"
-          onClick={() => {
-            setValue(thing.position ?? "");
-            setEditing(true);
-          }}
-        >
-          {thing.position ? "Change spot" : `Where in ${parent}?`}
-        </button>
-      </span>
+      <button
+        type="button"
+        className="chip mini dashed"
+        title={
+          thing.position ? `Change the spot in ${parent}` : `Where exactly in ${parent}? (shelf, drawer…)`
+        }
+        onClick={() => {
+          setValue(thing.position ?? "");
+          setEditing(true);
+        }}
+      >
+        {thing.position ? "change spot" : "+ spot"}
+      </button>
     );
   return (
     <form
       className="row"
+      style={{ flexBasis: "100%" }}
       onSubmit={(e) => {
         e.preventDefault();
         save(value.trim() || null);
@@ -401,36 +412,40 @@ function label(e: BurrowEvent): string {
   }
 }
 
+const HISTORY_SHOWN = 8;
+
 function History({ events }: { events: (BurrowEvent & { undoable: boolean })[] }) {
   const undo = useUndo();
+  const [all, setAll] = useState(false);
+  const shown = all ? events : events.slice(0, HISTORY_SHOWN);
   return (
-    <section className="panel flat">
-      <h2 className="eyebrow" style={{ margin: "12px 0 6px" }}>
-        History
-      </h2>
-      <div className="list">
-        {events.map((e) => (
-          <div className="list-row" key={e.seq}>
-            <span
-              style={{
-                flex: 1,
-                color: e.undone ? "var(--muted)" : undefined,
-                textDecoration: e.undone ? "line-through" : undefined,
-              }}
-            >
-              {label(e)}
-            </span>
-            <span className="muted small">
+    <section className="panel stack" style={{ gap: 6 }}>
+      <h2 className="eyebrow">History · {events.length}</h2>
+      <ol className="hist">
+        {shown.map((e) => (
+          <li key={e.seq} className={e.undone ? "undone" : ""}>
+            <span className="hist-what">{label(e)}</span>
+            <span className="hist-meta">
               {e.actor} · {timeAgo(e.at)}
+              {e.undoable && (
+                <button type="button" className="linkbtn" onClick={() => undo.mutate(e.seq)}>
+                  {e.undone ? "redo" : "undo"}
+                </button>
+              )}
             </span>
-            {e.undoable && (
-              <button type="button" className="btn small" onClick={() => undo.mutate(e.seq)}>
-                {e.undone ? "Redo" : "Undo"}
-              </button>
-            )}
-          </div>
+          </li>
         ))}
-      </div>
+      </ol>
+      {events.length > HISTORY_SHOWN && (
+        <button
+          type="button"
+          className="linkbtn small"
+          style={{ alignSelf: "flex-start" }}
+          onClick={() => setAll((a) => !a)}
+        >
+          {all ? "Show fewer" : `Show all ${events.length}`}
+        </button>
+      )}
     </section>
   );
 }

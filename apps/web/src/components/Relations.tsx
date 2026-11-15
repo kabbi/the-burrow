@@ -15,6 +15,7 @@ export function Relations({ thingId, relations }: { thingId: string; relations: 
   const act = useAction();
   const { data: schema } = useSchema();
   const [choice, setChoice] = useState("");
+  const [adding, setAdding] = useState(false);
   const shown = relations.filter((r) => r.type !== "tagged");
   const groups = new Map<string, Rel[]>();
   for (const r of shown) groups.set(r.label, [...(groups.get(r.label) ?? []), r]);
@@ -34,7 +35,7 @@ export function Relations({ thingId, relations }: { thingId: string; relations: 
 
   return (
     <div className="stack" style={{ gap: 10 }}>
-      {shown.length === 0 && (
+      {shown.length === 0 && !adding && (
         <p className="muted small" style={{ margin: 0 }}>
           No links yet.
         </p>
@@ -74,33 +75,49 @@ export function Relations({ thingId, relations }: { thingId: string; relations: 
           </span>
         </div>
       ))}
-      <div className="row">
-        <select
-          className="input"
-          style={{ width: "auto" }}
-          value={choice || choices[0]?.key}
-          onChange={(e) => setChoice(e.target.value)}
-          aria-label="Link type"
+      {!adding && (
+        <button
+          type="button"
+          className="chip mini dashed"
+          style={{ alignSelf: "flex-start" }}
+          onClick={() => setAdding(true)}
         >
-          {choices.map((c) => (
-            <option key={c.key} value={c.key}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-        <div className="grow" style={{ minWidth: 220 }}>
-          <ThingSearch
-            placeholder="link to…"
-            filter={(t) => t.id !== thingId && t.kind !== "tag"}
-            onPick={(t) =>
-              act(
-                () => post(`/things/${thingId}/relations`, { type, otherId: t.id, direction }),
-                `Linked ${t.name}`,
-              )
-            }
-          />
+          + link to another thing
+        </button>
+      )}
+      {adding && (
+        <div className="row">
+          <select
+            className="input"
+            style={{ width: "auto" }}
+            value={choice || choices[0]?.key}
+            onChange={(e) => setChoice(e.target.value)}
+            aria-label="Link type"
+          >
+            {choices.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <div className="grow" style={{ minWidth: 220 }}>
+            <ThingSearch
+              placeholder="link to…"
+              autoFocus
+              filter={(t) => t.id !== thingId && t.kind !== "tag"}
+              onPick={(t) =>
+                act(
+                  () => post(`/things/${thingId}/relations`, { type, otherId: t.id, direction }),
+                  `Linked ${t.name}`,
+                )
+              }
+            />
+          </div>
+          <button type="button" className="btn small ghost" onClick={() => setAdding(false)}>
+            Done
+          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }

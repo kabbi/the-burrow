@@ -27,6 +27,7 @@ export function AiSuggest({
   onApplied,
   autoStart = false,
   keep = [],
+  compact = false,
 }: {
   thingId: string;
   input: Record<string, unknown>;
@@ -35,6 +36,8 @@ export function AiSuggest({
   autoStart?: boolean;
   /** Fields the suggestion must not change (e.g. "name" when it's the household's own name). */
   keep?: string[];
+  /** A small button + model picker for a panel header; the price and result open below it. */
+  compact?: boolean;
 }) {
   const { data: prov } = useQuery({
     queryKey: ["ai-providers"],
@@ -107,8 +110,51 @@ export function AiSuggest({
     }
   }
 
+  const idle = step.s === "idle" || step.s === "error" || step.s === "quoting";
+  if (compact && idle)
+    return (
+      <span className="row aicompact" style={{ gap: 6 }}>
+        <select
+          className="input mini"
+          value={selected}
+          onChange={(e) => setChoice(e.target.value)}
+          aria-label="AI model"
+          title={
+            provider === "anthropic"
+              ? "You’ll see the price before anything is spent."
+              : "Local model: free, runs right away."
+          }
+        >
+          {options.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="btn small ai" onClick={getQuote} disabled={step.s === "quoting"}>
+          {step.s === "quoting" ? (provider === "anthropic" ? "Pricing…" : "Starting…") : "Suggest details"}
+        </button>
+        {step.s === "error" && (
+          <span className="small" style={{ color: "var(--bad)", flexBasis: "100%", textAlign: "right" }}>
+            {step.message}
+          </span>
+        )}
+      </span>
+    );
+  if (compact && step.s === "done")
+    return (
+      <span className="row small muted aicompact" style={{ gap: 6 }}>
+        <span className="dot ai" />
+        {MODEL_NAMES[step.rec.actualModel ?? ""] ?? step.rec.actualModel} ·{" "}
+        {step.rec.provider !== "anthropic" ? "free" : usd(step.rec.actualCostUsd)}
+        <button type="button" className="linkbtn small" onClick={() => setStep({ s: "idle" })}>
+          again
+        </button>
+      </span>
+    );
+
   return (
-    <div className="aibox" aria-live="polite">
+    <div className={`aibox${compact ? " wide" : ""}`} aria-live="polite">
       {autoStart && <OnMount run={getQuote} />}
       {(step.s === "idle" || step.s === "error" || step.s === "quoting") && (
         <div className="row">

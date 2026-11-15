@@ -1635,3 +1635,211 @@ a.pc-title:hover {
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------- thing page */
+
+.thing-page {
+  max-width: 1280px;
+}
+.thing-head {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.thing-cover {
+  flex: none;
+  border-radius: 16px;
+}
+.thing-cover .thumb.big {
+  width: 112px;
+  height: 112px;
+}
+.thing-title {
+  font-size: 28px;
+  line-height: 1.15;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.thing-where {
+  gap: 6px 12px;
+}
+.thing-where .status-line {
+  font-size: 15px;
+}
+.thing-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 20px;
+  align-items: start;
+}
+.thing-main,
+.thing-side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.thing-side .panel {
+  padding: 16px;
+}
+.thing-side .assets {
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+}
+.thing-side .fact {
+  grid-template-columns: 1fr !important;
+  gap: 4px;
+}
+#pictures {
+  scroll-margin-top: 80px;
+}
+.thing-main .grid2 {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+@media (max-width: 980px) {
+  /* One column: the two stacks merge so pictures can come right after the header. */
+  .thing-cols {
+    display: flex;
+    flex-direction: column;
+  }
+  .thing-main,
+  .thing-side {
+    display: contents;
+  }
+  #pictures {
+    order: -1;
+  }
+}
+@media (max-width: 560px) {
+  .thing-head {
+    gap: 14px;
+  }
+  .thing-cover .thumb.big {
+    width: 72px;
+    height: 72px;
+    font-size: 28px;
+  }
+  .thing-title {
+    font-size: 22px;
+  }
+}
+.panel-head {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.aicompact .input.mini {
+  max-width: 220px;
+  min-height: 34px;
+}
+.aibox.wide {
+  flex-basis: 100%;
+}
+.chip.mini {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+.guessbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-s);
+  background: var(--ai-tint);
+  color: var(--ai-ink);
+}
+.fact.addline .label {
+  align-self: start;
+  padding-top: 4px;
+}
+.asset {
+  position: relative;
+}
+.asset-star {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 0;
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.asset:hover .asset-star,
+.asset-star:focus-visible,
+.asset-star.on {
+  opacity: 1;
+}
+.asset-star.on {
+  background: var(--main);
+  color: var(--main-ink);
+  cursor: default;
+}
+@media (hover: none) {
+  .asset-star {
+    opacity: 0.85;
+  }
+}
+.badgeai {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: var(--ai);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.hist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.hist li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line-3);
+  font-size: 14px;
+}
+.hist li:first-child {
+  border-top: 0;
+}
+.hist-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.hist-meta .linkbtn {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.6;
+}
+.hist li:hover .hist-meta .linkbtn,
+.hist-meta .linkbtn:focus-visible {
+  opacity: 1;
+}
+.hist li.undone .hist-what {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.thing-page .facts select.input,
+.thing-side .input {
+  min-height: 36px;
+}
+.thing-page .facts select.input {
+  max-width: 220px;
+}
