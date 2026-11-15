@@ -543,3 +543,59 @@ and a bar for the selection:
 
 Each action is one toast with one Undo. The merge endpoint returns every event it appended, and
 `useBulk` undoes them newest first.
+
+## D-032 · Accounts: sign-in, attribution, people as things (2026-11-15)
+
+More than one person uses Burrow now, and history should say who did what. No access control
+yet: every account may do everything. What accounts give us is a locked door and attribution.
+
+- **People are things** of the built-in kind `person` (not physical; fields: also called, email,
+  notes), like tags (D-013). Someone without an account (a child, a guest, grandma) is just a
+  person thing. An **account** points at exactly one person thing; the person's name is the
+  display name, so renaming the thing renames the account everywhere.
+- **Built-in link types to people**: `owned_by` "owned by" / "owns" (many), `bought_by`
+  "bought by" / "bought" (one), `authored_by` "author" / "author of" (many). All `toKinds: [person]`,
+  so the core refuses anything else. A person's page lists what they own, bought and made, from the
+  inverse links. Add more (lent to, gift from) on the Schema page as data. The web link picker
+  only offers directions that fit the thing's kind, only searches allowed kinds, and has a "me" chip.
+- **Credentials live outside the event log**, in `accounts`, `sessions` and `passkeys`
+  (`apps/server/src/auth/accounts.ts`, migration `auth/001`). An append-only log, and the /db
+  browser, are the wrong place for password hashes. Passwords: scrypt (N=2^16), 8+ characters,
+  5 free tries per username, then a doubling wait up to 15 min. Sessions: a random secret in an
+  HttpOnly SameSite=Lax cookie (`Secure` behind traefik; `trust proxy` covers private addresses),
+  only its SHA-256 stored, 180 days, sliding. Changing the password signs out your other devices.
+- **Passkeys** through `@simplewebauthn/server` + `/browser` v14: discoverable credentials, user
+  verification required, so a passkey is a full sign-in without a username. The relying party is
+  the host the browser is on (`burrow.example.com`, `localhost`), so a passkey works only on the host
+  where it was made, and only on https or localhost (not `http://fedora:5180`). Challenges are kept
+  in memory, used once, for 5 min.
+- **Attribution**: every event's `actor` is the **username**. The server keeps the request's
+  account in an `AsyncLocalStorage` (`auth/context.ts`), and `Store.currentActor` reads it, so a
+  store write that names no actor is attributed without passing the account through every route.
+  API tokens (D-020) run their operations the same way. Usernames and app actors share one
+  namespace (both end up in `events.actor`): neither can take the other's name, or a reserved one
+  (`you`, `ai`, `burrow`, `import`, `telegram`, …).
+- **Provenance is not the actor.** Field source `you` still means "a person set it", `ai` "a
+  guess". Applying an AI suggestion is now the person's event, with values still `ai` (violet).
+  Before this, a move's place provenance came from `actor === "you"`; now `move()` writes `source`
+  into the event, and undo of a move does too. Old events replay as before.
+- **Before accounts**, everything a person did was actor `you`. The log is not rewritten: `you`
+  is shown as the **first account** (whoever set Burrow up). `GET /api/accounts` names every actor
+  for the UI (people by name and person page, apps, AI, Burrow's own importers).
+- **First run**: while there are no accounts, the web app asks for the first one (`/auth/setup`).
+  Then signed-in people add others from the account page (`/account`), and the CLI
+  (`pnpm --filter @burrow/server account …`, `pnpm prod:account …`) adds accounts and resets
+  passwords when nobody can sign in. Disabling an account is CLI only.
+- **What's open without signing in**: `/api/health`, the sign-in endpoints, `/api/capture` (the
+  bookmarklet's cross-site form POST can't carry a Lax cookie; it only stores a page preview in
+  memory), `/api/v1` (its own tokens), and the built web app. `/media` needs a session or an API
+  token. Writes with an `Origin` from another host are refused, because SameSite=Lax treats
+  `*.example.com` siblings as same-site.
+- **Telegram**: each update acts as the account whose Telegram user id matches the sender
+  (`/me` tells you your id; you put it on your account page). Unlinked chats write as `telegram`.
+- `BURROW_AUTH=0` turns sign-in off (everything is `you` again). The existing API tests run that
+  way; `test/auth.test.ts` covers sign-in with it on.
+- Considered: tinyauth / forward auth at traefik (D-014). It locks the door but can't tell Burrow
+  who you are without trusting a header, and passkeys plus per-person history want Burrow to know
+  the account itself. Users as a separate table without person things: then "owned by grandma"
+  would need a second concept.

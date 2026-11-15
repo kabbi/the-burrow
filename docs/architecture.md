@@ -38,6 +38,8 @@ with inheritance and typed fields, relation types, tags as things (D-013).
   - `assets` (D-015): photos, shop pictures, icons, 2D art, 3D models per thing, with role, file,
     thumb, provenance; `things.cover_id` is the chosen cover (else derived).
   - `kinds`: parent kind, `isPlace`, `physical`, typed fields (add "plant" without code).
+    Built-in `person` (D-032): people, with or without an account; linked by `owned_by`,
+    `bought_by`, `authored_by`.
   - `things_fts`: FTS5 over name / body (every text field, tag names with their parent tags, refs,
     id) / path. A tag rename or move reindexes everything tagged under it.
 - **Undo** never rewrites history: `toggleUndo(seq)` appends the inverse event (`undo_of = seq`);
@@ -84,6 +86,11 @@ fields HomeBox still owns.
   route with token auth, scope check and actor attribution, plus the OpenAPI 3.1 document),
   `v1.ts` (the operations), `schemas.ts` (documented answer shapes), `tokens.ts` (`api_tokens`,
   hashed secrets), `docs.ts` (Redoc page at `/api/v1`). `routes/tokens.ts` manages tokens for the web app's API page.
+- `auth/` (D-032): `accounts.ts` (accounts → person things, scrypt passwords, cookie sessions,
+  passkeys; tables outside the event log), `context.ts` (the request's actor in AsyncLocalStorage,
+  read by `Store.currentActor`). `routes/auth.ts`: setup, sign-in (password, passkey), your account,
+  the accounts list, and `requireAccount` guarding `/api` (plus same-origin writes). CLI:
+  `scripts/account.ts`.
 - `routes/*`: thin HTTP layer; zod validates input; errors map to status codes in `app.ts`.
 
 ## Web (`apps/web`)
@@ -97,6 +104,10 @@ on phones (≤ 720 px); Workshop pages share a side nav.
 - `ui/thing.tsx`: `ThingRow` (the one item card in list form: picture, name + ID, where, status pill
   only when not fine, actions), `ThingTile` for grids, `Where` (path or one of the two nowheres,
   D-026). `ThingCard` wraps them for older call sites.
+- `SignIn.tsx` (D-032): `AuthGate` shows the first-account form or sign-in (password, passkey)
+  until someone is signed in; any 401 brings it back. `pages/Account.tsx`: passkeys, password,
+  Telegram id, devices, and the household's people. `Who` names an event's actor (people link to
+  their person page; `you` from before accounts is the first account).
 - `PlacePicker`: type-to-filter over full paths, create a place inline (inside the selected one).
 - `AiSuggest`: quote → show price → run → apply (accepted by default) → violet facts. `autoStart`
   quotes on mount; `keep` lists fields it must not change; `compact` fits a panel header.

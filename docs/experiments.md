@@ -184,3 +184,18 @@ it back to no fixed place. Gotcha: agent-browser's ref click on the Add page's "
 once didn't register (a JS click did); worth a real-phone check. `node --watch` doesn't restart for
 edits in `packages/core` (it's behind a node_modules symlink): touch a server file.
 Ran `migrate-0005-roams` on dev: archived the empty "Nowhere specific" room (B-0195).
+
+## 2026-11-15 · Accounts and passkeys (D-032)
+
+Tried on a `VACUUM INTO` copy of the dev DB (server on :4110 serving the built web app, mock
+paperless, bot off), so no test accounts reached the dev DB. agent-browser: first-account form →
+signed in; old "you" history shows as the first account; added a person without an account
+(Grandma); on a thing, "owned by" + "me" and "bought by" Grandma then "me" (cardinality one
+replaces); the person page lists "owns" and "bought"; raw `events.actor` is the username. Wrong
+password shows "Wrong username or password"; right one signs in. **Passkeys end to end** with
+Chrome's CDP virtual authenticator (`WebAuthn.addVirtualAuthenticator`, ctap2, internal, resident
+key, UV) on `http://localhost`: registered, signed out, signed in with the passkey alone (no
+username). Bug found and fixed: after setup the gate kept showing the form (an old `needsSetup:
+true` was spread over the new state). Gotcha: in zsh, `A="agent-browser --session x"; $A …`
+doesn't word-split, so nothing runs; use a function.
+Dev DB backup before the new tables: `data/backups/pre-accounts-2026-11-15.sqlite`.

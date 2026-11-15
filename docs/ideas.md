@@ -126,8 +126,17 @@ Loosely ordered. ✓ = done in some form.
 - PWA + offline read-only cache for the phone.
 - Websocket/SSE live updates when readers start producing events.
 - Dark mode (tokens are ready for it).
-- Auth (at least for /db and writes) before Burrow is reachable outside the LAN. Tokens exist for
-  `/api/v1` (D-020); the web app's own `/api` is still open to the tailnet.
+- (Done: D-032) Sign-in for the web app.
+
+## Accounts and people (D-032)
+
+- Access control: roles (admin / member / guest read-only), at least for /db, Schema and tokens.
+- "Mine" filters: things I own, things I added; "who has it" on lent things (a `lent_to` link with
+  a date, Tidy up nudges when it's been a while).
+- Account admin in the UI: disable, reset someone's password (CLI only today).
+- Sign in with a passkey from the username field (conditional UI / autofill).
+- Per-person Telegram notifications ("Anna moved your drill").
+- Session list with devices and "sign out this one".
 
 ## API (D-020)
 
