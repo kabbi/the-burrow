@@ -46,6 +46,17 @@ Loosely ordered. ✓ = done in some form.
 - Duplicate detection before saving ("you already have 2 ESP32-CAMs").
 - Quantity +/- on an existing thing instead of a duplicate.
 
+## Product links (D-023)
+
+- Telegram: reply to a thing's message with a link → the same fill-in, with ✓ / ↩️ undo.
+- Backfill `productName` on things added from a link before D-023 (their name is the shop title;
+  production has 2).
+- Let the AI suggest a product name too (not just rename) when there's no page, and show
+  `productName` on cards when it differs from the name.
+- Several shop links per thing (where it was bought vs. the maker's page).
+- Plain `createThing` marks `kind` as yours, so the AI never changes the kind of a name-only thing;
+  maybe default kind should be `source: you` only when picked.
+
 ## AI
 
 - Model per role: fast local model for interactive suggestions (gemma-4-31b), a slower, more

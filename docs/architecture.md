@@ -71,7 +71,8 @@ fields HomeBox still owns.
 - `media.ts`: content-addressed files, type sniffing, thumbnails (sharp). `icons.ts`: bundled
   Material Design Icons search. `routes/assets.ts`: upload, from-url, icon, cover, poster, 3D generation via
   `adapters/sf3d.ts` (Stable Fast 3D on the local GPU).
-- `link-preview.ts`: OpenGraph / JSON-LD product reading (free, no AI).
+- `link-preview.ts`: OpenGraph / JSON-LD product reading (free, no AI). `POST /things/:id/from-page`
+  (in `routes/assets.ts`) applies chosen page values, the shop picture and the cover (D-023).
 - `vision.ts`: "looks like" search: DINOv2-small vectors on the CPU (onnxruntime-web), cached per
   media file in `image_vectors` (D-019).
 - `telegram/`: `api.ts` (minimal Bot API client, long polling), `bot.ts` (the photo bot: sessions in
@@ -90,7 +91,10 @@ CSS with tokens in `styles.css`. Self-hosted fonts (Inter, Space Grotesk).
 - `ThingCard`: the one item card (picture, name, one status line, path, actions; "It's not here"
   always available).
 - `PlacePicker`: type-to-filter over full paths, create a place inline (inside the selected one).
-- `AiSuggest`: quote → show price → run → apply (accepted by default) → violet facts.
+- `AiSuggest`: quote → show price → run → apply (accepted by default) → violet facts. `autoStart`
+  quotes on mount; `keep` lists fields it must not change.
+- `LinkEnrich` (D-023): product link → page preview → per-field review → `from-page` (one Undo) →
+  optional AI follow-up. On the thing page (button or paste) and under Needs details cards.
 - `Facts`: the kind's declared fields (typed editors) plus extra per-thing fields, with provenance and
   Right / Wrong on AI guesses.
 - `BoardViewer`: both sides of a PCB at true scale (Top / Bottom / X-ray, measure; D-018).

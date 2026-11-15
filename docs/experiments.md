@@ -148,3 +148,12 @@ also scrolls the column strip sideways and cancels the smooth scroll to the newe
 are kept in view by setting the list's `scrollTop` directly. Headless agent-browser can lag a
 second behind the URL on React renders (tab throttling), so keyboard tests are run as an in-page
 script with small sleeps. Not yet tried on production's real depth.
+
+## 2026-11-15 · Product link on an existing thing (D-023)
+
+Tested in the browser against a fake shop page served from the scratchpad (OG tags + JSON-LD,
+127.0.0.1), on two throwaway things in the dev DB (archived afterwards). Thing page: 6 changes
+applied in one go, the shop picture became the cover, then gemma-4-31b (LM Studio) ran by itself and
+added description, model and 4 tags, and kept "Dmitry's table" as the name. Re-reading
+after setting the maker by hand shows "Ikea (yours)" unticked and the picture as "already kept". On
+phones the review rows stack (checkbox | label, value); empty cells and "—" are hidden there.

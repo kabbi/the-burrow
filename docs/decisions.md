@@ -334,3 +334,30 @@ pictogram three times in slightly different strokes. Now only MDI is bundled: it
 style. MDI aliases are searched but fold into their real icon, so each picture shows once.
 Lost: a few Lucide/Tabler-only shapes (notably `drill`). Icons already picked are unaffected: the
 SVG is stored in the asset.
+
+## D-023 · Product links on existing things; the household name vs the product name (2026-11-15)
+
+Things often start as just a name ("my table") and the shop page comes later. Until now only the Add
+screen read pages; on a thing's page the Link fact was a plain text field.
+
+- **Two names.** `name` stays what the household calls it ("Dmitry's table"). The new built-in
+  Thing field **`productName`** ("Product name") holds the shop's title ("BOLLPOJKE bureau,
+  pin/blanc, 90x55 cm"). Both are searched. The thing page shows the product name under the title,
+  linked to the page. The Add screen now always keeps the page title as `productName`, even when
+  you rename the thing. It's a built-in field (not data) because code fills it.
+- **Add product link** (thing page button, or **paste a URL anywhere on the page**; "Re-read link"
+  once there is one) and **🔗 paste a product link** under each card on Needs details open the same
+  panel (`LinkEnrich`): it reads the page with the free `/preview` (no AI), then lists what would
+  change, one row per field (current → page) with checkboxes. Defaults: empty fields and
+  unconfirmed guesses (AI, page, HomeBox) are ticked; values you set or confirmed are shown as
+  "yours" and unticked; identical values are hidden. The shop picture is ticked unless already kept
+  (same source URL); "make it the cover" is ticked only when the current cover isn't a photo or a
+  shop picture.
+- **One Undo.** `POST /things/:id/from-page` applies the chosen values in one `thing.changed`
+  (fields `source: page`, the link itself `you`; `Store.change` now takes per-field `sources`),
+  adds the product asset and sets the cover, and answers with every event's seq. The toast's
+  Undo reverts them newest first. If the picture fails to download, the fields are still saved.
+- **AI follow-up**, ticked by default: after applying, `AiSuggest` starts by itself with the page
+  summary (`autoStart`). Local models run right away (D-017); a paid model shows its price and
+  waits (D-007). It runs with `keep: ["name"]`, so the AI never renames a thing you named.
+- Pages that can't be read (shops that block bots) still let you save the bare link.
