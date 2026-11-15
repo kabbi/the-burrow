@@ -269,3 +269,35 @@ Plumbing: long polling (no public URL needed), plain `fetch` (no bot library). O
 lives in `tg_sessions` (survives restarts; buttons keep working). **One process per token**: the bot
 runs wherever `TG_BOT_TOKEN` is set unless `TG_BOT=0`; a second poller gets 409 and backs off.
 Links use `BURROW_PUBLIC_URL`.
+
+## D-020 · Public API for outside systems: tokens, actors, OpenAPI (2026-11-15)
+
+Outside systems (first: the PCB rig, replacing its HomeBox client) talk to `/api/v1`, a separate,
+versioned API. The web app keeps its own unversioned `/api`, which can change with the UI.
+
+- **Tokens** (`api/tokens.ts`, table `api_tokens`): `bur_…` secrets, only a SHA-256 hash stored,
+  shown once. Made and revoked on the API page (`/integrations`) or with
+  `pnpm --filter @burrow/server token …` (`pnpm prod:token …` in production). Scopes: `read`,
+  `write` (includes read), `schema` (kinds and link types). Last use is noted, at most once a minute.
+- **Attribution**: each token has an **actor** (`pcb-rig`); every event it causes is recorded under
+  that name, so history shows who did what and undo works as usual. Names Burrow writes under itself
+  (`you`, `ai`, `import`, `paperless`, …) are reserved. Writes answer with the `events` they
+  appended. Apps may undo only their own events.
+- **Provenance**: values an app writes get the new field source **`app`** (the event's actor says
+  which app) unless the request says `you` (a person typed it on the app's screen) or similar.
+  Upserts by ref default to **`keepYours`**: a field a person set in Burrow is not overwritten, and is
+  listed in `skipped`.
+- **Sync primitives**: `PUT /refs/{service}/{remoteId}` creates or updates the thing linked to the
+  caller's id (place by `parentPath`, optionally created; tags replace or add); asset upload is
+  multipart (`file`, `original`, `meta` JSON) and re-uploading the same `key` replaces the file in
+  place (same asset id, stays the cover); `GET /events?after=<seq>` is a change feed.
+- **Self-describing**: one `op({...})` definition per operation (zod for params, query, body and
+  answer) drives the route _and_ the OpenAPI 3.1 document at `/api/v1/openapi.json` (public, no
+  token). zod 4's own JSON Schema output; shared shapes are components. The API page renders the
+  reference from that document; the tests check every answer against its documented schema, so
+  docs can't drift.
+- Chosen over GraphQL: the core is already REST-ish with zod everywhere, outside systems are simple
+  scripts (curl / fetch), and OpenAPI gives client generators without a new runtime dependency.
+- **Not exposed**: paperless (only links; `paperless` refs are read-only for apps) and AI (paid calls
+  need a person to see the price). The token is not a security boundary for the web app's own `/api`,
+  which is still open to the tailnet (D-014); tokens give integrations scoped, attributable access.

@@ -41,6 +41,20 @@ local vision model's guess) and lets you add the photo to it, see where it is, o
 (D-019). Needs `TG_BOT_TOKEN` and `TG_ADMIN_CHAT_ID`; only one Burrow may run the bot (`TG_BOT=0` on
 the other).
 
+## API for other systems
+
+`/api/v1` is for outside systems (the PCB rig, scripts): Bearer tokens made on the API page
+(`/integrations`), each acting as a named actor that shows up in history (D-020). It describes itself
+at `/api/v1/openapi.json` (OpenAPI 3.1); the API page renders the reference.
+
+```sh
+curl -H "Authorization: Bearer $BURROW_TOKEN" -X PUT https://burrow.example.com/api/v1/refs/my-app/42 \
+  -H 'content-type: application/json' -d '{"name": "ESP32 board", "parentPath": "Workshop / Drawer 3"}'
+```
+
+Tokens from the shell: `pnpm --filter @burrow/server token list | create "<name>" <actor> write | revoke <id>`
+(production: `pnpm prod:token …`).
+
 ## Scripts
 
 | Command          | What it does              |

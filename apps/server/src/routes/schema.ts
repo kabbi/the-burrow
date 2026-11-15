@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import type { Store } from "@burrow/core";
 import type { Deps } from "../app.ts";
 
 // Schema as data (D-012): kinds with typed fields, relation types, tags.
@@ -14,7 +15,7 @@ const Field = z.object({
   wanted: z.boolean().optional(),
 });
 
-const KindBody = z.object({
+export const KindBody = z.object({
   id: z.string().regex(/^[a-z][a-z0-9_-]{0,40}$/, "ids are lowercase letters, digits, - and _"),
   name: z.string().min(1),
   parent: z.string().nullable().default(null),
@@ -23,7 +24,7 @@ const KindBody = z.object({
   fields: z.array(Field).default([]),
 });
 
-const RelationBody = z.object({
+export const RelationBody = z.object({
   id: z.string().regex(/^[a-z][a-z0-9_]{0,40}$/, "ids are lowercase letters, digits and _"),
   name: z.string().min(1),
   inverse: z.string().min(1),
@@ -73,24 +74,24 @@ export function schemaRoutes({ store }: Deps): Router {
   });
 
   /** All tags with usage counts and nesting, for pickers and the Tags page. */
-  r.get("/tags", (_req, res) => {
-    const rows = store.db
-      .prepare(
-        `select t.id, t.name, t.parent_id, t.data, (select count(*) from edges e where e.type = 'tagged' and e.to_id = t.id) uses
-         from things t where t.archived_at is null and t.kind = 'tag' order by t.name collate nocase`,
-      )
-      .all() as { id: string; name: string; parent_id: string | null; data: string; uses: number }[];
-    res.json({
-      tags: rows.map((t) => ({
-        id: t.id,
-        name: t.name,
-        parentId: t.parent_id,
-        path: store.path(t.id).map((p) => p.name),
-        aliases: (JSON.parse(t.data) as { aliases?: string[] }).aliases ?? [],
-        uses: Number(t.uses),
-      })),
-    });
-  });
+  r.get("/tags", (_req, res) => res.json({ tags: listTags(store) }));
 
   return r;
+}
+
+export function listTags(store: Store) {
+  const rows = store.db
+    .prepare(
+      `select t.id, t.name, t.parent_id, t.data, (select count(*) from edges e where e.type = 'tagged' and e.to_id = t.id) uses
+       from things t where t.archived_at is null and t.kind = 'tag' order by t.name collate nocase`,
+    )
+    .all() as { id: string; name: string; parent_id: string | null; data: string; uses: number }[];
+  return rows.map((t) => ({
+    id: t.id,
+    name: t.name,
+    parentId: t.parent_id,
+    path: store.path(t.id).map((p) => p.name),
+    aliases: (JSON.parse(t.data) as { aliases?: string[] }).aliases ?? [],
+    uses: Number(t.uses),
+  }));
 }

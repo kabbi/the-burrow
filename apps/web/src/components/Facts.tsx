@@ -15,6 +15,8 @@ const SOURCE_LABEL: Record<string, string> = {
   paperless: "paperless",
   file: "from the file",
   import: "import",
+  icons: "icon set",
+  app: "from an app (see history)",
 };
 
 function show(v: unknown, f?: KindField): string {

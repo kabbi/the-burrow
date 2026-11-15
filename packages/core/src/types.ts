@@ -13,7 +13,8 @@ export type FieldSource =
   | "homebox"
   | "paperless"
   | "import"
-  | "icons"; // picked from an open-source icon set
+  | "icons" // picked from an open-source icon set
+  | "app"; // an outside system through the API (D-020); the event's actor says which
 
 export interface FieldMeta {
   source: FieldSource;

@@ -56,6 +56,7 @@ export function Layout() {
           <NavLink to="/tags">Tags</NavLink>
           <NavLink to="/schema">Schema</NavLink>
           <NavLink to="/db">Database</NavLink>
+          <NavLink to="/integrations">API</NavLink>
         </nav>
         <Link to="/add" className="btn">
           <svg

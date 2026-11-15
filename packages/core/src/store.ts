@@ -242,6 +242,10 @@ export class Store {
     this.append({ type: "ref.linked", thingId, service, remoteId, data }, actor);
   }
 
+  unlink(thingId: ThingId, service: string, remoteId: string, actor = "you"): void {
+    this.append({ type: "ref.unlinked", thingId, service, remoteId }, actor);
+  }
+
   /** Link two things with a relation type. A "one" relation replaces the previous link. */
   relate(
     type: string,
@@ -283,15 +287,17 @@ export class Store {
   }
 
   /** Find a tag by name or alias (case-insensitive), or create it. */
-  ensureTag(name: string, actor = "you", parentId: ThingId | null = null): ThingId {
+  ensureTag(
+    name: string,
+    actor = "you",
+    parentId: ThingId | null = null,
+    source: FieldSource = actor === "you" ? "you" : "ai",
+  ): ThingId {
     const clean = name.trim().replace(/\s+/g, " ");
     if (!clean) throw new BurrowError("A tag needs a name");
     const found = this.findTag(clean);
     if (found) return found;
-    return this.createThing(
-      { name: clean, kind: "tag", parentId, source: actor === "you" ? "you" : "ai" },
-      actor,
-    ).id;
+    return this.createThing({ name: clean, kind: "tag", parentId, source }, actor).id;
   }
 
   findTag(name: string): ThingId | null {
@@ -313,7 +319,7 @@ export class Store {
   setTags(id: ThingId, names: string[], source: FieldSource = "you", actor = "you"): ThingView {
     return tx(this.db, () => {
       const t = this.mustGetRaw(id);
-      const want = new Set(names.filter((n) => n.trim()).map((n) => this.ensureTag(n, actor)));
+      const want = new Set(names.filter((n) => n.trim()).map((n) => this.ensureTag(n, actor, null, source)));
       const have = this.edges({ type: "tagged", fromId: t.id });
       for (const e of have) if (!want.has(e.toId)) this.unrelate("tagged", t.id, e.toId, actor);
       for (const tagId of want)
@@ -809,10 +815,26 @@ export class Store {
   }
 
   events(
-    opts: { thingId?: ThingId; types?: string[]; limit?: number; includeUndos?: boolean } = {},
+    opts: {
+      thingId?: ThingId;
+      types?: string[];
+      limit?: number;
+      includeUndos?: boolean;
+      /** Only events after this seq, oldest first (a sync cursor). */
+      after?: number;
+      actor?: string;
+    } = {},
   ): BurrowEvent[] {
     const where: string[] = [];
     const args: (string | number)[] = [];
+    if (opts.after !== undefined) {
+      where.push("seq > ?");
+      args.push(opts.after);
+    }
+    if (opts.actor) {
+      where.push("actor = ?");
+      args.push(opts.actor);
+    }
     if (opts.thingId) {
       where.push("thing_id = ?");
       args.push(opts.thingId);
@@ -825,7 +847,8 @@ export class Store {
     args.push(opts.limit ?? 50);
     const rows = this.db
       .prepare(
-        `select * from events ${where.length ? "where " + where.join(" and ") : ""} order by seq desc limit ?`,
+        `select * from events ${where.length ? "where " + where.join(" and ") : ""}
+         order by seq ${opts.after !== undefined ? "asc" : "desc"} limit ?`,
       )
       .all(...args) as Row[];
     const undone = this.undoneSet();

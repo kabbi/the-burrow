@@ -17,6 +17,7 @@ import { Db } from "./pages/Db.tsx";
 import { Schema } from "./pages/Schema.tsx";
 import { TagsPage } from "./pages/TagsPage.tsx";
 import { Places } from "./pages/Places.tsx";
+import { Api } from "./pages/Api.tsx";
 import { ToastProvider } from "./lib/toast.tsx";
 
 const queryClient = new QueryClient({
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
       { path: "/db", element: <Db /> },
       { path: "/schema", element: <Schema /> },
       { path: "/tags", element: <TagsPage /> },
+      { path: "/integrations", element: <Api /> },
     ],
   },
 ]);

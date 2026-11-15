@@ -76,6 +76,10 @@ fields HomeBox still owns.
   media file in `image_vectors` (D-019).
 - `telegram/`: `api.ts` (minimal Bot API client, long polling), `bot.ts` (the photo bot: sessions in
   `tg_sessions`, menus, matching by looks + the `photo-thing` AI task) (D-019).
+- `api/` (D-020): the public `/api/v1` for outside systems. `define.ts` (one `op()` per operation →
+  route with token auth, scope check and actor attribution, plus the OpenAPI 3.1 document),
+  `v1.ts` (the operations), `schemas.ts` (documented answer shapes), `tokens.ts` (`api_tokens`,
+  hashed secrets). `routes/tokens.ts` manages tokens for the web app's API page.
 - `routes/*`: thin HTTP layer; zod validates input; errors map to status codes in `app.ts`.
 
 ## Web (`apps/web`)
@@ -94,6 +98,7 @@ CSS with tokens in `styles.css`. Self-hosted fonts (Inter, Space Grotesk).
   `ModelViewer`: three.js, lazy-loaded; also renders posters for models.
 - `TagEditor` (chips, autocomplete, create, confirm AI tags), `Relations` (typed links both ways),
   `ThingSearch` (shared finder).
+- API page (`/integrations`): tokens, and the reference rendered from `/api/v1/openapi.json`.
 - Pages: Places (tree with counts, drag to move; D-016), Schema (kinds, fields, link types),
   Tags (tree), Database (D-009). `PathView` shows spots and folds long paths on cards.
 - Toasts carry Undo for 10 s; every change is also undoable from history.

@@ -1252,3 +1252,72 @@ img.contain {
 .board-measure circle {
   fill: var(--main);
 }
+
+/* ---------------------------------------------------------------- API page (D-020) */
+.api-secret {
+  padding: 12px;
+  border-radius: var(--radius-s);
+  background: var(--tint);
+}
+.api-code {
+  display: block;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: var(--sunk);
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.api-new {
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.api-op {
+  border-top: 1px solid var(--line);
+  padding: 8px 0;
+}
+.api-op > summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.api-method {
+  display: inline-block;
+  min-width: 56px;
+  font: 700 11px/1.8 var(--font);
+  letter-spacing: 0.04em;
+  text-align: center;
+  border-radius: var(--radius-s);
+  background: var(--sunk);
+  color: var(--ink);
+}
+.api-get {
+  background: var(--tint);
+}
+.api-post,
+.api-put,
+.api-patch {
+  background: var(--ai-tint);
+  color: var(--ai-ink);
+}
+.api-delete {
+  background: var(--bad-tint);
+  color: var(--bad);
+}
+.api-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.api-table td {
+  padding: 4px 8px 4px 0;
+  vertical-align: top;
+  border-top: 1px solid var(--line);
+}
+.api-table td:first-child {
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .api-table td:first-child {
+    white-space: normal;
+  }
+}

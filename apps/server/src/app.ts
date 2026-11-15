@@ -20,6 +20,10 @@ import { Media } from "./media.ts";
 import { Sf3d } from "./adapters/sf3d.ts";
 import { telegramMigrations } from "./telegram/bot.ts";
 import { ImageIndex, visionMigrations, type VisualMatcher } from "./vision.ts";
+import { Tokens, tokenMigrations } from "./api/tokens.ts";
+import { bindOps, openApi } from "./api/define.ts";
+import { v1Ops } from "./api/v1.ts";
+import { tokenRoutes } from "./routes/tokens.ts";
 
 export interface Deps {
   config: Config;
@@ -33,11 +37,13 @@ export interface Deps {
   media: Media;
   sf3d: Sf3d;
   vision: VisualMatcher;
+  tokens: Tokens;
 }
 
 export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps {
   const store =
-    overrides.store ?? Store.open(config.db, [...aiMigrations, ...telegramMigrations, ...visionMigrations]);
+    overrides.store ??
+    Store.open(config.db, [...aiMigrations, ...telegramMigrations, ...visionMigrations, ...tokenMigrations]);
   const ollama = new OllamaProvider(config.ai.ollamaUrl);
   const lmstudio = new LmStudioProvider(config.ai.lmstudioUrl);
   const anthropic = new AnthropicProvider(config.ai.anthropicKey);
@@ -66,6 +72,7 @@ export function createDeps(config: Config, overrides: Partial<Deps> = {}): Deps 
     media,
     sf3d: new Sf3d(config.sf3dUrl),
     vision: new ImageIndex(store, config.mediaDir, config.modelsDir),
+    tokens: new Tokens(store.db),
     ...overrides,
   };
 }
@@ -74,6 +81,13 @@ export function createApp(deps: Deps) {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "2mb" }));
+
+  // The public, token-authenticated API for outside systems (D-020), described by its own OpenAPI document.
+  const ops = v1Ops(deps);
+  const spec = openApi(ops, { version: process.env.BURROW_VERSION ?? "dev", server: "/api/v1" });
+  app.get("/api/v1/openapi.json", (_req, res) => res.json(spec));
+  app.use("/api/v1", bindOps(ops, deps));
+  app.use("/api/v1", (_req, res) => res.status(404).json({ error: "Not found (see /api/v1/openapi.json)" }));
 
   const api = express.Router();
   api.get("/health", (_req, res) => res.json({ ok: true, version: process.env.BURROW_VERSION ?? "dev" }));
@@ -99,6 +113,7 @@ export function createApp(deps: Deps) {
   api.use(assetRoutes(deps));
   api.use(paperRoutes(deps));
   api.use(aiRoutes(deps));
+  api.use(tokenRoutes(deps));
   if (deps.config.dbAdmin) api.use(dbRoutes(deps));
   api.use((_req, res) => res.status(404).json({ error: "Not found" }));
   app.use("/api", api);

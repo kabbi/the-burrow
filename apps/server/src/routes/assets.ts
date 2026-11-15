@@ -170,7 +170,7 @@ export function assetRoutes({ store, media, sf3d }: Deps): Router {
   return r;
 }
 
-async function download(url: string): Promise<Buffer> {
+export async function download(url: string): Promise<Buffer> {
   let res: Response;
   try {
     res = await fetch(url, {

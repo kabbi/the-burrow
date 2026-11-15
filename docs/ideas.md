@@ -73,8 +73,8 @@ Loosely ordered. ✓ = done in some form.
 
 ## PCB rig (D-018)
 
-- Part 2: Burrow API for pcb-photo-maker (replace its HomeBox catalog): things + fields + tags under
-  `PCB`, place paths, asset upsert by key (`PUT …/assets/key/pcbphoto:<id>`), actor header.
+- Part 2: switch pcb-photo-maker from HomeBox to `/api/v1` (D-020 has what it needs: `PUT
+  /refs/pcbphoto/<item>`, `parentPath`, asset upload by key `pcbphoto:<capture>` with the original).
 - Exact 3D board model: outline mask → 1.6 mm slab with the top/bottom photos as textures (`.glb`).
 - Search filter "has both sides"; grid hover shows the bottom.
 - Auto-align the bottom's rotation (mask IoU over 0/90/180/270) so X-ray needs no 180° toggle.
@@ -112,5 +112,13 @@ Loosely ordered. ✓ = done in some form.
 - PWA + offline read-only cache for the phone.
 - Websocket/SSE live updates when readers start producing events.
 - Dark mode (tokens are ready for it).
-- Auth (at least for /db and writes) before Burrow is reachable outside the LAN.
+- Auth (at least for /db and writes) before Burrow is reachable outside the LAN. Tokens exist for
+  `/api/v1` (D-020); the web app's own `/api` is still open to the tailnet.
+
+## API (D-020)
+
+- Webhooks (push the event feed to a URL) instead of polling `GET /events?after=`.
+- "Looks like" search over the API (`POST /match` with a photo → candidates), for other camera apps.
+- Token expiry dates and per-token place restrictions (e.g. "only inside Workshop").
+- Generate a typed TS client from the spec for pcb-photo-maker (openapi-typescript).
 - Telegram bot: "where's my…" and "add from photo" from the phone.
