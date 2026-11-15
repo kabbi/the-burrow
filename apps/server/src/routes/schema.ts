@@ -76,6 +76,13 @@ export function schemaRoutes({ store }: Deps): Router {
   /** All tags with usage counts and nesting, for pickers and the Tags page. */
   r.get("/tags", (_req, res) => res.json({ tags: listTags(store) }));
 
+  /** Merge tags into one (the Tags page's batch action). Undo: the returned events, newest first. */
+  r.post("/tags/merge", (req, res) => {
+    const b = z.object({ from: z.array(z.string()).min(1).max(500), into: z.string() }).parse(req.body);
+    const events = store.mergeTags(b.from, b.into);
+    res.json({ tag: store.mustGet(b.into), events });
+  });
+
   return r;
 }
 

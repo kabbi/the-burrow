@@ -267,6 +267,43 @@ describe("schema as data", () => {
     expect(s.edges({ type: "related" })).toHaveLength(0);
   });
 
+  it("merges tags: things, nested tags and names move to one tag; undo restores all", () => {
+    const s = store();
+    const a = s.createThing({ name: "Glue gun", kind: "tool" });
+    const b = s.createThing({ name: "Mug", kind: "thing" });
+    s.setTags(a.id, ["crafts", "workshop"], "ai");
+    s.setTags(b.id, ["craft"]);
+    const crafts = s.findTag("crafts")!;
+    const craft = s.findTag("craft")!;
+    const workshop = s.findTag("workshop")!;
+    const paint = s.ensureTag("paint", "you", craft);
+    s.change(craft, { data: { aliases: ["DIY"] } });
+    const snap = snapshot(s);
+
+    const events = s.mergeTags([craft, workshop, crafts], crafts);
+    expect(s.mustGet(a.id).tags.map((t) => [t.name, t.source])).toEqual([["crafts", "ai"]]);
+    expect(s.mustGet(b.id).tags.map((t) => [t.name, t.source])).toEqual([["crafts", "you"]]);
+    expect(s.getRaw(paint)?.parentId).toBe(crafts);
+    expect(s.getRaw(craft)?.archivedAt).toBeTruthy();
+    expect(s.findTag("diy")).toBe(crafts);
+    expect(s.findTag("workshop")).toBe(crafts);
+
+    for (const e of events.toReversed()) s.toggleUndo(e.seq);
+    expect(snapshot(s).edges).toEqual(snap.edges);
+    expect(s.getRaw(craft)?.archivedAt).toBeNull();
+    expect(s.getRaw(paint)?.parentId).toBe(craft);
+  });
+
+  it("merging a tag into its own nested tag lifts that one out first", () => {
+    const s = store();
+    const tools = s.ensureTag("tools");
+    const hand = s.ensureTag("hand tools", "you", tools);
+    s.mergeTags([tools], hand);
+    expect(s.getRaw(hand)?.parentId).toBeNull();
+    expect(s.getRaw(tools)?.archivedAt).toBeTruthy();
+    expect(() => s.mergeTags([hand], s.createThing({ name: "Box", kind: "thing" }).id)).toThrow(/not a tag/);
+  });
+
   it("tags are things: nesting, aliases, search through parents, undo", () => {
     const s = store();
     const esp = s.createThing({ name: "ESP32 DevKit", kind: "electronics" });

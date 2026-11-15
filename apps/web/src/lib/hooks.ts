@@ -115,13 +115,14 @@ export function useBulk() {
   const refresh = useRefresh();
   const toast = useToast();
   const undo = useUndo();
-  return async (fns: (() => Promise<{ event?: BurrowEvent }>)[], text: string) => {
+  return async (fns: (() => Promise<{ event?: BurrowEvent; events?: BurrowEvent[] }>)[], text: string) => {
     const seqs: number[] = [];
     let failed = 0;
     for (const fn of fns) {
       try {
         const r = await fn();
         if (r.event?.seq) seqs.push(r.event.seq);
+        for (const e of r.events ?? []) seqs.push(e.seq);
       } catch {
         failed++;
       }

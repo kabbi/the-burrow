@@ -526,3 +526,20 @@ also saves output tokens and the list of existing tags in the prompt. `applySugg
 Tags a person sets are unchanged. AI tags already in the DB stay violet on the thing page (✓ to keep,
 × to remove), and Telegram's rename still drops them. To bring tags back, restore the
 field and add a rule like "only reuse an existing tag that clearly applies".
+
+## D-031 · Batch actions on the Tags page (2026-11-15)
+
+Cleaning up tags one page at a time was slow, especially after the AI tags (D-030). The Tags page
+now has a checkbox on each tag, "Select the N shown" (after filtering) and "Select the N unused",
+and a bar for the selection:
+
+- **Merge into** one of the selected tags (`POST /tags/merge`, `Store.mergeTags`, one transaction):
+  things tagged with the others get the target instead (keeping the edge's source, so an AI tag
+  stays an unchecked guess), nested tags move under it, the old names and their aliases become its
+  aliases (so typing "crafts" still finds "craft"), and the old tags are archived. Merging a parent
+  into its own nested tag lifts that tag out first, so nesting can't loop.
+- **Nest under** a tag, or move to the top level (existing `move`, one call per tag).
+- **Archive**: archived tags drop off every thing.
+
+Each action is one toast with one Undo. The merge endpoint returns every event it appended, and
+`useBulk` undoes them newest first.

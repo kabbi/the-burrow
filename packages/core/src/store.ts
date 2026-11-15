@@ -338,6 +338,54 @@ export class Store {
   }
 
   /**
+   * Merge tags into one: things tagged with any of `fromIds` get `intoId` instead, the old names
+   * (and their aliases) become its aliases so typing them still finds it, nested tags move under
+   * it, and the old tags are archived. Returns the events appended (undo them newest first).
+   */
+  mergeTags(fromIds: ThingId[], intoId: ThingId, actor = "you"): BurrowEvent[] {
+    return tx(this.db, () => {
+      const before = this.lastSeq();
+      const into = this.mustGetRaw(intoId);
+      const isTag = (t: Thing) => this.kindIs(t.kind, "tag") && !t.archivedAt;
+      if (!isTag(into)) throw new BurrowError(`${intoId} is not a tag`);
+      const from = [...new Set(fromIds)].filter((id) => id !== into.id).map((id) => this.mustGetRaw(id));
+      for (const t of from) if (!isTag(t)) throw new BurrowError(`${t.id} is not a tag`);
+      const aliases = [...((into.data.aliases as string[] | undefined) ?? [])];
+      for (const t of from) {
+        // Merging a parent into its own child: lift the child out first, or nesting would loop.
+        if (this.path(into.id).some((p) => p.id === t.id)) this.move(into.id, t.parentId, actor);
+        for (const e of this.edges({ type: "tagged", toId: t.id })) {
+          if (!this.edges({ type: "tagged", fromId: e.fromId, toId: into.id }).length)
+            this.relate("tagged", e.fromId, into.id, e.data, actor);
+          this.unrelate("tagged", e.fromId, t.id, actor);
+        }
+        const kids = this.db
+          .prepare("select id from things where parent_id = ? and archived_at is null")
+          .all(t.id) as { id: string }[];
+        for (const k of kids) if (k.id !== into.id) this.move(k.id, into.id, actor);
+        aliases.push(t.name, ...((t.data.aliases as string[] | undefined) ?? []));
+        this.archive(t.id, actor);
+      }
+      const seen = new Set([into.name.toLowerCase()]);
+      const clean = aliases.filter((a) => {
+        const k = a.trim().toLowerCase();
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      const had = (into.data.aliases as string[] | undefined) ?? [];
+      if (JSON.stringify(clean) !== JSON.stringify(had))
+        this.change(into.id, { data: { aliases: clean } }, "you", actor);
+      return this.events({ after: before, limit: 100_000, includeUndos: true });
+    });
+  }
+
+  private lastSeq(): number {
+    const r = this.db.prepare("select max(seq) seq from events").get() as { seq: number | null };
+    return Number(r.seq ?? 0);
+  }
+
+  /**
    * Toggle an event: undo it, or, if it is already undone, undo the undo
    * (i.e. redo). Always appends; history is never rewritten.
    */
