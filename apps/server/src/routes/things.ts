@@ -1,8 +1,8 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import { z } from "zod";
 import { UNDOABLE, type FieldSource, type Store } from "@burrow/core";
 import type { Deps } from "../app.ts";
-import { fetchPreview } from "../link-preview.ts";
+import { BlockedError, fetchPreview, parsePreview, rememberCapture } from "../link-preview.ts";
 import { ThingSuggestion } from "../ai/tasks.ts";
 import { withRef } from "./assets.ts";
 
@@ -212,8 +212,19 @@ export function thingRoutes({ store, ai }: Deps): Router {
     try {
       res.json({ preview: await fetchPreview(url) });
     } catch (e) {
-      res.json({ preview: null, error: (e as Error).message });
+      res.json({ preview: null, error: (e as Error).message, blocked: e instanceof BlockedError });
     }
+  });
+
+  // The "Send to Burrow" bookmarklet (D-024) form-POSTs the page's head (meta tags, JSON-LD) as read
+  // in your browser, for shops whose anti-bot blocks /preview. Remembered for /preview, then on to Add.
+  r.post("/capture", express.urlencoded({ extended: false, limit: "3mb" }), (req, res) => {
+    const { url, html } = z
+      .object({ url: z.url({ protocol: /^https?$/ }), html: z.string().max(3_000_000) })
+      .parse(req.body);
+    const preview = parsePreview(html, url);
+    rememberCapture(preview);
+    res.redirect(303, `/add?name=${encodeURIComponent(preview.url)}`);
   });
 
   return r;

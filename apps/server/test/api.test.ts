@@ -9,7 +9,7 @@ import { AiGateway, aiMigrations } from "../src/ai/gateway.ts";
 import type { Prompt, Provider } from "../src/ai/providers.ts";
 import { suggestThingTask } from "../src/ai/tasks.ts";
 import { PaperlessMock } from "../src/adapters/paperless-mock.ts";
-import { parsePreview } from "../src/link-preview.ts";
+import { antiBot, parsePreview } from "../src/link-preview.ts";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -243,6 +243,33 @@ describe("link preview", () => {
       brand: "IKEA",
       price: "299.00 EUR",
       siteName: "ikea.com",
+    });
+  });
+
+  it("spots anti-bot walls", () => {
+    expect(antiBot(new Headers({ "x-datadome": "protected" }))).toBe("DataDome");
+    expect(antiBot(new Headers({ "cf-mitigated": "challenge" }))).toBe("Cloudflare");
+    expect(antiBot(new Headers({ server: "nginx" }))).toBeNull();
+  });
+
+  it("takes a page from the bookmarklet and answers /preview with it", async () => {
+    const url = "https://shop.test/p/buffet-atrax";
+    const html = `<title>x</title><meta property="og:title" content="Buffet ATRAX">
+      <script type="application/ld+json">{"@type":"Product","brand":"Maisons du Monde","offers":{"price":399,"priceCurrency":"EUR"}}</script>`;
+    const res = await fetch(`${base}/capture`, {
+      method: "POST",
+      redirect: "manual",
+      body: new URLSearchParams({ url: `${url}#reviews`, html }),
+    });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`/add?name=${encodeURIComponent(`${url}#reviews`)}`);
+    const r = await call<{ preview: { title: string; price: string; brand: string } }>("POST", "/preview", {
+      url,
+    });
+    expect(r.body.preview).toMatchObject({
+      title: "Buffet ATRAX",
+      price: "399 EUR",
+      brand: "Maisons du Monde",
     });
   });
 });

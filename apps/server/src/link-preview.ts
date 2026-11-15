@@ -13,6 +13,46 @@ export interface PagePreview {
 
 const MAX_BYTES = 2_000_000;
 
+/** A shop's anti-bot answered instead of the page. The bookmarklet (D-024) reads it in your browser. */
+export class BlockedError extends Error {
+  constructor(by: string) {
+    super(`Blocked by the shop's anti-bot (${by})`);
+  }
+}
+
+/** Which anti-bot service answered, from the response headers, if any. */
+export function antiBot(h: Headers): string | null {
+  if (h.has("x-datadome") || h.has("x-datadome-cid")) return "DataDome";
+  if (h.get("cf-mitigated") === "challenge") return "Cloudflare";
+  if (h.has("x-px-blocked") || /_px\d?=/.test(h.get("set-cookie") ?? "")) return "PerimeterX";
+  if (/akamai/i.test(h.get("server") ?? "") && h.has("x-reference-error")) return "Akamai";
+  return null;
+}
+
+// Pages sent by the bookmarklet (POST /api/capture), so /preview answers for blocked shops too.
+// In memory: a capture is used within minutes, by the Add screen or "Add product link".
+const CAPTURE_TTL = 24 * 3600_000;
+const MAX_CAPTURES = 200;
+const captures = new Map<string, { preview: PagePreview; at: number }>();
+
+const captureKey = (u: string) => {
+  const x = new URL(u.trim());
+  x.hash = "";
+  return x.href;
+};
+
+export function rememberCapture(preview: PagePreview, now = Date.now()) {
+  const key = captureKey(preview.url);
+  captures.delete(key);
+  captures.set(key, { preview, at: now });
+  while (captures.size > MAX_CAPTURES) captures.delete(captures.keys().next().value!);
+}
+
+export function capturedPreview(url: string, now = Date.now()): PagePreview | null {
+  const c = captures.get(captureKey(url));
+  return c && now - c.at < CAPTURE_TTL ? c.preview : null;
+}
+
 export function looksLikeUrl(s: string): boolean {
   return /^https?:\/\/\S+$/i.test(s.trim());
 }
@@ -20,6 +60,8 @@ export function looksLikeUrl(s: string): boolean {
 export async function fetchPreview(rawUrl: string): Promise<PagePreview> {
   const url = new URL(rawUrl.trim());
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Only http(s) links");
+  const captured = capturedPreview(url.href);
+  if (captured) return captured;
   const res = await fetch(url, {
     redirect: "follow",
     signal: AbortSignal.timeout(10_000),
@@ -30,7 +72,10 @@ export async function fetchPreview(rawUrl: string): Promise<PagePreview> {
       "accept-language": "en,fr;q=0.8,pl;q=0.6",
     },
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const by = antiBot(res.headers);
+    throw by ? new BlockedError(by) : new Error(`HTTP ${res.status}`);
+  }
   const html = await readCapped(res, MAX_BYTES);
   return parsePreview(html, res.url || url.href);
 }
