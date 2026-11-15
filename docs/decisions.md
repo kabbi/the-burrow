@@ -617,3 +617,34 @@ answers with the help text. The page checks every 3 s and shows "Connected".
   Telegram id: `PATCH /api/account` can only unlink (`telegramId: null`). 5 wrong codes from one
   Telegram user pause it for 10 minutes. Disabling an account locks its Telegram out too.
 - Strangers get one "private bot: connect it from your account page" reply per chat.
+
+## D-034 · Things you may have twice: a Tidy up job, dismissed with "not the same as" (2026-11-15)
+
+The Telegram bot already asks "Already in Burrow?" for a new photo (D-019, D-029), but nothing
+looked at what's already in. Now Tidy up has a job **"N pairs that may be the same thing"**, also
+shown under "When you have a minute" on Find. Each pair shows both things (picture, name, place),
+why they're offered ("Same name · 91% alike", "Look the same · 97%", "Similar names · 93% alike")
+and one button, **Not the same**.
+
+- **Finding pairs** (`apps/server/src/duplicates.ts`), physical things only (tags merge on their
+  page, papers and people aren't owned twice). A pair is offered when:
+  the names are the same (case, spaces and punctuation ignored), unless both have pictures that
+  look nothing alike (< 0.80); or the pictures score ≥ 0.95 on their own; or they score ≥ 0.88 and
+  ≥ 35% of the name words match; or one has no picture and ≥ 60% of the name words match.
+  Filler words (module, board, clone, kit…) don't count. If both names carry a model number
+  (hx711, 6050, rp2040; sizes like 5v or 24ghz don't count) and none match, the pair is skipped
+  unless the pictures look the same: ESP32S3 / RP2040 and A4988 / DRV8825 are family, not twins.
+  Places pair only with places in the same parent ("Drawer 1" in two cabinets is fine).
+- **Looks** come from `ImageIndex.pairs()`: all pairs of already-indexed picture vectors (best
+  picture pair per thing pair), no new embedding, cached until the log or the index changes. 194
+  pictures take ~30 ms. Rotations aren't tried (the bot's photo search does), and pictures are
+  indexed by the bot (at start, and per photo), so a web-added photo counts once it's indexed.
+- **Dismissing** is a built-in symmetric link type `not_same` ("not the same as"), so it's an
+  event like any other: undoable from the toast, kept by a rebuild, attributed. It is hidden on
+  the thing page's links and in its "add a link" picker. **Any** non-tag link between two things
+  (accessory of, replaces, related…) also means you know they're two things, so they aren't offered.
+- On the dev DB: 10 pairs, of which ~5 are real (ProMicro nRF52840 twice, two INA226, two HX711,
+  two boost converters) and the rest close relatives (Lichee RV and its dock, mmWave sensors).
+  Good enough for "potential"; the thresholds are constants at the top of the file.
+- Not done: **merge** (move pictures, links and papers onto the kept thing, old ID redirects), and
+  a regular `vision.refresh()` outside the bot. Both in ideas.md.

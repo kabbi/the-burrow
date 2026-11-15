@@ -203,3 +203,13 @@ Follow-up: on the real dev setup (:5180) setup failed with "Cross-origin request
 string proxy shorthand sets `changeOrigin`, so `Host` arrived as `localhost:4100` while `Origin`
 was `fedora:5180`. Fixed with `changeOrigin: false` in `vite.config.ts`. The browser test used the
 built app on one port, so it never went through the proxy.
+
+## 2026-11-15 · Duplicate pairs from picture vectors and names (D-034)
+
+Measured on a copy of the dev DB (100 things with 194 indexed pictures): DINOv2 all-pairs scores
+are squeezed: 138 thing pairs ≥ 0.90, 8 ≥ 0.93, 1 ≥ 0.95 (the two INA226 boards, 0.971). Looks
+alone at 0.90 would flag every breakout board, so looks need a similar name below 0.95. The first
+cut (≥ 0.88 and 30% shared words) gave 16 pairs with XIAO ESP32S3 / RP2040 and A4988 / DRV8825
+among them; the "different model numbers" rule and 35% brought it to 10. Tried in the browser on a
+copy (API :4101 with mock paperless, Vite :5181 proxying to it): Find shows the job; Tidy lists the
+pairs; Not the same drops the pair and the toast Undo brings it back; layout checked at 390 px.
