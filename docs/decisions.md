@@ -168,7 +168,8 @@ screens), `model` (3D: `.glb` or `.stl`) and `other`. One of them is the **cover
   gets one rendered off-screen the next time its thing is opened.
 - Uploads are the raw request body (`POST /things/:id/assets?role=…&filename=…`), not multipart.
   Shop pictures are downloaded (`/assets/from-url`) rather than hot-linked, so they never break.
-- **Icons**: Tabler (MIT) and Lucide (ISC) bundled as Iconify JSON and searched by name on the server.
+- **Icons**: Tabler (MIT), Lucide (ISC) and Material Design Icons (Apache-2.0, added 2026-11-15 for
+  electronics: LEDs, resistors, chips) bundled as Iconify JSON and searched by name on the server.
   Item names never leave the box. The SVG is stored as a normal asset, with the license in `data`.
 - **3D generation**: Stable Fast 3D (`~/dev/tools/stable-fast-3d/server.py`, fedora:8765, CUDA) via
   `SF3D_URL`. Local and free, about 5 s per model. One request at a time from Burrow. The result is a

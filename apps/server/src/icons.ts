@@ -1,8 +1,9 @@
 import { createRequire } from "node:module";
 import { BurrowError } from "@burrow/core";
 
-// Open-source icon sets bundled with the server (no network): Tabler (MIT) and
-// Lucide (ISC), in Iconify JSON format. Search is by icon name; good enough for
+// Open-source icon sets bundled with the server (no network): Tabler (MIT),
+// Lucide (ISC) and Material Design Icons (Apache-2.0; filled, lots of
+// electronics: led-on, resistor, chip, soldering-iron…), in Iconify JSON format. Search is by icon name; good enough for
 // "drill", "plug", "box"… and it never sends item names anywhere.
 
 interface IconSetJson {
@@ -19,8 +20,10 @@ interface SetInfo {
 }
 
 const require = createRequire(import.meta.url);
-const SETS = ["tabler", "lucide"] as const;
+const SETS = ["tabler", "lucide", "mdi"] as const;
 export type IconSetId = (typeof SETS)[number];
+
+const SET_TIEBREAK: Record<IconSetId, number> = { tabler: 0, lucide: 0.01, mdi: 0.02 };
 
 let loaded: Map<string, { json: IconSetJson; info: SetInfo }> | null = null;
 function sets() {
@@ -59,9 +62,10 @@ export function searchIcons(q: string, limit = 60): IconHit[] {
           score += 1;
       }
       if (!score) continue;
-      // Prefer plain over "-filled", "-off", "-2" variants, and Tabler slightly (bigger set).
+      // Prefer plain over "-filled", "-off", "-2" variants; on ties Tabler, then Lucide, then MDI
+      // (line icons first, they match each other).
       if (/-(off|filled|x|minus|plus|check|exclamation|question|\d+)$/.test(name)) score -= 0.5;
-      score -= parts.length * 0.05 + (set === "lucide" ? 0.01 : 0);
+      score -= parts.length * 0.05 + SET_TIEBREAK[set as IconSetId];
       scored.push({ hit: { set: set as IconSetId, name }, score });
     }
   }

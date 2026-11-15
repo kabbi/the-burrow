@@ -17,6 +17,7 @@
     "@anthropic-ai/sdk": "^0.107.0",
     "@burrow/core": "workspace:*",
     "@iconify-json/lucide": "1.2.149",
+    "@iconify-json/mdi": "1.2.3",
     "@iconify-json/tabler": "1.2.43",
     "express": "^5.3.0",
     "onnxruntime-web": "1.30.0",
