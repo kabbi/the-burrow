@@ -213,3 +213,14 @@ cut (≥ 0.88 and 30% shared words) gave 16 pairs with XIAO ESP32S3 / RP2040 and
 among them; the "different model numbers" rule and 35% brought it to 10. Tried in the browser on a
 copy (API :4101 with mock paperless, Vite :5181 proxying to it): Find shows the job; Tidy lists the
 pairs; Not the same drops the pair and the toast Undo brings it back; layout checked at 390 px.
+
+## 2026-11-16 · Split and put together, in the browser (D-036)
+
+On an empty scratch DB (API :4190, auth off, mock paperless; Vite :5190 with a throwaway config
+proxying to it). Chair ×3 in Storage: Move, "How many" 1, Bedroom → 2 stay, B-0004 in the Bedroom,
+Same stock panel on both. Moving B-0004 back to Storage asked Put together (×3) / Keep apart; Put
+together archived it and the page redirected to B-0003; the toast's Undo (several events) restored
+both. Moving 1 of 2 into the Bedroom where one already was gave Bedroom ×2 and no new thing.
+Gotcha: the dev server's `--watch` restarts on server edits and owns :4100, so a test server on
+the same port silently fails to bind; use other ports. Also don't `pkill -f` a pattern that
+matches your own shell's command line.

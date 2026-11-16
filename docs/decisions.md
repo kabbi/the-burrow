@@ -663,3 +663,40 @@ commit.
 - Keep it that way: no private domains, tailnet names, bot usernames, tokens or chat ids in
   committed files. LAN machine names (`fedora`, `worky`) and local paths are fine.
 - `.claude/` (local agent settings) is ignored.
+
+## D-036 · Stock: split some off, put it back together (2026-11-16)
+
+Three chairs in storage are one thing with `quantity: 3`. Taking one to the bedroom used to mean
+moving all three or editing numbers by hand. Now some of a stock can move on its own, and come back.
+
+- **Split makes a real second thing** (`Store.split(id, count, {to, position, roams})`): the
+  original keeps the rest, the new thing gets `count` and a copy of the name, kind, fields (with
+  their provenance and confirmations), tags, outgoing links (papers, owners, "part of"…, and
+  symmetric links), and pictures (new asset rows over the same content-addressed files, the chosen
+  cover too; no asset keys, no external refs). Links _pointing at_ the original (its accessories)
+  stay with it. Without `to` it stays in the same place and spot. Built-in link `split_from`
+  (new → original).
+- **Put together** (`Store.combine(fromIds, intoId, {count})`): counts are added up, the others are
+  archived with a `merged_into` link (cardinality one). The kept one keeps its name and values and
+  fills only empty fields; it gains the others' links and pictures it lacks, links pointing at
+  them, and whatever was inside them. Only the same kind. With `count` (one `from`), that many move
+  over and both stay ("take one more chair to the bedroom" where one already is).
+- **A count of 1 is no count**: `quantity` is cleared when one is left, like the HomeBox import.
+- **Family**: `stockFamily(id)` = live things connected by `split_from` / `merged_into`, also
+  through archived ones. The duplicates job (D-034) skips pairs in one family (two chairs split off
+  the same three aren't linked to each other).
+- **Duplicates are not stock.** Two entries of the same physical thing must not add up; combining
+  is offered only within a family (the API accepts any same-kind things). See ideas.md.
+- Both are composite operations: one transaction, and the answer carries all `events`; the web
+  toast's Undo reverts them newest first (`useAction` handles `events`). No new event types.
+- **API**: `POST /things/:id/split`, `POST /things/:id/combine`, `GET /things/:id/stock`; the thing
+  answer has `stock` and `mergedInto`. Public: `splitThing` (place by id or path) and
+  `combineThings`.
+- **Web**: Move asks "How many … of N" when there's a quantity (default: all, which is a plain
+  move). Picking a place where the same stock already is asks **Put together (×N) / Keep apart**.
+  The thing page has a **Same stock · N in all** panel with "Put together here"; the two link types
+  are hidden from Links. An archived, combined thing's page redirects to the one that holds it now
+  (old labels keep working), with a toast when you came by the old ID.
+
+Considered: one thing with several stock entries (place + count each). It breaks "one parent, a
+column" that paths, `Where`, place counts, gaps and the API's `parentPath` all rely on.

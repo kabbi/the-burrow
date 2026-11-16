@@ -32,7 +32,8 @@ with inheritance and typed fields, relation types, tags as things (D-013).
   - `things`: id, kind, name, `data` (JSON own fields), `meta` (per-field provenance), `parent_id`
     (the single physical "inside" parent), `position` (spot inside it, D-016), status, timestamps.
   - `edges`: typed links between things, validated against `relation_types` (`tagged`,
-    `has_document`, `accessory_of`, `part_of`, `replaces`, `related`, plus your own).
+    `has_document`, `accessory_of`, `part_of`, `replaces`, `related`, `not_same`, `split_from`,
+    `merged_into`, plus your own).
   - `relation_types`: name / inverse, allowed kinds per end, one-or-many, symmetric.
   - `external_refs`: thing ↔ service + remote id (HomeBox uuid + asset id, …).
   - `assets` (D-015): photos, shop pictures, icons, 2D art, 3D models per thing, with role, file,
@@ -47,6 +48,8 @@ with inheritance and typed fields, relation types, tags as things (D-013).
   restored too.
 - **Rules** enforced on append: one parent (it's a column), no loops, known kinds, non-empty names,
   declared field values match their type, links match their relation type (kinds, cardinality).
+- **Stock** (D-036): `split` takes some of a quantity out as a new thing, `combine` puts it back
+  (archives the rest, `merged_into`); `stockFamily` finds the live relatives.
 - **Gaps** (Tidy up) are derived: a physical thing with no place (unless it roams: "no fixed place",
   D-026), or an empty `wanted` field (inherited fields included). `aiUnchecked()` lists unconfirmed AI
   guesses.

@@ -97,7 +97,9 @@ Loosely ordered. ✓ = done in some form.
 ## Places (D-016)
 
 - "Inside, including nested" on a place's page: everything deeper, with the path relative to it.
-- Quantity split across places (one thing, several stock entries), e.g. 6 LEDs here, 4 there.
+- Quantity split across places (✓ D-036, as separate things: split / put together). Still open:
+  "how many" when dragging a stack on the Places tree (it moves all today), and splitting from the
+  Telegram bot.
 - Touch drag & drop on the Places tree (HTML5 DnD is desktop-only), or a "move here" mode on phones.
 - Print a label sheet for a container and everything in it.
 
@@ -156,8 +158,10 @@ Loosely ordered. ✓ = done in some form.
 
 - Workshop › Groups: remember "Don't group <kind>" and the threshold (12) server-side; group by top tag
   or import source too; show groups as dashed pseudo boxes in Places.
-- Duplicates (✓ found and dismissable in Tidy up, D-034): offer "Merge into B-…" (pictures, links,
-  papers move to the kept one; the old ID points to it). Index web-added photos without waiting
+- Duplicates (✓ found and dismissable in Tidy up, D-034): a duplicate is the same thing entered
+  twice (two photos of one board), so it is **not** a stock combine (D-036 would add the counts).
+  Offer "Same thing": keep one, archive the other (or mark it a duplicate), maybe carry over its
+  pictures; the old ID points to the kept one. Index web-added photos without waiting
   for the bot (a periodic `vision.refresh()`); try rotations for all-pairs too.
 - Snooze a Find job for a week ("Not now").
 - Papers: suggest the thing a receipt belongs to by date and shop (titles and dates only, D-006).
