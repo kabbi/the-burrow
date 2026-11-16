@@ -45,7 +45,7 @@ export function useAction() {
   const refresh = useRefresh();
   const toast = useToast();
   const undo = useUndo();
-  return async <T extends { event?: BurrowEvent }>(
+  return async <T extends { event?: BurrowEvent; events?: BurrowEvent[] }>(
     fn: () => Promise<T>,
     text: string | ((r: T) => string),
     opts: { group?: ActionGroup } = {},
@@ -83,9 +83,20 @@ export function useAction() {
         });
         return r;
       }
+      // A few events at once (a split, a combine): Undo reverts them all, newest first.
+      const seqs = r.events?.map((e) => e.seq) ?? (seq ? [seq] : []);
       toast({
         text: item,
-        ...(seq ? { action: { label: "Undo", run: () => undo.mutateAsync(seq).then(() => {}) } } : {}),
+        ...(seqs.length
+          ? {
+              action: {
+                label: "Undo",
+                run: async () => {
+                  for (const s of seqs.toReversed()) await undo.mutateAsync(s);
+                },
+              },
+            }
+          : {}),
       });
       return r;
     } catch (e) {

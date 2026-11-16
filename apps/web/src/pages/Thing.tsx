@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { get, post, type BurrowEvent, type ThingDetail } from "../lib/api.ts";
+import { get, post, type BurrowEvent, type ThingDetail, type ThingView } from "../lib/api.ts";
 import { eventLabel } from "../lib/events.ts";
 import { Icon } from "../ui/Icon.tsx";
 import { Menu } from "../ui/parts.tsx";
-import { MovePicker } from "../ui/MovePicker.tsx";
+import { MovePicker, quantity } from "../ui/MovePicker.tsx";
+import { ThingRow } from "../ui/thing.tsx";
+import { useToast } from "../lib/toast.tsx";
 import { timeAgo, useAction, useUndo } from "../lib/hooks.ts";
 import { useSchema } from "../lib/schema.ts";
 import { Facts, GuessesHeader, guessKeys } from "../components/Facts.tsx";
@@ -32,6 +34,21 @@ export function Thing() {
   /** The "Add product link" panel: closed, or open (with a pasted URL). */
   const [linkingAt, setLinking] = useState<{ id: string; url?: string } | null>(null);
   const linking = linkingAt?.id === id ? linkingAt : null;
+  const toast = useToast();
+
+  // Put back together with other stock (D-036): its ID and label lead to the one that has it now.
+  // Say so only when you came by the old ID; right after "Put together" the toast already did.
+  const mergedInto = data?.mergedInto;
+  const liveHere = useRef<string | null>(null);
+  useEffect(() => {
+    if (data && !mergedInto) liveHere.current = data.thing.id;
+  }, [data, mergedInto]);
+  useEffect(() => {
+    if (!mergedInto || !data) return;
+    if (liveHere.current !== data.thing.id)
+      toast({ text: `${data.thing.name} (${data.thing.id}) was put together with ${mergedInto}` });
+    void navigate(`/t/${mergedInto}`, { replace: true });
+  }, [mergedInto, data, navigate, toast]);
 
   // Paste a product link anywhere on the page (outside a text box) to open the panel with it.
   useEffect(() => {
@@ -273,6 +290,8 @@ export function Thing() {
             />
           )}
 
+          {data.stock.length > 0 && <SameStock thing={t} stock={data.stock} />}
+
           {!isTag && (
             <section className="panel stack">
               <h2 className="eyebrow">Links</h2>
@@ -289,6 +308,42 @@ export function Thing() {
         </aside>
       </div>
     </main>
+  );
+}
+
+/** The rest of the same stock, split off elsewhere (D-036), each one tap from coming back. */
+function SameStock({ thing, stock }: { thing: ThingView; stock: ThingView[] }) {
+  const act = useAction();
+  const total = stock.reduce((n, s) => n + quantity(s), quantity(thing));
+  return (
+    <section className="panel stack">
+      <h2 className="eyebrow">Same stock · {total} in all</h2>
+      {stock.map((s) => (
+        <ThingRow
+          key={s.id}
+          thing={s}
+          actions={false}
+          extra={
+            <button
+              type="button"
+              className="btn small"
+              title={`Add its ${quantity(s)} to this one and archive it`}
+              onClick={() =>
+                void act(
+                  () => post(`/things/${thing.id}/combine`, { from: [s.id] }),
+                  `Put together: ${thing.name} ×${quantity(thing) + quantity(s)}`,
+                )
+              }
+            >
+              Put together here
+            </button>
+          }
+        />
+      ))}
+      <p className="muted small" style={{ margin: 0 }}>
+        To take some elsewhere, use Move and say how many.
+      </p>
+    </section>
   );
 }
 

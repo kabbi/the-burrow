@@ -9,7 +9,7 @@ import { ThingSearch } from "./ThingSearch.tsx";
 type Rel = ThingDetail["relations"][number];
 
 /** Shown elsewhere: tags have their own row; "not the same as" is Tidy up's bookkeeping (D-034). */
-const HIDDEN = new Set(["tagged", "not_same"]);
+const HIDDEN = new Set(["tagged", "not_same", "split_from", "merged_into"]);
 
 /**
  * Typed links to other things, grouped by how they read from this side

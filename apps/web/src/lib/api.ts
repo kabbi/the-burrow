@@ -117,6 +117,10 @@ export interface ThingDetail {
   /** Spots already used in this thing's place ("shelf 1"…), for suggestions. */
   spots: string[];
   paperlessId: string | null;
+  /** The other live things of the same stock (D-036), nearest first. */
+  stock: ThingView[];
+  /** An archived thing that was put back together: the one holding its count now. */
+  mergedInto: string | null;
   events: (BurrowEvent & { undoable: boolean })[];
 }
 
