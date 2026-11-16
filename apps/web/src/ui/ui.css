@@ -965,7 +965,7 @@ textarea.input {
   text-decoration: none;
   color: var(--ink-2);
 }
-.path .seg:last-of-type {
+.path > :last-child .seg {
   font-weight: 600;
   color: var(--ink);
 }
@@ -995,6 +995,32 @@ textarea.input {
   text-decoration: line-through;
   color: var(--muted);
   font-weight: 400;
+}
+/* Folded (compact) path: one line, the room shortens first, then the last step. */
+.path.folded {
+  flex-wrap: nowrap;
+  min-width: 0;
+  white-space: nowrap;
+}
+.path.folded > .row {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+.path.folded > .row:first-child {
+  flex-shrink: 1000;
+}
+.path.folded > .row:last-child {
+  max-width: calc(100% - 5em);
+}
+.path.folded .seg,
+.path.folded .spot {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.path.folded .sep,
+.path.folded .more {
+  flex: none;
 }
 .path .more {
   background: none;
@@ -1128,6 +1154,15 @@ textarea.input {
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
+/* Names stop at two lines so one long name doesn't make the whole row taller. */
+.trow .name a,
+.tcard .tname {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
 .tcard .path,
 .tcard .nowhere {
   font-size: 13px;
@@ -1260,14 +1295,29 @@ a.job:hover {
   background: var(--sunk);
   color: var(--ink);
 }
+/* Ellipsized in the middle: the room shortens first, then the last step (Bathroom › … › Box 42). */
 .tcard .tpath {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
   font-size: 13px;
   color: var(--ink-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
+.tcard .tpath > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tcard .tpath .first {
+  flex-shrink: 1000;
+}
+.tcard .tpath .sep {
+  flex: none;
+  color: var(--faint);
+}
 .tcard .tpath b {
+  min-width: 0;
+  max-width: calc(100% - 5em);
   font-weight: 600;
   color: var(--ink);
 }

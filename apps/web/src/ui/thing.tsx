@@ -36,8 +36,8 @@ export function Thumb({
 /**
  * Where a thing is: Working Room › IVAR · shelf 3 › Crate. A spot ("shelf 3") belongs to the
  * thing inside, so it follows its parent after a dot. `compact` keeps the room and the last
- * step (Working Room › … › Crate); "…" expands, the full path is in the tooltip. The last step
- * is bold. `chips` draws each step as a tappable chip (the thing page).
+ * step (Working Room › … › Crate) on one line, the room shortening first so the last step stays
+ * readable; "…" expands, the full path is in the tooltip. The last step is bold. `chips` draws each step as a tappable chip (the thing page).
  */
 export function PathView({
   thing,
@@ -55,7 +55,7 @@ export function PathView({
   const full = path.map((p, i) => p.name + (spotAfter(i) ? ` (${spotAfter(i)})` : "")).join(" › ");
   const fold = compact && !open && path.length > 2;
   const shown = fold ? [0, path.length - 1] : path.map((_, i) => i);
-  const cls = `path${chips ? " chips" : ""}${thing.status === "missing" ? " gone" : ""}`;
+  const cls = `path${chips ? " chips" : ""}${fold ? " folded" : ""}${thing.status === "missing" ? " gone" : ""}`;
   return (
     <span className={cls} title={full}>
       {shown.map((i, k) => {
@@ -195,7 +195,9 @@ export function ThingRow({
       </Link>
       <div className="main">
         <div className="name">
-          <Link to={`/t/${thing.id}`}>{thing.name}</Link>
+          <Link to={`/t/${thing.id}`} title={thing.name}>
+            {thing.name}
+          </Link>
           <span className="idtext">{thing.id}</span>
           {qty !== null && <span className="tag">×{qty}</span>}
         </div>
@@ -239,10 +241,17 @@ export function ThingTile({ thing }: { thing: ThingView }) {
     <Link to={`/t/${thing.id}`} className="tcard">
       <Thumb thing={thing} />
       <span className="main">
-        <span className="tname">{thing.name}</span>
+        <span className="tname" title={thing.name}>
+          {thing.name}
+        </span>
         {thing.path.length ? (
           <span className="tpath" title={thing.path.map((p) => p.name).join(" › ")}>
-            {thing.path.length > 1 && `${thing.path[0]!.name} › ${thing.path.length > 2 ? "… › " : ""}`}
+            {thing.path.length > 1 && (
+              <>
+                <span className="first">{thing.path[0]!.name}</span>
+                <span className="sep">{thing.path.length > 2 ? "› … ›" : "›"}</span>
+              </>
+            )}
             <b>{thing.path.at(-1)!.name}</b>
           </span>
         ) : thing.roams ? (
