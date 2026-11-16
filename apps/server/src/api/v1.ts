@@ -453,6 +453,61 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
 
     op({
       method: "post",
+      path: "/things/{id}/split",
+      id: "splitThing",
+      tag: "Things",
+      summary: "Take some of a thing with a quantity out as its own thing (D-036)",
+      description:
+        "3 chairs in storage, 1 goes to the bedroom: `count: 1` with the bedroom as `parentId` or `parentPath`. The new thing gets the same name, kind, fields, tags, links and pictures, linked `split_from` the original; without a place it stays next to it. Undo the returned events, newest first.",
+      scope: "write",
+      params: ThingParams,
+      body: z.object({
+        count: z.number().int().min(1).describe("How many to take out; fewer than it has."),
+        ...Placement,
+        source: S.Source.default("app"),
+      }),
+      response: ThingReply,
+      status: 201,
+      run: ({ params, body: b, actor }) =>
+        tx(store.db, () => {
+          const t = store.mustGet(params.id);
+          const to = place(b, actor);
+          const where =
+            to === undefined
+              ? {}
+              : {
+                  to,
+                  ...(b.position !== undefined ? { position: b.position } : {}),
+                  roams: b.roams ?? false,
+                };
+          return { thing: store.split(t.id, b.count, where, actor).thing };
+        }),
+    }),
+
+    op({
+      method: "post",
+      path: "/things/{id}/combine",
+      id: "combineThings",
+      tag: "Things",
+      summary: "Put stock back together into this thing (D-036)",
+      description:
+        "Adds the quantities of `from` to this thing and archives them (linked `merged_into` it); fields it lacks, links, pictures and things inside them move over. With `count` and one `from`, only that many move over and both stay.",
+      scope: "write",
+      params: ThingParams,
+      body: z.object({
+        from: z.array(z.string()).min(1).max(100),
+        count: z.number().int().min(1).optional(),
+      }),
+      response: ThingReply,
+      run: ({ params, body: b, actor }) => {
+        const t = store.mustGet(params.id);
+        store.combine(b.from, t.id, b.count !== undefined ? { count: b.count } : {}, actor);
+        return { thing: store.mustGet(t.id) };
+      },
+    }),
+
+    op({
+      method: "post",
       path: "/things/{id}/status",
       id: "setStatus",
       tag: "Things",

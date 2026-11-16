@@ -55,4 +55,14 @@ describe("duplicates", () => {
     s.createThing({ name: "drawer 1", kind: "container", parentId: one });
     expect(findDuplicates(s, looks({}))).toHaveLength(1);
   });
+
+  it("doesn't offer stock split off the same thing (D-036)", () => {
+    const s = Store.open(":memory:");
+    const chairs = s.createThing({ name: "Chair", data: { quantity: 3 } }).id;
+    s.split(chairs, 1);
+    s.split(chairs, 1);
+    expect(findDuplicates(s, looks({}))).toEqual([]);
+    s.createThing({ name: "Chair" });
+    expect(findDuplicates(s, looks({}))).toHaveLength(3);
+  });
 });

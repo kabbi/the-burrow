@@ -555,6 +555,33 @@ describe("places tree and spots", () => {
   });
 });
 
+describe("stock: split and combine (D-036)", () => {
+  it("splits one off into a room and puts it back", async () => {
+    const mk = async (body: Record<string, unknown>) =>
+      (await call<{ thing: { id: string } }>("POST", "/things", body)).body.thing.id;
+    const storage = await mk({ name: "Stock storage", kind: "room" });
+    const bedroom = await mk({ name: "Stock bedroom", kind: "room" });
+    const chairs = await mk({ name: "Stock chair", parentId: storage, data: { quantity: 3 } });
+
+    const sp = await call<Record<string, any>>("POST", `/things/${chairs}/split`, { count: 1, to: bedroom });
+    expect(sp.status).toBe(201);
+    expect(sp.body.thing).toMatchObject({ parentId: bedroom, name: "Stock chair" });
+    expect(sp.body.events.length).toBeGreaterThan(2);
+    const one = sp.body.thing.id as string;
+    const fam = await call<Record<string, any>>("GET", `/things/${chairs}/stock`);
+    expect(fam.body.family.map((t: any) => t.id)).toEqual([one]);
+    expect((await call<Record<string, any>>("GET", `/things/${one}`)).body.stock[0].id).toBe(chairs);
+
+    const bad = await call<Record<string, any>>("POST", `/things/${chairs}/split`, { count: 2 });
+    expect(bad.status).toBe(400);
+
+    const cb = await call<Record<string, any>>("POST", `/things/${chairs}/combine`, { from: [one] });
+    expect(cb.body.thing.data.quantity).toBe(3);
+    const gone = await call<Record<string, any>>("GET", `/things/${one}`);
+    expect(gone.body).toMatchObject({ mergedInto: chairs, stock: [] });
+  });
+});
+
 describe("local models skip confirmation (D-017)", () => {
   it("quotes a local model as auto-approved, a paid one not", async () => {
     const store = Store.open(":memory:", aiMigrations);

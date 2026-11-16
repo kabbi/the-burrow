@@ -197,6 +197,32 @@ describe("API v1", () => {
     expect(byActor.body.events.every((e) => e.actor === "pcb-rig")).toBe(true);
   });
 
+  it("splits stock off by place path and combines it back (D-036)", async () => {
+    const made = await call<{ thing: { id: string } }>(rig, "POST", "/things", {
+      name: "M3 screws (bag)",
+      data: { quantity: 10 },
+    });
+    const id = made.body.thing.id;
+    const sp = await call<{ thing: { id: string; data: any; path: { name: string }[] } }>(
+      rig,
+      "POST",
+      `/things/${id}/split`,
+      { count: 4, parentPath: "Workshop / Drawer A", createPlaces: true },
+    );
+    expect(sp.status).toBe(201);
+    expect(sp.body.thing.data.quantity).toBe(4);
+    expect(sp.body.thing.path.map((p) => p.name)).toEqual(["Workshop", "Drawer A"]);
+    expect(sp.body.events.every((e) => e.actor === "pcb-rig")).toBe(true);
+    const back = await call<{ thing: { data: any } }>(rig, "POST", `/things/${id}/combine`, {
+      from: [sp.body.thing.id],
+      count: 1,
+    });
+    expect(back.body.thing.data.quantity).toBe(7);
+    expect((await call(reader, "POST", `/things/${id}/combine`, { from: [sp.body.thing.id] })).status).toBe(
+      403,
+    );
+  });
+
   it("changes schema with the schema scope, and reads the rest", async () => {
     const admin = deps.tokens.create({
       name: "admin",

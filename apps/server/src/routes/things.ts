@@ -69,6 +69,9 @@ export function thingRoutes({ store, ai, vision }: Deps): Router {
       /** Spots already used in this thing's place, for suggestions. */
       spots: t.parentId ? store.positionsIn(t.parentId) : [],
       paperlessId: paperlessOf(t.id),
+      /** The other live things of the same stock (D-036), and where a combined one went. */
+      stock: t.archivedAt ? [] : store.stockFamily(t.id),
+      mergedInto: t.archivedAt ? (store.edges({ type: "merged_into", fromId: t.id })[0]?.toId ?? null) : null,
       events: store
         .events({ thingId: t.id, limit: 50 })
         .map((e) => ({ ...e, undoable: UNDOABLE.has(e.body.type) })),
@@ -160,6 +163,36 @@ export function thingRoutes({ store, ai, vision }: Deps): Router {
       thing: store.mustGet(t.id),
       event: store.events({ thingId: t.id, types: ["thing.moved"], limit: 1 })[0],
     });
+  });
+
+  /** Stock (D-036): the other live things split off the same one. */
+  r.get("/things/:id/stock", (req, res) => res.json({ family: store.stockFamily(req.params.id) }));
+
+  /** Take `count` out as a new thing, in `to` (omitted: next to it). Undo: the events, newest first. */
+  r.post("/things/:id/split", (req, res) => {
+    const b = z
+      .object({
+        count: z.number().int().min(1),
+        to: z.string().nullable().optional(),
+        position: z.string().max(80).nullable().optional(),
+        roams: z.boolean().optional(),
+      })
+      .parse(req.body);
+    const { thing, events } = store.split(req.params.id, b.count, {
+      ...(b.to !== undefined ? { to: b.to } : {}),
+      ...(b.position !== undefined ? { position: b.position } : {}),
+      ...(b.roams ? { roams: true } : {}),
+    });
+    res.status(201).json({ thing, events });
+  });
+
+  /** Put `from` back into this one (all of them, or `count` of a single one). */
+  r.post("/things/:id/combine", (req, res) => {
+    const b = z
+      .object({ from: z.array(z.string()).min(1).max(100), count: z.number().int().min(1).optional() })
+      .parse(req.body);
+    const events = store.combine(b.from, req.params.id, b.count !== undefined ? { count: b.count } : {});
+    res.json({ thing: store.mustGet(req.params.id), events });
   });
 
   r.post("/things/:id/status", (req, res) => {
