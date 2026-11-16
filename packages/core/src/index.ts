@@ -8,6 +8,7 @@ export {
   ftsQuery,
   assetRef,
   UNDOABLE,
+  quantityOf,
   type CreateThingInput,
   type ChangeInput,
   type AddAssetInput,

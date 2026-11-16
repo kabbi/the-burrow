@@ -206,6 +206,29 @@ export const builtinRelations: RelationType[] = [
     symmetric: true,
     builtin: true,
   },
+  // Stock that was split off (D-036): "2 chairs in storage" and "1 chair in the bedroom". The new
+  // thing points at the one it came from; the family is how "put them back together" finds them.
+  {
+    id: "split_from",
+    name: "split off from",
+    inverse: "split into",
+    fromKinds: [],
+    toKinds: [],
+    cardinality: "many",
+    symmetric: false,
+    builtin: true,
+  },
+  // Put back together (D-036): the archived thing points at the one that holds its count now.
+  {
+    id: "merged_into",
+    name: "combined into",
+    inverse: "combined from",
+    fromKinds: [],
+    toKinds: [],
+    cardinality: "one",
+    symmetric: false,
+    builtin: true,
+  },
   // Things ↔ people (D-032). Cardinality "many" for owners (shared things), "one" for the buyer.
   {
     id: "owned_by",

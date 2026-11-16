@@ -400,6 +400,201 @@ export class Store {
     });
   }
 
+  // ------------------------------------------------------------ stock: split and combine (D-036)
+
+  /**
+   * Take `count` out of a thing that has several ("3 chairs" → 2 stay, 1 goes) as a new thing
+   * with the same name, kind, fields, tags, links, papers and pictures, linked `split_from` the
+   * original. `to` puts it somewhere else (omitted: right next to the original). Returns the new
+   * thing and the events appended (undo them newest first).
+   */
+  split(
+    id: ThingId,
+    count: number,
+    opts: { to?: ThingId | null; position?: string | null; roams?: boolean } = {},
+    actor = this.currentActor(),
+  ): { thing: ThingView; events: BurrowEvent[] } {
+    return tx(this.db, () => {
+      const before = this.lastSeq();
+      const t = this.mustGetRaw(id);
+      this.mustBeStock(t);
+      const have = quantityOf(t);
+      if (!Number.isInteger(count) || count < 1 || count >= have)
+        throw new BurrowError(
+          have > 1 ? `Split between 1 and ${have - 1} of ${have}` : `${t.name} is just one; nothing to split`,
+        );
+      const left = have - count;
+      this.change(t.id, { data: { quantity: left > 1 ? left : null } }, "you", actor);
+
+      const stays = opts.to === undefined;
+      const data = { ...t.data, quantity: count > 1 ? count : null };
+      const sources: Record<string, FieldSource> = {};
+      for (const k of ["name", "kind", ...Object.keys(t.data)]) {
+        const s = t.meta[k]?.source;
+        if (s) sources[k] = s;
+      }
+      sources.quantity = "you";
+      sources.parent = stays ? (t.meta.parent?.source ?? "you") : "you";
+      const made = this.createThing(
+        { name: t.name, kind: t.kind, data, parentId: stays ? t.parentId : (opts.to ?? null), sources },
+        actor,
+      );
+      if (stays ? t.position || t.roams : opts.position || opts.roams)
+        this.move(
+          made.id,
+          made.parentId,
+          actor,
+          undefined,
+          stays ? t.position : (opts.position ?? null),
+          stays ? t.roams : (opts.roams ?? false),
+        );
+      const confirmed = Object.keys(t.meta).filter((k) => t.meta[k]?.confirmed && k in data);
+      if (confirmed.length) this.confirm(made.id, confirmed, actor);
+      if (t.status !== "ok" && stays) this.setStatus(made.id, t.status, undefined, actor);
+
+      // Links: everything it points at (tags, papers, owners, "part of"…), and symmetric links
+      // stored the other way round. Links pointing at it (its accessories) stay with the original.
+      for (const e of this.edges({ fromId: t.id })) {
+        if (e.type === "split_from" || e.type === "merged_into") continue;
+        this.relate(e.type, made.id, e.toId, e.data, actor);
+      }
+      for (const e of this.edges({ toId: t.id }))
+        if (this.relationType(e.type)?.symmetric) this.relate(e.type, made.id, e.fromId, e.data, actor);
+
+      // Pictures: the same files (content-addressed), new asset rows; the chosen cover too.
+      const chosen = this.coverId(t.id);
+      for (const a of this.assets(t.id)) {
+        const copy = this.addAsset(made.id, copyOfAsset(a), actor);
+        if (a.id === chosen) this.setCover(made.id, copy.id, actor);
+      }
+
+      this.relate("split_from", made.id, t.id, {}, actor);
+      return {
+        thing: this.mustGet(made.id),
+        events: this.events({ after: before, limit: 100_000, includeUndos: true }),
+      };
+    });
+  }
+
+  /**
+   * Put stock back together: `fromIds` are added to `intoId`'s quantity and archived, linked
+   * `merged_into` it. Fields it lacks, links, papers, pictures and things inside them move over.
+   * With `count` (one `from` only), just that many move over and both stay ("give 1 of 3 back").
+   * Returns the events appended (undo them newest first).
+   */
+  combine(
+    fromIds: ThingId[],
+    intoId: ThingId,
+    opts: { count?: number } = {},
+    actor = this.currentActor(),
+  ): BurrowEvent[] {
+    return tx(this.db, () => {
+      const before = this.lastSeq();
+      const into = this.mustGetRaw(intoId);
+      this.mustBeStock(into);
+      const from = [...new Set(fromIds)].map((id) => this.mustGetRaw(id)).filter((t) => t.id !== into.id);
+      if (!from.length) throw new BurrowError("Nothing to combine");
+      for (const t of from) {
+        this.mustBeStock(t);
+        if (t.kind !== into.kind)
+          throw new BurrowError(
+            `${t.name} is a ${t.kind} and ${into.name} a ${into.kind}: not the same stock`,
+          );
+      }
+      let total = quantityOf(into);
+      if (opts.count !== undefined) {
+        const [one] = from;
+        if (from.length !== 1 || !one) throw new BurrowError("A count works with one thing at a time");
+        const have = quantityOf(one);
+        if (!Number.isInteger(opts.count) || opts.count < 1 || opts.count > have)
+          throw new BurrowError(`Move between 1 and ${have}`);
+        if (opts.count < have) {
+          const left = have - opts.count;
+          this.change(one.id, { data: { quantity: left > 1 ? left : null } }, "you", actor);
+          this.change(into.id, { data: { quantity: total + opts.count } }, "you", actor);
+          return this.events({ after: before, limit: 100_000, includeUndos: true });
+        }
+      }
+
+      for (const t of from) {
+        total += quantityOf(t);
+        // Fields it has and the kept one doesn't (the kept one's name and values win).
+        const cur = this.mustGetRaw(into.id);
+        const fill: Record<string, unknown> = {};
+        const sources: Record<string, FieldSource> = {};
+        for (const [k, v] of Object.entries(t.data)) {
+          if (k === "quantity" || isEmpty(v) || !isEmpty(cur.data[k])) continue;
+          fill[k] = v;
+          sources[k] = t.meta[k]?.source ?? "you";
+        }
+        if (Object.keys(fill).length) this.change(into.id, { data: fill, sources }, "you", actor);
+
+        for (const e of this.edges({ fromId: t.id })) {
+          if (e.type === "split_from" || e.type === "merged_into" || e.toId === into.id) continue;
+          const rt = this.relationType(e.type);
+          if (rt?.cardinality === "one" && this.edges({ type: e.type, fromId: into.id }).length) continue;
+          this.relate(e.type, into.id, e.toId, e.data, actor);
+        }
+        for (const e of this.edges({ toId: t.id })) {
+          if (e.type === "split_from" || e.type === "merged_into" || e.fromId === into.id) continue;
+          if (this.relationType(e.type)?.symmetric) this.relate(e.type, into.id, e.fromId, e.data, actor);
+          else {
+            // Its accessories, parts… now belong to the kept one.
+            this.relate(e.type, e.fromId, into.id, e.data, actor);
+            this.unrelate(e.type, e.fromId, t.id, actor);
+          }
+        }
+        const files = new Set(this.assets(into.id).map((a) => a.file));
+        for (const a of this.assets(t.id))
+          if (!files.has(a.file)) this.addAsset(into.id, copyOfAsset(a), actor);
+        const kids = this.db
+          .prepare("select id, position from things where parent_id = ? and archived_at is null")
+          .all(t.id) as { id: string; position: string | null }[];
+        for (const k of kids) this.move(k.id, into.id, actor, undefined, k.position);
+
+        this.relate("merged_into", t.id, into.id, {}, actor);
+        this.archive(t.id, actor);
+      }
+      this.change(into.id, { data: { quantity: total > 1 ? total : null } }, "you", actor);
+      return this.events({ after: before, limit: 100_000, includeUndos: true });
+    });
+  }
+
+  /**
+   * The other live things of the same stock: everything connected by `split_from` /
+   * `merged_into`, also through ones already put back together. Nearest first.
+   */
+  stockFamily(id: ThingId): ThingView[] {
+    const start = this.mustGetRaw(id).id;
+    const seen = new Set([start]);
+    const queue = [start];
+    const found: ThingId[] = [];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      const next = this.db
+        .prepare(
+          `select to_id id from edges where from_id = ? and type in ('split_from', 'merged_into')
+           union select from_id id from edges where to_id = ? and type in ('split_from', 'merged_into')`,
+        )
+        .all(cur, cur) as { id: string }[];
+      for (const { id: n } of next) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        queue.push(n);
+        const t = this.getRaw(n);
+        if (t && !t.archivedAt) found.push(n);
+      }
+    }
+    return found.map((n) => this.mustGet(n));
+  }
+
+  private mustBeStock(t: Thing) {
+    const kind = this.kind(t.kind);
+    if (t.archivedAt) throw new BurrowError(`${t.name} is archived`);
+    if (!kind?.physical || kind.isPlace || this.kindIs(t.kind, "tag"))
+      throw new BurrowError(`${t.name} isn't something you keep a count of`);
+  }
+
   private lastSeq(): number {
     const r = this.db.prepare("select max(seq) seq from events").get() as { seq: number | null };
     return Number(r.seq ?? 0);
@@ -1678,6 +1873,29 @@ function hash(s: string): number {
 
 function isEmpty(v: unknown) {
   return v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+}
+
+/** How many a thing stands for (D-036): its `quantity`, or 1 when it has none. */
+export function quantityOf(t: Pick<Thing, "data">): number {
+  const q = t.data.quantity;
+  return typeof q === "number" && Number.isFinite(q) && q >= 1 ? Math.floor(q) : 1;
+}
+
+/** An asset's content for another thing: same files, no key (keys belong to one thing). */
+function copyOfAsset(a: Asset): AddAssetInput {
+  return {
+    role: a.role,
+    file: a.file,
+    mime: a.mime,
+    bytes: a.bytes,
+    ...(a.width ? { width: a.width } : {}),
+    ...(a.height ? { height: a.height } : {}),
+    ...(a.thumb ? { thumb: a.thumb } : {}),
+    ...(a.original ? { original: a.original } : {}),
+    ...(a.label ? { label: a.label } : {}),
+    source: a.source,
+    data: a.data,
+  };
 }
 
 function clean(data: Record<string, unknown>) {

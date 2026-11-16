@@ -640,3 +640,123 @@ describe("asset originals, keys and file replacement", () => {
     });
   });
 });
+
+function chairsInStorage() {
+  const s = store();
+  const storage = s.createThing({ name: "Storage", kind: "room" });
+  const bedroom = s.createThing({ name: "Bedroom", kind: "room" });
+  const chairs = s.createThing({
+    name: "Chair",
+    data: { quantity: 3, maker: "IKEA" },
+    parentId: storage.id,
+    sources: { maker: "ai" },
+  });
+  s.setTags(chairs.id, ["furniture"]);
+  const cushion = s.createThing({ name: "Cushion" });
+  s.relate("accessory_of", cushion.id, chairs.id);
+  s.addAsset(chairs.id, { role: "photo", file: "chair.jpg", mime: "image/jpeg", bytes: 10 });
+  s.move(chairs.id, storage.id, "you", undefined, "shelf 2");
+  return { s, storage, bedroom, chairs, cushion };
+}
+
+describe("stock: split and combine (D-036)", () => {
+  it("splits some off into another place, copying what describes it", () => {
+    const { s, bedroom, chairs, cushion } = chairsInStorage();
+    const { thing: one } = s.split(chairs.id, 1, { to: bedroom.id });
+    expect(s.mustGet(chairs.id).data.quantity).toBe(2);
+    expect(one).toMatchObject({ name: "Chair", parentId: bedroom.id, position: null });
+    expect(one.data).toEqual({ maker: "IKEA" });
+    expect(one.meta.maker?.source).toBe("ai");
+    expect(one.tags.map((t) => t.name)).toEqual(["furniture"]);
+    expect(one.cover).not.toBeNull();
+    expect(s.assets(one.id).map((a) => a.file)).toEqual(["chair.jpg"]);
+    // The cushion belongs to one of them, not both.
+    expect(s.relations(one.id).map((r) => [r.type, r.other.id])).toEqual([
+      ["tagged", one.tags[0]!.id],
+      ["split_from", chairs.id],
+    ]);
+    expect(s.edges({ type: "accessory_of", fromId: cushion.id }).map((e) => e.toId)).toEqual([chairs.id]);
+    expect(s.stockFamily(chairs.id).map((t) => t.id)).toEqual([one.id]);
+
+    // Staying put keeps the spot.
+    const two = s.split(chairs.id, 1).thing;
+    expect([two.parentId, two.position]).toEqual([chairs.parentId, "shelf 2"]);
+    expect(s.mustGet(chairs.id).data.quantity).toBeUndefined();
+
+    const snap = snapshot(s);
+    s.rebuild();
+    expect(snapshot(s)).toEqual(snap);
+  });
+
+  it("undoes a split completely (its events, newest first)", () => {
+    const { s, bedroom, chairs } = chairsInStorage();
+    const { thing, events } = s.split(chairs.id, 2, { to: bedroom.id, position: "by the bed" });
+    expect(thing).toMatchObject({ position: "by the bed", data: { quantity: 2 } });
+    for (const e of events.toReversed()) s.toggleUndo(e.seq);
+    expect(s.mustGet(thing.id).archivedAt).not.toBeNull();
+    expect(s.mustGet(chairs.id).data.quantity).toBe(3);
+    expect(s.stockFamily(chairs.id)).toEqual([]);
+  });
+
+  it("refuses what can't be split", () => {
+    const { s, storage, chairs, cushion } = chairsInStorage();
+    expect(() => s.split(chairs.id, 3)).toThrow(/between 1 and 2/);
+    expect(() => s.split(chairs.id, 0)).toThrow(/between 1 and 2/);
+    expect(() => s.split(cushion.id, 1)).toThrow(/just one/);
+    expect(() => s.split(storage.id, 1)).toThrow(/count of/);
+  });
+
+  it("combines back: count, links, pictures and things inside move over", () => {
+    const { s, storage, bedroom, chairs, cushion } = chairsInStorage();
+    const one = s.split(chairs.id, 1, { to: bedroom.id }).thing;
+    s.addAsset(one.id, { role: "photo", file: "bedroom-chair.jpg", mime: "image/jpeg", bytes: 10 });
+    s.change(one.id, { data: { notes: "wobbly leg" } });
+    const pillow = s.createThing({ name: "Pillow" });
+    s.relate("accessory_of", pillow.id, one.id);
+    const coin = s.createThing({ name: "Lost coin", parentId: one.id });
+
+    const events = s.combine([one.id], chairs.id);
+    const kept = s.mustGet(chairs.id);
+    expect(kept).toMatchObject({ parentId: storage.id, data: { quantity: 3, notes: "wobbly leg" } });
+    expect(s.assets(kept.id).map((a) => a.file)).toEqual(["chair.jpg", "bedroom-chair.jpg"]);
+    expect(
+      s
+        .edges({ type: "accessory_of", toId: kept.id })
+        .map((e) => e.fromId)
+        .toSorted(),
+    ).toEqual([cushion.id, pillow.id].toSorted());
+    expect(s.mustGet(coin.id).parentId).toBe(kept.id);
+    const gone = s.mustGet(one.id);
+    expect(gone.archivedAt).not.toBeNull();
+    expect(s.edges({ type: "merged_into", fromId: one.id }).map((e) => e.toId)).toEqual([kept.id]);
+    expect(s.stockFamily(kept.id)).toEqual([]);
+
+    const snap = snapshot(s);
+    s.rebuild();
+    expect(snapshot(s)).toEqual(snap);
+
+    for (const e of events.toReversed()) s.toggleUndo(e.seq);
+    expect(s.mustGet(one.id)).toMatchObject({ archivedAt: null, parentId: bedroom.id });
+    expect(s.mustGet(chairs.id).data.quantity).toBe(2);
+    expect(s.mustGet(chairs.id).data.notes).toBeUndefined();
+    expect(s.mustGet(coin.id).parentId).toBe(one.id);
+    expect(s.edges({ type: "accessory_of", fromId: pillow.id }).map((e) => e.toId)).toEqual([one.id]);
+  });
+
+  it("moves some back without archiving, and finds family through combined ones", () => {
+    const { s, bedroom, chairs } = chairsInStorage();
+    const two = s.split(chairs.id, 2, { to: bedroom.id }).thing;
+    s.combine([two.id], chairs.id, { count: 1 });
+    expect([s.mustGet(chairs.id).data.quantity, s.mustGet(two.id).data.quantity]).toEqual([2, undefined]);
+    expect(() => s.combine([two.id], chairs.id, { count: 2 })).toThrow(/between 1 and 1/);
+
+    // A split off the original, then the original combined into it: the bedroom one is still family.
+    const third = s.split(chairs.id, 1).thing;
+    s.combine([chairs.id], third.id);
+    expect(s.stockFamily(third.id).map((t) => t.id)).toEqual([two.id]);
+    expect(s.mustGet(third.id).data.quantity).toBe(2);
+
+    const lamp = s.createThing({ name: "Lamp", kind: "electronics" });
+    expect(() => s.combine([lamp.id], third.id)).toThrow(/not the same stock/);
+  });
+});
