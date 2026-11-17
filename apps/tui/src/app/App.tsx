@@ -241,7 +241,14 @@ export function App({
       <ScreenCtx.Provider value={screens}>
         <KeyRouter global={onGlobal}>
           <box width={W} height={H} flexDirection="column" backgroundColor={th.bg}>
-            <TopBar route={route} w={W} me={me} />
+            <TopBar
+              route={route}
+              w={W}
+              me={me}
+              go={app.go}
+              back={app.back}
+              palette={() => setModal({ m: "palette" })}
+            />
             <box flexGrow={1} flexDirection="column" paddingLeft={1} paddingRight={1} overflow="hidden">
               <Screen key={JSON.stringify(route)} route={route} />
             </box>
@@ -294,45 +301,73 @@ export function App({
   );
 }
 
-function TopBar({ route, w, me }: { route: Route; w: number; me: Me | null }) {
+/** The top row. Tabs (and the back link, and ⌃K on phones) are clickable. */
+function TopBar({
+  route,
+  w,
+  me,
+  go,
+  back,
+  palette,
+}: {
+  route: Route;
+  w: number;
+  me: Me | null;
+  go: (r: Route) => void;
+  back: () => void;
+  palette: () => void;
+}) {
   const th = useTheme();
   const { data: ov } = useOverview();
-  const segs: Seg[] = [{ t: " ▚ burrow  ", b: true }];
   const size = sizeOf(w);
+  const parts: { segs: Seg[]; onClick?: () => void }[] = [
+    { segs: [{ t: " ▚ burrow  ", b: true }], onClick: () => go({ s: "find" }) },
+  ];
   if (route.s === "thing") {
-    segs.push({ t: "Find › ", fg: th.dim }, { t: route.id, b: true });
+    parts.push({ segs: [{ t: "Find › ", fg: th.dim }], onClick: back }, { segs: [{ t: route.id, b: true }] });
   } else if (size === "tiny") {
     const i = TABS.findIndex(([s]) => s === route.s);
-    segs.push({ t: ` ${TABS[i]![1]} ▾ `, bg: th.selBg, fg: th.selFg, b: true });
+    parts.push({
+      segs: [{ t: ` ${TABS[i]![1]} ▾ `, bg: th.selBg, fg: th.selFg, b: true }],
+      onClick: palette,
+    });
   } else {
     TABS.forEach(([s, label], i) => {
       const on = s === route.s;
       const text = size === "narrow" && !on ? ` ${i + 1} ` : ` ${i + 1} ${label} `;
-      segs.push(on ? { t: text, bg: th.selBg, fg: th.selFg, b: true } : { t: text });
+      const segs: Seg[] = [on ? { t: text, bg: th.selBg, fg: th.selFg, b: true } : { t: text }];
       if (s === "needs" && ov?.needsDetails && size !== "narrow")
         segs.push({ t: `${ov.needsDetails} `, fg: th.warn });
-      segs.push({ t: " " });
+      parts.push({ segs, onClick: () => go({ s }) }, { segs: [{ t: " " }] });
     });
   }
-  const right: Seg[] =
+  const right: { segs: Seg[]; onClick?: () => void } =
     size === "tiny"
-      ? [kc(th, "⌃K")]
-      : [
-          ...(ov && size === "wide"
-            ? [
-                {
-                  t: `${plural(ov.stats.things, "thing")} · ${plural(ov.stats.places, "place")} · ${plural(ov.stats.tags, "tag")}   `,
-                  fg: th.dim,
-                },
-              ]
-            : []),
-          { t: "● ", fg: th.ok },
-          { t: me ? me.username : "signed in", fg: th.dim },
-          { t: " " },
-        ];
-  const used = segs.reduce((n, s) => n + width(s.t), 0);
-  const rw = right.reduce((n, s) => n + width(s.t), 0);
-  return <L w={w} segs={[...segs, { t: " ".repeat(Math.max(1, w - used - rw)) }, ...right]} />;
+      ? { segs: [kc(th, "⌃K"), { t: " " }], onClick: palette }
+      : {
+          segs: [
+            ...(ov && size === "wide"
+              ? [
+                  {
+                    t: `${plural(ov.stats.things, "thing")} · ${plural(ov.stats.places, "place")} · ${plural(ov.stats.tags, "tag")}   `,
+                    fg: th.dim,
+                  },
+                ]
+              : []),
+            { t: "● ", fg: th.ok },
+            { t: me ? me.username : "signed in", fg: th.dim },
+            { t: " " },
+          ],
+        };
+  return (
+    <box flexDirection="row" width={w} height={1}>
+      {parts.map((p, i) => (
+        <L key={i} segs={p.segs} {...(p.onClick ? { onClick: p.onClick } : {})} />
+      ))}
+      <box flexGrow={1} />
+      <L segs={right.segs} {...(right.onClick ? { onClick: right.onClick } : {})} />
+    </box>
+  );
 }
 
 function ToastLine({ toast, w, now }: { toast: Toast | null; w: number; now: number }) {
@@ -375,9 +410,11 @@ function HintsLine({ store, w }: { store: ScreenStore; w: number }) {
   const segs: Seg[] = [{ t: " " }];
   let used = 1;
   for (const [k, label] of all) {
-    const n = width(k) + 2 + width(label) + 3;
+    const n = 1 + width(k) + width(label) + 3;
     if (used + n > w) break;
-    segs.push(kc(th, k), { t: ` ${label}  `, fg: th.dim });
+    // No background on the last row: some terminals (rex) stretch its colours into the window's
+    // bottom padding. The keys are bold instead of keycaps here.
+    segs.push({ t: ` ${k}`, b: true }, { t: ` ${label}  `, fg: th.dim });
     used += n;
   }
   return <L w={w} segs={segs} />;
