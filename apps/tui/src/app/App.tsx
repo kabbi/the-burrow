@@ -137,7 +137,9 @@ export function App({
     show({ text: t.text.replace(/^Undone: /, "Redone: "), kind: "ok", seqs });
   }
 
-  const area = { w: Math.max(0, W - 2), h: Math.max(0, H - 3), size: sizeOf(W) };
+  // Rows: top bar, screen, toast, hints, and an empty last row (some terminals, like rex, stretch
+  // the last row's colours into the window's bottom padding).
+  const area = { w: Math.max(0, W - 2), h: Math.max(0, H - 4), size: sizeOf(W) };
 
   const app: AppApi = {
     me,
@@ -254,6 +256,7 @@ export function App({
             </box>
             <ToastLine toast={toast} w={W} now={now} />
             <HintsLine store={screens} w={W} />
+            <box height={1} />
             {modal?.m === "palette" && (
               <Palette
                 w={mw}
@@ -410,11 +413,9 @@ function HintsLine({ store, w }: { store: ScreenStore; w: number }) {
   const segs: Seg[] = [{ t: " " }];
   let used = 1;
   for (const [k, label] of all) {
-    const n = 1 + width(k) + width(label) + 3;
+    const n = width(k) + 2 + width(label) + 3;
     if (used + n > w) break;
-    // No background on the last row: some terminals (rex) stretch its colours into the window's
-    // bottom padding. The keys are bold instead of keycaps here.
-    segs.push({ t: ` ${k}`, b: true }, { t: ` ${label}  `, fg: th.dim });
+    segs.push(kc(th, k), { t: ` ${label}  `, fg: th.dim });
     used += n;
   }
   return <L w={w} segs={segs} />;

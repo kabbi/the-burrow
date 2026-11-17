@@ -742,7 +742,8 @@ System). One app in `apps/tui`, two terminals: your own (`burrow`) and a browser
   the terminal's background (OSC 11) or `BURROW_THEME`; `NO_COLOR` gives one ink.
 - **Layout by width**: ≥ 140 three columns on a thing, 100–139 list + preview, 60–99 one list
   (tabs as numbers), < 60 phone (two-line rows, "Find ▾"), < 40 × 14 "Make the window a little
-  bigger". Fixed rows: tabs, toast line (✓ … u undo · 7s), key hints.
+  bigger". Fixed rows: tabs, toast line (✓ … u undo · 7s), key hints, and an empty last row
+  (rex paints the last row's colours into the window padding; keycaps there would bleed).
 - **AI** goes through `AiGateway` like the web's AiSuggest: quote first; a local model runs
   straight away (free, logged), a paid one shows its price and runs only on ⏎. Add starts the
   free local suggestion on its own after a save.
