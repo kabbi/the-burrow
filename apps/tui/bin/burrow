@@ -1,0 +1,4 @@
+#!/bin/sh
+# Run the terminal app from the source tree with the workspace's Bun (D-037).
+here="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$here/node_modules/.bin/bun" "$here/src/main.tsx" "$@"
