@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBlur, useFocus, useRenderer, useTerminalDimensions } from "@opentui/react";
-import { get, post, type BurrowEvent, type EventRow, type Me, type ThingView } from "../api.ts";
+import { get, post, type BurrowEvent, type EventRow, type Me } from "../api.ts";
 import { cut, plural, width } from "../text.ts";
 import { useOverview } from "./data.ts";
 import { KeyRouter, type Key } from "./keys.tsx";
@@ -15,6 +15,7 @@ import {
   TABS,
   type App as AppApi,
   type Command,
+  type Movable,
   type Route,
   type Written,
 } from "./state.tsx";
@@ -38,7 +39,8 @@ interface Toast {
 
 type Modal =
   | { m: "palette" }
-  | { m: "move"; things: ThingView[] }
+  | { m: "move"; things: Movable[] }
+  | { m: "pick"; title: string; onPick(t: MoveTarget): void }
   | { m: "prompt"; title: string; initial?: string; hint?: string; onSubmit(v: string): void };
 
 export function App({
@@ -163,6 +165,8 @@ export function App({
     },
     toast: (text, kind = "info") => show({ text, kind, seqs: [] }),
     move: (things) => things.length && setModal({ m: "move", things }),
+    moveTo: (things, to) => moveTo(things, to),
+    pickPlace: (title, onPick) => setModal({ m: "pick", title, onPick }),
     prompt: (p) => setModal({ m: "prompt", ...p }),
     copy(text, what) {
       const ok = renderer.copyToClipboardOSC52(text);
@@ -175,7 +179,7 @@ export function App({
     webUrl: (path) => `${webUrl}${path}`,
   };
 
-  function moveTo(things: ThingView[], t: MoveTarget) {
+  function moveTo(things: Movable[], t: MoveTarget) {
     const names = things.length === 1 ? things[0]!.name : plural(things.length, "thing");
     void app.act(
       async () => {
@@ -260,6 +264,16 @@ export function App({
                 h={Math.min(H - 4, 22)}
                 exclude={new Set(modal.things.map((t) => t.id))}
                 onPick={(t) => moveTo(modal.things, t)}
+                close={() => setModal(null)}
+              />
+            )}
+            {modal?.m === "pick" && (
+              <MovePicker
+                title={modal.title}
+                w={mw}
+                h={Math.min(H - 4, 22)}
+                exclude={new Set()}
+                onPick={modal.onPick}
                 close={() => setModal(null)}
               />
             )}

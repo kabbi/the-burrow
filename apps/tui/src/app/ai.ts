@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { get, post, usd, type AiRecord, type Providers, type Quote, type ThingView } from "../api.ts";
 
@@ -69,11 +69,14 @@ export function useAiOptions() {
   return { options, preferred };
 }
 
-export function useSuggest(thing: ThingView | undefined) {
+export function useSuggest(thingNow: ThingView | undefined) {
   const qc = useQueryClient();
   const [step, setStep] = useState<AiStep>({ s: "idle" });
+  // The thing a run applies to: the one given to start(), else the screen's.
+  const target = useRef<ThingView | undefined>(undefined);
 
   async function run(quote: Quote) {
+    const thing = target.current ?? thingNow;
     if (!thing) return;
     setStep({ s: "running", quote, started: Date.now() });
     try {
@@ -93,11 +96,13 @@ export function useSuggest(thing: ThingView | undefined) {
     }
   }
 
-  async function start(option: AiOption | null) {
+  async function start(option: AiOption | null, given?: Record<string, unknown>, on?: ThingView) {
+    target.current = on;
+    const thing = on ?? thingNow;
     if (!thing || !option) return setStep({ s: "error", message: "No AI is set up on this Burrow" });
     setStep({ s: "quoting", option });
     try {
-      const input = {
+      const input = given ?? {
         name: thing.name,
         ...(typeof thing.data.url === "string" ? { url: thing.data.url } : {}),
       };

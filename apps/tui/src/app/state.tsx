@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, type ReactNode } from "react";
 import type { BurrowEvent, Me, ThingView } from "../api.ts";
+import type { MoveTarget } from "./modals.tsx";
 
 // What every screen can reach: where we are, who we are, the area to draw in, and the
 // app-wide actions (writes with an Undo toast, the move picker, prompts, the clipboard).
@@ -26,6 +27,9 @@ export const TABS: [Tab, string][] = [
   ["db", "DB"],
   ["ai", "AI"],
 ];
+
+/** Enough of a thing to move it. */
+export type Movable = Pick<ThingView, "id" | "name">;
 
 export type Written = { event?: BurrowEvent; events?: BurrowEvent[] };
 
@@ -62,7 +66,11 @@ export interface App {
   ): Promise<T | undefined>;
   toast(text: string, kind?: "ok" | "error" | "info"): void;
   /** Pick a place for these things, then move them (one toast, one Undo). */
-  move(things: ThingView[]): void;
+  move(things: Movable[]): void;
+  /** Move these straight to a place you already know (one toast, one Undo). */
+  moveTo(things: Movable[], to: MoveTarget): void;
+  /** Choose a place (the move picker without moving anything). */
+  pickPlace(title: string, onPick: (t: MoveTarget) => void): void;
   prompt(p: { title: string; initial?: string; hint?: string; onSubmit(value: string): void }): void;
   copy(text: string, what?: string): void;
   /** Link to this thing in the web app. */

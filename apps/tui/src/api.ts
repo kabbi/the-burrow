@@ -7,6 +7,7 @@ import type { Conn } from "./config.ts";
 export * from "@burrow/web/src/lib/api.ts";
 export { eventLabel } from "@burrow/web/src/lib/events.ts";
 export { ROLE_LABEL } from "@burrow/web/src/lib/roles.ts";
+export { aiInput, isUrl, pageData } from "@burrow/web/src/lib/page.ts";
 export type { SearchHit, ThingStatus, FieldMeta, FieldSource, AssetRef } from "@burrow/core/types";
 
 const COOKIE = "burrow_session";

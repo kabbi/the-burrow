@@ -57,6 +57,27 @@ export function ThingLine({
   if (ai) nameSegs.push({ t: " ✦", fg: th.ai });
   const nameUsed = nameSegs.reduce((n, x) => n + width(x.t), 0);
   const gap = t.gaps.includes("where");
+  // Phone width: two lines, the name and then where it is (the "Phone" artboard).
+  if (w < 56)
+    return (
+      <box flexDirection="column" {...(onClick ? { onMouseDown: onClick } : {})}>
+        <L
+          w={w}
+          sel={sel}
+          segs={[
+            ...marked(th, t.name, q, w - 3),
+            ai ? { t: " ✦", fg: th.ai } : null,
+            { t: " " },
+            stateSeg(th, t),
+          ]}
+        />
+        <L
+          w={w}
+          sel={sel}
+          segs={[gap ? { t: "▲ not placed yet", fg: th.warn } : { t: whereText(t, w), fg: th.dim }]}
+        />
+      </box>
+    );
   return (
     <L
       w={w}
@@ -243,6 +264,8 @@ export function FindScreen() {
           else setTyping(false);
           return true;
         }
+        // An empty search box lets the screen keys (1-8) and help (?) through.
+        if (!line.value && k.sequence && /^[1-8?]$/.test(k.sequence)) return false;
         if (line.edit(k)) {
           setSel(0);
           return true;
@@ -287,7 +310,7 @@ export function FindScreen() {
         Math.max(0, bodyH - 2 - 1 - results.length),
       );
   const rows = Math.max(1, bodyH - 2 - 1 - (q ? 0 : extra) - (size === "narrow" && !q ? 0 : 0));
-  const win = windowOf(results, cur, rows);
+  const win = windowOf(results, cur, iw < 56 ? Math.floor(rows / 2) : rows);
   const count = q
     ? search.isFetching && !search.data
       ? "searching…"
@@ -314,13 +337,15 @@ export function FindScreen() {
           width={listW}
           onWheel={(d) => step(d)}
         >
-          <L
-            w={iw}
-            segs={[
-              { t: fit("ID", 8), fg: th.dim },
-              { t: "NAME · WHERE", fg: th.dim },
-            ]}
-          />
+          {iw >= 56 && (
+            <L
+              w={iw}
+              segs={[
+                { t: fit("ID", 8), fg: th.dim },
+                { t: "NAME · WHERE", fg: th.dim },
+              ]}
+            />
+          )}
           {win.items.map((t, i) => (
             <ThingLine
               key={t.id}
