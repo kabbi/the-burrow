@@ -36,11 +36,21 @@ export interface AssetsReply {
   event?: BurrowEvent;
 }
 
+/**
+ * Where requests go and what they carry. The web app keeps the defaults; the terminal app
+ * (apps/tui, D-037) points `base` at a server and sends its session cookie in `headers`.
+ */
+export const apiConfig = {
+  base: "/api",
+  headers: {} as Record<string, string>,
+  onSignedOut: (): void => void window.dispatchEvent(new Event(SIGNED_OUT)),
+};
+
 /** Send a file as the raw request body (no multipart). */
 export async function upload<T = AssetsReply>(path: string, file: Blob, query: Record<string, string> = {}) {
-  const res = await fetch(`/api${path}?${new URLSearchParams(query)}`, {
+  const res = await fetch(`${apiConfig.base}${path}?${new URLSearchParams(query)}`, {
     method: "POST",
-    headers: { "content-type": file.type || "application/octet-stream" },
+    headers: { ...apiConfig.headers, "content-type": file.type || "application/octet-stream" },
     body: file,
   });
   const json = (await res.json().catch(() => ({}))) as T & { error?: string };
@@ -57,14 +67,17 @@ export class ApiError extends Error {
 }
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${apiConfig.base}${path}`, {
     method,
-    headers: body !== undefined ? { "content-type": "application/json" } : {},
+    headers: {
+      ...apiConfig.headers,
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
+    },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   const json = (await res.json().catch(() => ({}))) as T & { error?: string; signIn?: boolean };
   // The session ended (signed out elsewhere, expired): the gate shows the sign-in screen (D-032).
-  if (res.status === 401 && json.signIn) window.dispatchEvent(new Event(SIGNED_OUT));
+  if (res.status === 401 && json.signIn) apiConfig.onSignedOut();
   if (!res.ok) throw new ApiError(res.status, json.error ?? `HTTP ${res.status}`);
   return json;
 }

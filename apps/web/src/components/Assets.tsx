@@ -12,17 +12,11 @@ import {
 } from "../lib/api.ts";
 import { useAction, useDebounced, useRefresh } from "../lib/hooks.ts";
 import { useToast } from "../lib/toast.tsx";
+import { ROLE_LABEL } from "../lib/roles.ts";
 
 const ModelViewer = lazy(() => import("./ModelViewer.tsx"));
 
-export const ROLE_LABEL: Record<AssetRole, string> = {
-  photo: "Our photo",
-  product: "Shop photo",
-  icon: "Icon",
-  sprite: "2D art",
-  model: "3D model",
-  other: "Other",
-};
+export { ROLE_LABEL };
 const PICTURE_ROLES: AssetRole[] = ["photo", "product", "sprite", "icon", "other"];
 
 interface AssetConfig {

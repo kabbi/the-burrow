@@ -1,5 +1,5 @@
 import type { BurrowEvent } from "./api.ts";
-import { ROLE_LABEL } from "../components/Assets.tsx";
+import { ROLE_LABEL } from "./roles.ts";
 
 /** Names of the places a move went between, when the server knows them. */
 export interface MoveNames {
