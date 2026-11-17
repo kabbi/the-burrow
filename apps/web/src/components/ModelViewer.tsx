@@ -120,7 +120,7 @@ export default function ModelViewer({
           renderer.render(scene, camera);
           // A few frames in, textures are up: take the poster.
           if (++frames === 6 && posterCb.current)
-            renderer.domElement.toBlob((b) => b && posterCb.current?.(b), "image/png");
+            void snapshot(renderer.domElement).then((b) => b && posterCb.current?.(b));
           raf = requestAnimationFrame(tick);
         };
         tick();
@@ -154,4 +154,18 @@ export default function ModelViewer({
       {error && <span className="model-note error">{error}</span>}
     </div>
   );
+}
+
+/**
+ * The frame on the canvas as a PNG. The WebGL canvas is copied onto a 2D canvas first: Firefox on
+ * an Apple M1 hands `toBlob` / `readPixels` back upside down, but `drawImage` comes out right.
+ */
+function snapshot(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  const c = document.createElement("canvas");
+  c.width = canvas.width;
+  c.height = canvas.height;
+  const ctx = c.getContext("2d");
+  if (!ctx) return Promise.resolve(null);
+  ctx.drawImage(canvas, 0, 0);
+  return new Promise((r) => c.toBlob(r, "image/png"));
 }

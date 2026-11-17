@@ -243,3 +243,39 @@ matches your own shell's command line.
 - Bugs found on the way: two ↓ before a re-render both moved from the same row (selection now
   uses functional updates, so key repeat doesn't skip); the mock keyboard types `"space"` as five
   letters (use `" "`).
+
+## 2026-11-17 · Upside-down 3D model posters
+
+- STL posters (the cover picture the browser renders for a model) came out flipped vertically
+  in Firefox, though the viewer showed the model upright. Not the model: the stored poster is an
+  exact top-to-bottom mirror of the right frame (mean pixel difference 0.30 vs ~10 for other
+  orientations), and no camera pose makes a mirror. Chrome's capture and sharp were fine.
+- First try: `gl.readPixels` on the drawing buffer instead of `canvas.toBlob()`. Still upside down
+  in Firefox, so its readback of the canvas's own buffer is flipped either way.
+- Fix: the poster frame renders into its own `WebGLRenderTarget` (4× MSAA) and reads that
+  back; the code flips rows and un-premultiplies. A float target came out blank in Firefox; an
+  8-bit sRGB target (GPU encodes on write) is used instead, and an empty frame uploads nothing.
+- Result: right in Chrome, still upside down in the user's Firefox, even read back from the
+  render target. So Firefox flips on every readback path tried, or something after it does;
+  not found (headless Firefox here has no WebGL). Workaround: make posters in Chrome. A small
+  software rasterizer on the server was considered and dropped: posters should look as good as
+  the three.js viewer.
+- Searched Bugzilla/Reddit: no open bug for it. Old fixed flips were all software WebRender
+  (1670139, 1657771, 1808878); the user's Firefox (Apple M1) uses hardware WebRender. Settled on a
+  per-browser switch: Workshop › This browser › "Flip 3D model pictures" (localStorage).
+- Then rolled back the render-target capture (it didn't help Firefox): the poster is the canvas's
+  `toBlob()` again; with the switch on, the canvas is drawn flipped onto a 2D canvas first.
+- That was upside down in Firefox with the switch on or off, and the render-target capture with
+  the switch on had come out right. So in that Firefox `toBlob` and `readPixels` read top-down,
+  but `drawImage` of the WebGL canvas onto a 2D canvas is upright. Posters now always go through
+  `drawImage` (upright in Chrome too); the switch stays as a spare that flips the copy.
+- A console probe (scissor-clear red on top, then read back) said every readback was FLIPPED in
+  Firefox 159 on macOS / Apple M1 (Chrome: all upright). Misleading: that Firefox seems to place
+  the scissor rect flipped. Running the real ModelViewer poster code in the user's tab, with the
+  switch off and on, settled it: `drawImage` capture with the switch **off** is upright there
+  (and in Chrome). The later upside-down posters were made with the switch on.
+- Removed the switch (and the Workshop › This browser page): `drawImage` capture is right in both
+  browsers tested.
+  In Chrome the result matches the on-screen canvas (mean difference 0.03/255), GLB textures
+  included. Headless Firefox here has no WebGL, so Firefox needs checking by hand.
+- Dev `.env` now has `BURROW_AUTH=0`, so agent-browser can test the dev app without signing in.
