@@ -168,3 +168,16 @@ Loosely ordered. ✓ = done in some form.
 - "Tags used once, made by AI" as a Tidy up job with "Remove all".
 - Phone Add, camera first: photo → "looks like something you have" (vision search, D-019) → save new.
 - Missing since <date> on the status pill (needs the status event time on ThingView).
+
+## Terminal app (D-037), next
+
+- Pictures in the terminal: kitty graphics / iTerm2 / sixel (OpenTUI has kitty image support),
+  half-block fallback; the thumbnail via `/media` with the session.
+- Database grid: edit a `things` cell as a `thing.changed` event (actor: you), not a raw UPDATE.
+- Paste a shop link on a thing → the web's LinkEnrich per-field review; Add only takes the page's
+  title, maker, price and picture today.
+- SSE on the event log instead of polling `/events?limit=1`.
+- Places: the tree view (`t`), and "Open in Places" from a thing.
+- Copy (OSC 52) inside ghostty-web, and links (OSC 8) opening in a new tab.
+- `bun build --compile` binaries for Linux/macOS, so `burrow` runs without the repo.
+- A "Needs" job flow like Tidy up's (one job at a time, with its single action).

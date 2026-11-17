@@ -700,3 +700,55 @@ moving all three or editing numbers by hand. Now some of a stock can move on its
 
 Considered: one thing with several stock entries (place + count each). It breaks "one parent, a
 column" that paths, `Where`, place counts, gaps and the API's `parentPath` all rely on.
+
+## D-037 · A terminal app: `burrow` on the command line and as the web app's terminal mode (2026-11-17)
+
+From the "Burrow TUI" design canvas (Find, Thing, Add, Places, Database, Command palette, Phone,
+System). One app in `apps/tui`, two terminals: your own (`burrow`) and a browser tab
+(`/terminal`).
+
+- **Stack**: OpenTUI with React, on Bun (`@opentui/core` needs Bun ≥ 1.3.14 or Node ≥ 26.4; the
+  repo is on Node 24). Bun comes from npm as a workspace dependency (`bun`, allowed to run its
+  postinstall in `pnpm-workspace.yaml`), so `pnpm install` is all a machine or the Docker image
+  needs. TanStack Query and invalidate-all after writes, as in the web app.
+- **It speaks the web app's own `/api`, signed in as a person**, not `/api/v1` with a token as
+  the design suggested: the screens need what only `/api` has (overview, thing detail with history,
+  tidy, the DB browser, AI quotes), and per-person history (D-032) should say who did it, not
+  "tui". `burrow login` posts to `/auth/login` and keeps the session cookie in
+  `~/.config/burrow/tui.json` (mode 600); `BURROW_URL` / `BURROW_SESSION` override it. Events are
+  the account's; sessions show the user agent `burrow-tui`.
+- **Reuses the web data layer**: `apps/web/src/lib/api.ts` (client + types; its base URL and
+  headers are now configurable), `events.ts` (`eventLabel`), `page.ts` (shop pages), `roles.ts`.
+  Pure modules only: nothing that imports React DOM.
+- **Same binary, scriptable**: no TTY or a command → plain text or `--json` (`find`, `show`,
+  `add --in --spot --kind --qty`, `mv`, `lost` / `found`, `undo`, `login`, `whoami`). Places by ID,
+  path (`Hall/Shelf`) or a unique name.
+- **Web terminal**: the page `/terminal` (outside the normal shell, full screen) draws with
+  ghostty-web (Ghostty's VT engine as WASM, inlined in its JS) and opens a WebSocket to
+  `/api/tui` on the same server. The server (`apps/server/src/tui.ts`) checks the session cookie
+  and that `Origin` is this host (no cross-site WebSocket), then starts `burrow --remote` for that
+  tab with a clean environment (`BURROW_URL` = itself, the browser's session, nothing else: no API
+  keys or tokens), at most 4 per account. **No PTY**: OpenTUI takes custom streams and a size, so
+  keys go to the child's stdin, the screen comes from its stdout, and resizes go as JSON lines on
+  fd 3. The design's separate `burrow serve` became this bridge inside the API server, which
+  already owns sign-in. Phones get an on-screen key row: esc, tab, a sticky ctrl, ↑ ↓, ⏎, ⌃K.
+- **Keys** (System artboard): one layer at a time takes keys (a screen, or a modal on top); keys a
+  screen doesn't use reach the global ones (1–8 screens, ⌃K / ? palette, u undo, ⌃R redo, esc
+  back, q quit). Text fields are edited by the app itself (`useLine`), so a typed "m" is a letter
+  while you type and "move" when you don't. On Find, an empty search box lets 1–8 and ? through.
+  The palette lists every command with its key, the current screen's first.
+- **Colour + glyph**: ● ok · ▲ heads-up · ✗ wrong · ✦ AI guess; selection is inverse video;
+  the focused pane has the bright border. Dark and light themes from the web tokens, picked from
+  the terminal's background (OSC 11) or `BURROW_THEME`; `NO_COLOR` gives one ink.
+- **Layout by width**: ≥ 140 three columns on a thing, 100–139 list + preview, 60–99 one list
+  (tabs as numbers), < 60 phone (two-line rows, "Find ▾"), < 40 × 14 "Make the window a little
+  bigger". Fixed rows: tabs, toast line (✓ … u undo · 7s), key hints.
+- **AI** goes through `AiGateway` like the web's AiSuggest: quote first; a local model runs
+  straight away (free, logged), a paid one shows its price and runs only on ⏎. Add starts the
+  free local suggestion on its own after a save.
+- **Live**: polls the newest event every 4 s and refreshes when it changed (paused while the
+  terminal is in the background). SSE is in ideas.md.
+- Not done (ideas.md): pictures (kitty / iTerm2 / sixel, half-block fallback), editing DB cells
+  as events, per-field review of a pasted shop link (Add reads the page's title, maker and price
+  only), the Places tree view, OSC 52 copy in ghostty-web (falls back to showing the text), a
+  single compiled binary in releases.

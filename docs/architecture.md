@@ -4,7 +4,11 @@
             ┌──────────── apps/web (Vite + React) ────────────┐
             │ Find · Places · Papers · Tidy up · Add · Thing  │
             │ Workshop: kinds · tags · DB · API · AI · system │
-            └───────────────┬─────────────────────────────────┘
+            │ /terminal ── ghostty-web ── WebSocket ──┐       │
+            └───────────────┬─────────────────────────┼───────┘
+                            │                 apps/tui (Bun, OpenTUI)
+                            │                 `burrow` CLI/TUI, or one
+                            │                 `burrow --remote` per tab
                             │ /api (JSON)
 ┌───────────────────────────▼──────────────────────────────────────┐
 │ apps/server (Express 5)                                          │
@@ -132,3 +136,24 @@ on phones (≤ 720 px); Workshop pages share a side nav.
 - Toasts carry Undo for 10 s; every change is also undoable from history. `useAction`'s `group`
   merges rapid similar actions into one toast whose Undo reverts them all (D-025).
 - Thing page (D-025): header, then main (board, facts, inside) + side (pictures, links, history).
+- `pages/Terminal.tsx` (D-037): the terminal mode, `/terminal`, full screen: ghostty-web over a
+  WebSocket to `/api/tui`, with on-screen keys on phones.
+
+## Terminal app (`apps/tui`, D-037)
+
+OpenTUI + React on Bun (from npm). `burrow` with a terminal and no command is the full-screen app;
+with a command (or no terminal) it prints (`find`, `show`, `add`, `mv`, `undo`, `--json`).
+`burrow --remote` is the app over pipes for the web terminal (`src/remote.ts`: keys on stdin,
+screen on stdout, size as JSON lines on fd 3).
+
+- `api.ts`: the web app's `lib/api.ts` pointed at a server with the session cookie
+  (`config.ts`: `burrow login` → `~/.config/burrow/tui.json`; `BURROW_URL`, `BURROW_SESSION`).
+- `app/`: `App.tsx` (top bar with tabs, screen, toast line with Undo, key hints, modals, live
+  refresh), `keys.tsx` (key layers, the line editor), `state.tsx` (route, `act` = write + toast +
+  Undo, move/pick/prompt), `theme.ts`, `ui.tsx` (styled lines, panes, keycaps), `ai.ts` (quote →
+  run → apply), `modals.tsx` (⌃K palette, move picker, prompt), `screens/` (Find, Thing, Add,
+  Places, Lists = Needs · Tags · Papers · AI log, Db).
+- `test/`: `bun test` (helpers, and the app against a fake `/api` drawn headlessly);
+  `test/peek.tsx <cols> <rows> keys…` prints a frame from a running server.
+- Server side: `apps/server/src/tui.ts` upgrades `/api/tui` (session + same-origin check), one
+  `burrow --remote` per tab with a clean environment.

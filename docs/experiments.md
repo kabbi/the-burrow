@@ -224,3 +224,22 @@ both. Moving 1 of 2 into the Bedroom where one already was gave Bedroom ×2 and 
 Gotcha: the dev server's `--watch` restarts on server edits and owns :4100, so a test server on
 the same port silently fails to bind; use other ports. Also don't `pkill -f` a pattern that
 matches your own shell's command line.
+
+## 2026-11-17 · The terminal app (D-037)
+
+- OpenTUI 0.9.2 needs Bun ≥ 1.3.14 or Node ≥ 26.4; this machine has Node 24 and no Bun. The `bun`
+  npm package (1.4.4) works as a workspace dependency, but pnpm 10 skips its postinstall (the
+  binary download) until it's listed in `onlyBuiltDependencies`.
+- OpenTUI renders over plain stream objects (a PassThrough with `isTTY` and a no-op `setRawMode`,
+  explicit width/height, `remote: true`), so the web terminal needs no PTY. Probe: a React counter
+  over PassThroughs; output is diffed frames inside synchronized-output brackets.
+- Tested against a `VACUUM INTO` copy of the dev DB (API :4199, mock paperless, no `.env` so no
+  bot or paid AI; a test account `tuitest`), Vite :5199 proxying to it (`BURROW_DEV_API`). CLI:
+  add with `--in`/`--spot`, mv, undo (history says `tuitest`). Headless frames with
+  `test/peek.tsx` for every screen at 150, 120, 80, 48 and 38 columns. Places: marked two unplaced
+  PCBs, carried them to the Attic: one toast, "undo 2". WebSocket bridge: wrong Origin → 403, no
+  cookie → 401, signed in → the drawn Find screen, typing searches, ⌃C ends the child, no
+  processes left. In Chrome (agent-browser): `/terminal` at 1400 px and 390 px (on-screen keys).
+- Bugs found on the way: two ↓ before a re-render both moved from the same row (selection now
+  uses functional updates, so key repeat doesn't skip); the mock keyboard types `"space"` as five
+  letters (use `" "`).

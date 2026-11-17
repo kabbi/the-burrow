@@ -47,6 +47,22 @@ pnpm prod:migrate-assets   # one-time: old imageUrl fields → assets (D-015), b
 Data lives in `~/dev/apps/burrow/data` (`burrow.sqlite`, `media/`, `models/`, `backups/`). Without Docker:
 `pnpm build && pnpm start` (the API serves `apps/web/dist`).
 
+## Terminal
+
+The same Burrow as a keyboard app (D-037): Find, a thing's facts and history, Add, Places as
+columns, Needs, Tags, Papers, the database and the AI log, with ⌃K for every command.
+
+```bash
+pnpm burrow login http://localhost:4100   # once; keeps a session in ~/.config/burrow
+pnpm burrow                                # the full-screen app
+pnpm burrow find ivar --json               # or as a plain command
+pnpm burrow add "ESP32-CAM" --in "Office/Drawer 3" --spot front
+pnpm burrow mv b207 b31 && pnpm burrow undo
+```
+
+In the web app it's **Workshop › Terminal** (`/terminal`): the same app in the browser, signed in
+as you, with Esc / Tab / Ctrl / arrow keys on phones.
+
 ## Telegram bot
 
 Send a photo to the bot: it says whether you already have that thing (by looks, on the CPU, plus the
