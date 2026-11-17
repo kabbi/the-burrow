@@ -46,6 +46,16 @@
   --ok-ink: #1f4d41;
   --ok-tint: #e3efea;
 
+  /* the terminal (D-037): the TUI's dark theme, apps/tui/src/app/theme.ts */
+  --term-bg: #0e1014;
+  --term-bar: #14171d;
+  --term-fg: #dfe2e8;
+  --term-dim: #8b93a3;
+  --term-key: #262a33;
+  --term-key-line: #343a46;
+  --term-line: #2b303b;
+  --term-link: #8fb8ff;
+
   /* type */
   --font: "Inter Variable", Inter, system-ui, sans-serif;
   --font-display: "Space Grotesk", var(--font);

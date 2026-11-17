@@ -302,7 +302,7 @@ function ThingView({ d }: { d: ThingDetail }) {
       section: "This thing",
       title: "Copy its web link",
       key: "o",
-      run: () => app.copy(app.webUrl(`/things/${t.id}`), "the link"),
+      run: () => app.copy(app.webUrl(`/t/${t.id}`), "the link"),
     },
     {
       section: "This thing",
@@ -347,8 +347,9 @@ function ThingView({ d }: { d: ThingDetail }) {
     }
     if (k.name === "tab") return used(setPane(pane === "facts" ? "history" : "facts"));
     if (pane === "history") {
-      if (isDown(k)) return used(setHsel(Math.min(events.length - 1, hcur + 1)));
-      if (isUp(k)) return used(setHsel(Math.max(0, hcur - 1)));
+      if (isDown(k))
+        return used(setHsel((s) => Math.min(events.length - 1, Math.min(s, events.length - 1) + 1)));
+      if (isUp(k)) return used(setHsel((s) => Math.max(0, Math.min(s, events.length - 1) - 1)));
       const e = events[hcur];
       if (e && (isEnter(k) || k.sequence === "u")) {
         if (e.undoable) toggleEvent(e.seq, Boolean(e.undone));
@@ -356,8 +357,8 @@ function ThingView({ d }: { d: ThingDetail }) {
         return true;
       }
     } else {
-      if (isDown(k)) return used(setSel(Math.min(rows.length - 1, cur + 1)));
-      if (isUp(k)) return used(setSel(Math.max(0, cur - 1)));
+      if (isDown(k)) return used(setSel((s) => Math.min(rows.length - 1, Math.min(s, rows.length - 1) + 1)));
+      if (isUp(k)) return used(setSel((s) => Math.max(0, Math.min(s, rows.length - 1) - 1)));
       if (isEnter(k)) return used(edit(row));
       if (k.sequence === "y") return used(right(row));
       if (k.sequence === "n") return used(wrong(row));
@@ -378,7 +379,7 @@ function ThingView({ d }: { d: ThingDetail }) {
       case "#":
         return used(app.copy(t.id));
       case "o":
-        return used(app.copy(app.webUrl(`/things/${t.id}`), "the link"));
+        return used(app.copy(app.webUrl(`/t/${t.id}`), "the link"));
       case "h":
         return used(app.back());
     }

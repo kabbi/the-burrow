@@ -211,7 +211,7 @@ export function App({
       section: "Burrow",
       title: "Open in the web app",
       also: "browser link",
-      run: () => app.copy(app.webUrl(route.s === "thing" ? `/things/${route.id}` : "/"), "the link"),
+      run: () => app.copy(app.webUrl(route.s === "thing" ? `/t/${route.id}` : "/"), "the link"),
     },
     { section: "Burrow", title: remote ? "Leave the terminal" : "Quit", key: "q", run: quit },
   ];

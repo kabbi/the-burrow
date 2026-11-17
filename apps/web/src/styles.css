@@ -1895,3 +1895,87 @@ a.job:hover .job-go {
   gap: 20px;
   align-items: start;
 }
+
+/* ---------------------------------------------------------------- terminal (D-037) */
+.term-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--term-bg);
+  color: var(--term-fg);
+}
+.term-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 var(--gutter, 16px);
+  border-bottom: 1px solid var(--term-line);
+  font-size: 14px;
+}
+.term-title {
+  font-weight: 600;
+}
+.term-state {
+  flex: 1;
+  color: var(--term-dim);
+  font-size: 13px;
+}
+.term-head a {
+  color: var(--term-link);
+  font-size: 13px;
+}
+.term-screen {
+  flex: 1;
+  min-height: 0;
+  padding: 6px 8px;
+  overflow: hidden;
+}
+.term-ended {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  border: 1px solid var(--term-key-line);
+  border-radius: var(--radius);
+  background: var(--term-bar);
+  text-align: center;
+}
+.term-ended p {
+  margin: 0;
+}
+/* On-screen keys: phones and touch screens only. */
+.term-keys {
+  display: none;
+  gap: 6px;
+  padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
+  background: var(--term-bar);
+  border-top: 1px solid var(--term-line);
+  overflow-x: auto;
+}
+.term-key {
+  flex: 1 0 auto;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 8px;
+  border: 1px solid var(--term-key-line);
+  border-radius: var(--radius-s);
+  background: var(--term-key);
+  color: var(--term-fg);
+  font: 13px var(--font-mono);
+}
+.term-key[aria-pressed="true"] {
+  background: var(--term-fg);
+  color: var(--term-bg);
+}
+@media (max-width: 720px), (pointer: coarse) {
+  .term-keys {
+    display: flex;
+  }
+}

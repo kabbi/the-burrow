@@ -249,7 +249,10 @@ export function FindScreen() {
         ],
   });
 
-  const step = (d: number) => setSel(Math.max(0, Math.min(results.length - 1, cur + d)));
+  const step = (d: number) =>
+    setSel((s) =>
+      Math.max(0, Math.min(results.length - 1, Math.min(s, Math.max(0, results.length - 1)) + d)),
+    );
   useKeys(
     (k) => {
       if (k.name === "down" || (k.ctrl && k.name === "n")) return used(step(1));

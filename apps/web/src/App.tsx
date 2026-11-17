@@ -28,6 +28,7 @@ export const WORKSHOP: { group: string; items: { to: string; label: string; icon
       { to: "/workshop/db", label: "Database", icon: "db" },
       { to: "/workshop/api", label: "API & tokens", icon: "plug" },
       { to: "/workshop/ai", label: "AI log", icon: "sparkle" },
+      { to: "/terminal", label: "Terminal", icon: "terminal" },
       { to: "/workshop/system", label: "Design system", icon: "swatch" },
     ],
   },

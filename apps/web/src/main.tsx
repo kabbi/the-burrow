@@ -27,12 +27,15 @@ import { ToastProvider } from "./lib/toast.tsx";
 import { System } from "./pages/System.tsx";
 import { Account } from "./pages/Account.tsx";
 import { AuthGate } from "./components/SignIn.tsx";
+import { TerminalPage } from "./pages/Terminal.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 5_000, refetchOnWindowFocus: true, retry: 1 } },
 });
 
 const router = createBrowserRouter([
+  // The terminal mode takes the whole screen: no top bar or tab bar (D-037).
+  { path: "/terminal", element: <TerminalPage /> },
   {
     element: <Layout />,
     children: [

@@ -19,7 +19,8 @@ function useNav<T>(entries: Entry<T>[]) {
   const [sel, setSel] = useState(0);
   const cur = Math.min(sel, Math.max(0, rows.length - 1));
   const at = rows[cur];
-  const step = (d: number) => setSel(Math.max(0, Math.min(rows.length - 1, cur + d)));
+  const step = (d: number) =>
+    setSel((s) => Math.max(0, Math.min(rows.length - 1, Math.min(s, Math.max(0, rows.length - 1)) + d)));
   const nav = (k: Key) => {
     if (isDown(k)) return used(step(1));
     if (isUp(k)) return used(step(-1));
@@ -317,7 +318,7 @@ export function PapersScreen() {
   const open = () => {
     const first = doc?.things[0];
     if (first) app.go({ s: "thing", id: first.id });
-    else if (doc) app.copy(app.webUrl(`/papers/${doc.id}`), "the link to file it in the web app");
+    else if (doc) app.copy(app.webUrl("/papers"), "the link to file it in the web app");
   };
   useScreen({
     commands: doc

@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => {
     .split(",")
     .map((h) => h.trim())
     .filter(Boolean);
+  // The API to proxy to (another port for a throwaway test server).
+  const api = process.env.BURROW_DEV_API || "http://localhost:4100";
   return {
     plugins: [react()],
     server: {
@@ -18,8 +20,9 @@ export default defineConfig(({ mode }) => {
       // Keep the browser's Host header: the server compares it with Origin (same-origin writes,
       // passkey relying party; D-032). The string shorthand would rewrite it to localhost:4100.
       proxy: {
-        "/api": { target: "http://localhost:4100", changeOrigin: false },
-        "/media": { target: "http://localhost:4100", changeOrigin: false },
+        // ws: the web terminal's WebSocket (/api/tui, D-037).
+        "/api": { target: api, changeOrigin: false, ws: true },
+        "/media": { target: api, changeOrigin: false },
       },
     },
   };

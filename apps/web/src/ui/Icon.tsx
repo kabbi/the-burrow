@@ -92,6 +92,12 @@ const PATHS = {
     </>
   ),
   plug: <path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4" />,
+  terminal: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 9l3 3-3 3M13 15h4" />
+    </>
+  ),
   swatch: (
     <>
       <circle cx="12" cy="12" r="9" />
