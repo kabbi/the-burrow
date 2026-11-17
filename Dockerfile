@@ -7,6 +7,7 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
+COPY apps/tui/package.json apps/tui/
 COPY packages/core/package.json packages/core/
 RUN pnpm install --frozen-lockfile
 COPY . .
@@ -18,10 +19,16 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
+COPY apps/tui/package.json apps/tui/
 COPY packages/core/package.json packages/core/
-RUN pnpm install --frozen-lockfile --prod --filter "@burrow/server..." && pnpm store prune
+# The terminal app (D-037) runs on Bun, one process per web terminal tab; it imports the web
+# app's API client and types, so their sources come along (not the built web app's bundle).
+RUN pnpm install --frozen-lockfile --prod --filter "@burrow/server..." --filter "@burrow/tui..." && pnpm store prune
 COPY packages/core/src packages/core/src
 COPY apps/server/src apps/server/src
+COPY apps/tui/src apps/tui/src
+COPY apps/tui/bin apps/tui/bin
+COPY apps/web/src/lib apps/web/src/lib
 COPY --from=build /app/apps/web/dist apps/web/dist
 
 ARG BURROW_VERSION=dev
