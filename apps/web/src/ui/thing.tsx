@@ -2,6 +2,7 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router";
 import { post, type ThingView } from "../lib/api.ts";
 import { useAction } from "../lib/hooks.ts";
+import { isOpaquePhoto } from "../lib/roles.ts";
 import { Icon } from "./Icon.tsx";
 import { MovePicker } from "./MovePicker.tsx";
 
@@ -24,12 +25,17 @@ export function Thumb({
   const src = big ? (c?.imageUrl ?? c?.thumbUrl) : (c?.thumbUrl ?? c?.imageUrl);
   const cls = `thumb${size ? ` ${size}` : ""}`;
   if (c && src)
-    return c.role === "icon" || c.role === "sprite" ? (
-      <img className={`${cls} contain`} src={src} alt="" loading="lazy" />
-    ) : (
+    return isOpaquePhoto(c.role) ? (
       <span className={`${cls} fit`} style={fitPic(src)}>
         <img src={src} alt="" loading="lazy" />
       </span>
+    ) : (
+      <img
+        className={`${cls}${c.role === "icon" || c.role === "sprite" ? " contain" : ""}`}
+        src={src}
+        alt=""
+        loading="lazy"
+      />
     );
   return (
     <span className={cls} aria-hidden="true">
