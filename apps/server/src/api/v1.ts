@@ -486,6 +486,42 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
 
     op({
       method: "post",
+      path: "/things/{id}/duplicate",
+      id: "duplicateThing",
+      tag: "Things",
+      summary: "Make another one of a thing, without what's inside it (D-038)",
+      description:
+        'A second box printed from the same model: the copy gets the kind, fields (not the quantity), tags, links and pictures, linked `copied_from` the original, and starts empty. Its name is the next free number ("Box" → "Box 2") unless you give one; without a place it goes next to the original.',
+      scope: "write",
+      params: ThingParams,
+      body: z.object({
+        name: z
+          .string()
+          .max(200)
+          .optional()
+          .describe("Its name; omitted: the original's with the next number."),
+        ...Placement,
+        source: S.Source.default("app"),
+      }),
+      response: ThingReply,
+      status: 201,
+      run: ({ params, body: b, actor }) =>
+        tx(store.db, () => {
+          const t = store.mustGet(params.id);
+          const to = place(b, actor);
+          const made = store.duplicate(
+            t.id,
+            { ...(b.name !== undefined ? { name: b.name } : {}), ...(to !== undefined ? { to } : {}) },
+            actor,
+          ).thing;
+          if (to !== undefined && (b.position || b.roams))
+            store.move(made.id, to, actor, b.source, b.position ?? null, b.roams ?? false);
+          return { thing: store.mustGet(made.id) };
+        }),
+    }),
+
+    op({
+      method: "post",
       path: "/things/{id}/combine",
       id: "combineThings",
       tag: "Things",

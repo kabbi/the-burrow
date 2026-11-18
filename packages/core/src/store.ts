@@ -477,6 +477,89 @@ export class Store {
   }
 
   /**
+   * Make another one of a thing (D-038): a second box printed from the same model. The copy gets
+   * the kind, fields (except the count), tags, links and pictures, the next free number in the
+   * name ("Box" → "Box 2", "Box 3" → "Box 4"), and is linked `copied_from` the original. It starts
+   * empty: nothing inside is copied. It goes into the same place (no spot), or `to`.
+   * Returns the new thing and the events appended (undo them newest first).
+   */
+  duplicate(
+    id: ThingId,
+    opts: { name?: string; to?: ThingId | null } = {},
+    actor = this.currentActor(),
+  ): { thing: ThingView; events: BurrowEvent[] } {
+    return tx(this.db, () => {
+      const before = this.lastSeq();
+      const t = this.mustGetRaw(id);
+      const kind = this.kind(t.kind);
+      if (t.archivedAt) throw new BurrowError(`${t.name} is archived`);
+      if (!kind?.physical || this.kindIs(t.kind, "tag"))
+        throw new BurrowError(`${t.name} isn't something you can have another of`);
+
+      const data = { ...t.data, quantity: null };
+      const sources: Record<string, FieldSource> = {};
+      for (const k of ["kind", ...Object.keys(t.data)]) {
+        const s = t.meta[k]?.source;
+        if (s) sources[k] = s;
+      }
+      sources.parent = "you";
+      const stays = opts.to === undefined;
+      const made = this.createThing(
+        {
+          name: opts.name?.trim() || this.nextName(t.name, t.kind),
+          kind: t.kind,
+          data,
+          parentId: stays ? t.parentId : (opts.to ?? null),
+          sources,
+        },
+        actor,
+      );
+      if (stays && t.roams) this.move(made.id, made.parentId, actor, undefined, null, true);
+      const confirmed = Object.keys(t.meta).filter(
+        (k) => t.meta[k]?.confirmed && k !== "quantity" && (k === "kind" || k in t.data),
+      );
+      if (confirmed.length) this.confirm(made.id, confirmed, actor);
+
+      // Links it points at (tags, papers, owners, "part of"…) and symmetric ones; not where it
+      // came from, what it replaces or what it's known not to be.
+      const skip = new Set(["split_from", "merged_into", "copied_from", "not_same", "replaces"]);
+      for (const e of this.edges({ fromId: t.id }))
+        if (!skip.has(e.type)) this.relate(e.type, made.id, e.toId, e.data, actor);
+      for (const e of this.edges({ toId: t.id }))
+        if (!skip.has(e.type) && this.relationType(e.type)?.symmetric)
+          this.relate(e.type, made.id, e.fromId, e.data, actor);
+
+      const chosen = this.coverId(t.id);
+      for (const a of this.assets(t.id)) {
+        const copy = this.addAsset(made.id, copyOfAsset(a), actor);
+        if (a.id === chosen) this.setCover(made.id, copy.id, actor);
+      }
+
+      this.relate("copied_from", made.id, t.id, {}, actor);
+      return {
+        thing: this.mustGet(made.id),
+        events: this.events({ after: before, limit: 100_000, includeUndos: true }),
+      };
+    });
+  }
+
+  /** "Box" → "Box 2", "Box 3" → "Box 4": one past the highest number live things of the kind use. */
+  private nextName(name: string, kind: string): string {
+    const m = /^(.*?)\s*(\d+)$/.exec(name.trim());
+    const base = (m ? m[1]! : name).trim();
+    const lower = base.toLowerCase();
+    const rows = this.db
+      .prepare("select name from things where kind = ? and archived_at is null")
+      .all(kind) as { name: string }[];
+    let top = m ? Number(m[2]) : 1;
+    for (const r of rows) {
+      const rm = /^(.*?)\s*(\d+)$/.exec(r.name.trim());
+      if (rm && rm[1]!.trim().toLowerCase() === lower) top = Math.max(top, Number(rm[2]));
+    }
+    return base ? `${base} ${top + 1}` : String(top + 1);
+  }
+
+  /**
    * Put stock back together: `fromIds` are added to `intoId`'s quantity and archived, linked
    * `merged_into` it. Fields it lacks, links, papers, pictures and things inside them move over.
    * With `count` (one `from` only), just that many move over and both stay ("give 1 of 3 back").

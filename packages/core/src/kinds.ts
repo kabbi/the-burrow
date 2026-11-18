@@ -229,6 +229,18 @@ export const builtinRelations: RelationType[] = [
     symmetric: false,
     builtin: true,
   },
+  // A copy of one thing (D-038): another box printed from the same model. Two real things, not
+  // stock; the link is where it came from, and Tidy up's duplicate job leaves copies alone.
+  {
+    id: "copied_from",
+    name: "copied from",
+    inverse: "copies",
+    fromKinds: [],
+    toKinds: [],
+    cardinality: "one",
+    symmetric: false,
+    builtin: true,
+  },
   // Things ↔ people (D-032). Cardinality "many" for owners (shared things), "one" for the buyer.
   {
     id: "owned_by",

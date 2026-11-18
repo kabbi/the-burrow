@@ -112,6 +112,16 @@ export function Thing() {
           ),
       },
       {
+        label: isPlace ? "Duplicate (empty)" : "Duplicate",
+        icon: "copy" as const,
+        hidden: !physical || isTag || Boolean(t.archivedAt),
+        run: () =>
+          void act(
+            () => post<{ thing: ThingView; events: BurrowEvent[] }>(`/things/${t.id}/duplicate`),
+            (r) => `Made ${r.thing.name}`,
+          ).then((r) => r && navigate(`/t/${r.thing.id}`)),
+      },
+      {
         label: "Archive",
         icon: "box" as const,
         hidden: Boolean(t.archivedAt),
@@ -137,7 +147,7 @@ export function Thing() {
           <Icon name="back" size={18} stroke={2.2} />
           Back
         </button>
-        <Menu label="More: product link, archive" items={menuItems()} />
+        <Menu label="More: product link, duplicate, archive" items={menuItems()} />
       </div>
       <section className="panel thing-head">
         <a href="#pictures" className="thing-cover" aria-label="Pictures" tabIndex={isTag ? -1 : 0}>
@@ -211,7 +221,7 @@ export function Thing() {
               Open in Papers
             </Link>
           )}
-          <Menu big label="More: product link, archive" items={menuItems()} />
+          <Menu big label="More: product link, duplicate, archive" items={menuItems()} />
         </div>
         {moving && (
           <div style={{ flexBasis: "100%" }}>

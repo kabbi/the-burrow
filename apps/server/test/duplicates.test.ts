@@ -65,4 +65,12 @@ describe("duplicates", () => {
     s.createThing({ name: "Chair" });
     expect(findDuplicates(s, looks({}))).toHaveLength(3);
   });
+
+  it("doesn't offer copies of one thing (D-038)", () => {
+    const s = Store.open(":memory:");
+    const box = s.createThing({ name: "Box", kind: "container" }).id;
+    const two = s.duplicate(box).thing.id;
+    const three = s.duplicate(two).thing.id;
+    expect(findDuplicates(s, looks({ [[box, three].sort().join("|")]: 0.99 }, [box, three]))).toEqual([]);
+  });
 });

@@ -753,3 +753,28 @@ System). One app in `apps/tui`, two terminals: your own (`burrow`) and a browser
   as events, per-field review of a pasted shop link (Add reads the page's title, maker and price
   only), the Places tree view, OSC 52 copy in ghostty-web (falls back to showing the text), a
   single compiled binary in releases.
+
+## D-038 · Duplicate: another one of a thing, empty (2026-11-18)
+
+One 3D-printed box is set up (kind, tags, pictures, the model file); a second one comes off the
+printer and gets other stuff in it. Split (D-036) doesn't fit: that's one stock counted down, and
+a box is one thing that holds things.
+
+- **`Store.duplicate(id, {name, to})`** makes a new thing with the kind, fields (provenance and
+  confirmations kept, `quantity` dropped: a copy is one), tags, outgoing and symmetric links
+  (papers, owners, "part of"…; not `split_from` / `merged_into` / `copied_from` / `not_same` /
+  `replaces`) and pictures (same files, new asset rows, the cover too). **Nothing inside is
+  copied**, and links pointing at the original (its accessories) stay with it. It goes into the same
+  place without the spot (it's another object), keeps "no fixed place", or goes into `to`.
+- **Name**: the next free number among live things of the kind ("Box" → "Box 2", "Box 3" → "Box
+  4"), unless one is given. Labels tell them apart anyway; numbers keep search and paths readable.
+- **Built-in link `copied_from`** (copy → original, cardinality one), shown in Links ("copied
+  from"). Not stock: `stockFamily` ignores it, so nothing offers to put copies together. The
+  duplicates job (D-034) treats copies of one thing as known-different (same pictures, near names).
+- Physical things only, places included (boxes are places); not tags, papers, people, or archived.
+- One transaction, all `events` returned; the web toast's Undo reverts them.
+- **API**: `POST /things/:id/duplicate` (`name`, `to`); public `duplicateThing` (place by id or
+  path). **Web**: thing page › More › "Duplicate" ("Duplicate (empty)" on places) opens the copy.
+
+Considered: copying the contents too (a kit box with its parts). Not the case at hand, and it'd
+mean duplicating many things; it can be an option later.

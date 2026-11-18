@@ -760,3 +760,65 @@ describe("stock: split and combine (D-036)", () => {
     expect(() => s.combine([lamp.id], third.id)).toThrow(/not the same stock/);
   });
 });
+
+describe("duplicate (D-038)", () => {
+  function boxOnShelf() {
+    const s = store();
+    const shelf = s.createThing({ name: "Shelf", kind: "room" });
+    const box = s.createThing({
+      name: "Gridfinity box",
+      kind: "container",
+      data: { material: "PETG" },
+      parentId: shelf.id,
+      sources: { material: "ai" },
+    });
+    s.setTags(box.id, ["3d printed"]);
+    s.addAsset(box.id, { role: "photo", file: "box.jpg", mime: "image/jpeg", bytes: 10 });
+    s.move(box.id, shelf.id, "you", undefined, "left");
+    const screws = s.createThing({ name: "M3 screws", parentId: box.id });
+    const lid = s.createThing({ name: "Lid" });
+    s.relate("accessory_of", lid.id, box.id);
+    return { s, shelf, box, screws, lid };
+  }
+
+  it("makes an empty copy next to it with the next number", () => {
+    const { s, shelf, box, screws, lid } = boxOnShelf();
+    const { thing: two, events } = s.duplicate(box.id);
+    expect(two).toMatchObject({
+      name: "Gridfinity box 2",
+      kind: "container",
+      parentId: shelf.id,
+      position: null,
+    });
+    expect(two.data).toEqual({ material: "PETG" });
+    expect(two.meta.material?.source).toBe("ai");
+    expect(two.tags.map((t) => t.name)).toEqual(["3d printed"]);
+    expect(s.assets(two.id).map((a) => a.file)).toEqual(["box.jpg"]);
+    expect(two.cover).not.toBeNull();
+    expect(s.edges({ type: "copied_from", fromId: two.id }).map((e) => e.toId)).toEqual([box.id]);
+    // Contents and accessories stay with the original.
+    expect(s.mustGet(screws.id).parentId).toBe(box.id);
+    expect(s.edges({ type: "accessory_of", fromId: lid.id }).map((e) => e.toId)).toEqual([box.id]);
+    expect(s.stockFamily(box.id)).toEqual([]);
+
+    expect(s.duplicate(two.id).thing.name).toBe("Gridfinity box 3");
+    expect(s.duplicate(box.id, { name: "Bits box" }).thing.name).toBe("Bits box");
+
+    const snap = snapshot(s);
+    s.rebuild();
+    expect(snapshot(s)).toEqual(snap);
+
+    for (const e of events.toReversed()) s.toggleUndo(e.seq);
+    expect(s.mustGet(two.id).archivedAt).not.toBeNull();
+  });
+
+  it("is one copy of stock, and refuses tags and archived things", () => {
+    const { s, box } = boxOnShelf();
+    const chairs = s.createThing({ name: "Chair 7", data: { quantity: 3 } });
+    expect(s.duplicate(chairs.id).thing).toMatchObject({ name: "Chair 8", data: {} });
+    const tag = s.ensureTag("3d printed");
+    expect(() => s.duplicate(tag)).toThrow(/another of/);
+    s.archive(box.id);
+    expect(() => s.duplicate(box.id)).toThrow(/archived/);
+  });
+});

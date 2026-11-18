@@ -36,7 +36,7 @@ with inheritance and typed fields, relation types, tags as things (D-013).
   - `things`: id, kind, name, `data` (JSON own fields), `meta` (per-field provenance), `parent_id`
     (the single physical "inside" parent), `position` (spot inside it, D-016), status, timestamps.
   - `edges`: typed links between things, validated against `relation_types` (`tagged`,
-    `has_document`, `accessory_of`, `part_of`, `replaces`, `related`, `not_same`, `split_from`,
+    `has_document`, `accessory_of`, `part_of`, `replaces`, `related`, `not_same`, `split_from`, `copied_from`,
     `merged_into`, plus your own).
   - `relation_types`: name / inverse, allowed kinds per end, one-or-many, symmetric.
   - `external_refs`: thing ↔ service + remote id (HomeBox uuid + asset id, …).
@@ -54,6 +54,8 @@ with inheritance and typed fields, relation types, tags as things (D-013).
   declared field values match their type, links match their relation type (kinds, cardinality).
 - **Stock** (D-036): `split` takes some of a quantity out as a new thing, `combine` puts it back
   (archives the rest, `merged_into`); `stockFamily` finds the live relatives.
+- **Duplicate** (D-038): `duplicate` makes another one of a thing (fields, tags, links, pictures,
+  next number in the name), empty, linked `copied_from`; not stock.
 - **Gaps** (Tidy up) are derived: a physical thing with no place (unless it roams: "no fixed place",
   D-026), or an empty `wanted` field (inherited fields included). `aiUnchecked()` lists unconfirmed AI
   guesses.

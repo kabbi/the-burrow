@@ -186,6 +186,18 @@ export function thingRoutes({ store, ai, vision }: Deps): Router {
     res.status(201).json({ thing, events });
   });
 
+  /** Another one of it (D-038): a copy without its contents, next to it or in `to`. */
+  r.post("/things/:id/duplicate", (req, res) => {
+    const b = z
+      .object({ name: z.string().max(200).optional(), to: z.string().nullable().optional() })
+      .parse(req.body ?? {});
+    const { thing, events } = store.duplicate(req.params.id, {
+      ...(b.name !== undefined ? { name: b.name } : {}),
+      ...(b.to !== undefined ? { to: b.to } : {}),
+    });
+    res.status(201).json({ thing, events });
+  });
+
   /** Put `from` back into this one (all of them, or `count` of a single one). */
   r.post("/things/:id/combine", (req, res) => {
     const b = z

@@ -20,6 +20,13 @@ const PATHS = {
   back: <path d="M15 6l-6 6 6 6" />,
   next: <path d="M9 6l6 6-6 6" />,
   down: <path d="M6 9l6 6 6-6" />,
+  /* Duplicate (D-038): another one of the same. */
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 0 1 2-2h8" />
+    </>
+  ),
   /* No fixed place (D-026): a bag that goes with you. */
   bag: (
     <>

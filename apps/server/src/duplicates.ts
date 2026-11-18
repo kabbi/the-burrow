@@ -61,7 +61,8 @@ export function findDuplicates(store: Store, vision: VisualMatcher, limit = MAX_
     ).map((e) => pairKey(e.f, e.t)),
   );
   // Stock split off one thing (D-036) is one family: two chairs split from the same three aren't
-  // linked to each other, only to where they came from.
+  // linked to each other, only to where they came from. Copies of one thing (D-038) too: three
+  // boxes printed from one model look the same and are three boxes.
   const family = new Map<string, string>();
   const root = (id: string): string => {
     const up = family.get(id);
@@ -71,7 +72,9 @@ export function findDuplicates(store: Store, vision: VisualMatcher, limit = MAX_
     return r;
   };
   for (const e of store.db
-    .prepare("select from_id f, to_id t from edges where type in ('split_from', 'merged_into')")
+    .prepare(
+      "select from_id f, to_id t from edges where type in ('split_from', 'merged_into', 'copied_from')",
+    )
     .all() as { f: string; t: string }[])
     family.set(root(e.f), root(e.t));
   const looks: LookPairs = vision.pairs?.(LOOKS_ALIKE) ?? { scores: new Map(), pictured: new Set() };

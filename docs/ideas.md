@@ -102,6 +102,9 @@ Loosely ordered. ✓ = done in some form.
   Telegram bot.
 - Touch drag & drop on the Places tree (HTML5 DnD is desktop-only), or a "move here" mode on phones.
 - Print a label sheet for a container and everything in it.
+- Duplicate (✓ D-038). Still open: "with what's inside" (a kit box with its parts); fields that
+  belong to one object (serial no.) are copied today; a per-field "not copied" flag in the schema
+  could skip them; "Duplicate ×3" for a batch of prints.
 
 ## Assets (D-015)
 

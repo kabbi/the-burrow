@@ -582,6 +582,22 @@ describe("stock: split and combine (D-036)", () => {
   });
 });
 
+describe("duplicate (D-038)", () => {
+  it("makes an empty copy and opens nothing inside it", async () => {
+    const mk = async (body: Record<string, unknown>) =>
+      (await call<{ thing: { id: string } }>("POST", "/things", body)).body.thing.id;
+    const room = await mk({ name: "Dup room", kind: "room" });
+    const box = await mk({ name: "Dup box", kind: "container", parentId: room });
+    await mk({ name: "Dup screws", parentId: box });
+    const d = await call<Record<string, any>>("POST", `/things/${box}/duplicate`);
+    expect(d.status).toBe(201);
+    expect(d.body.thing).toMatchObject({ name: "Dup box 2", parentId: room });
+    expect(d.body.events.length).toBeGreaterThan(1);
+    const detail = await call<Record<string, any>>("GET", `/things/${d.body.thing.id}`);
+    expect(detail.body.children).toEqual([]);
+  });
+});
+
 describe("local models skip confirmation (D-017)", () => {
   it("quotes a local model as auto-approved, a paid one not", async () => {
     const store = Store.open(":memory:", aiMigrations);

@@ -279,3 +279,9 @@ matches your own shell's command line.
   In Chrome the result matches the on-screen canvas (mean difference 0.03/255), GLB textures
   included. Headless Firefox here has no WebGL, so Firefox needs checking by hand.
 - Dev `.env` now has `BURROW_AUTH=0`, so agent-browser can test the dev app without signing in.
+
+## 2026-11-18 · Duplicate in the browser (D-038)
+
+- Dev app, a throwaway container with one thing inside: More › "Duplicate (empty)" made
+  "… 2" in the same place, opened it, empty, Links "copied from" the original; the toast had
+  Undo. Archived the test things afterwards.
