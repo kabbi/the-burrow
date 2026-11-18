@@ -10,6 +10,6 @@ export const ROLE_LABEL: Record<AssetRole, string> = {
   other: "Other",
 };
 
-/** Opaque photos: drawn whole over a blurred copy of themselves (.fit). Icons, 2D art and 3D
- *  posters are transparent, so a copy would show through; they sit on the plain background. */
+/** Opaque photos: the gaps around them take their edge colour (ui/edge.ts). Icons, 2D art and
+ *  3D posters are transparent and sit on the plain background. */
 export const isOpaquePhoto = (role: AssetRole) => role === "photo" || role === "product";

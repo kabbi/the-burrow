@@ -285,3 +285,14 @@ matches your own shell's command line.
 - Dev app, a throwaway container with one thing inside: More › "Duplicate (empty)" made
   "… 2" in the same place, opened it, empty, Links "copied from" the original; the toast had
   Undo. Archived the test things afterwards.
+
+## 2026-11-18 · Photos drawn whole: what fills the gaps
+
+- Thumbnails used `object-fit: cover`, which clipped non-square photos. Switched to `contain`.
+- Tried a blurred copy of the photo behind it. In prod it looked muddy: PCBs shot on white paper
+  got a greyish average colour instead of white. Also 3D posters are transparent, so the copy
+  showed through them (limited to "our photo" / "shop photo" before dropping the idea).
+- Now: `ui/edge.ts` samples the photo's edges facing the gaps (48 px canvas, 2 px strips) and
+  fills with their per-channel median. If the inter-quartile spread is over 48 (busy edges: a
+  hand, a table) it keeps the plain background. Synthetic white/off-white shots blend
+  seamlessly; the dev DB's hand-held photos are all "busy" and stay grey.

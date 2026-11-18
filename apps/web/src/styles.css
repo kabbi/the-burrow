@@ -475,9 +475,6 @@ img.contain {
   outline: 3px solid var(--main);
   outline-offset: 1px;
 }
-.asset-pic.fit {
-  --blur: 14px;
-}
 .asset-pic img {
   width: 100%;
   height: 100%;

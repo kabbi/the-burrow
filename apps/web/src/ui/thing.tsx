@@ -1,17 +1,16 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { post, type ThingView } from "../lib/api.ts";
 import { useAction } from "../lib/hooks.ts";
 import { isOpaquePhoto } from "../lib/roles.ts";
+import { edgeFill } from "./edge.ts";
 import { Icon } from "./Icon.tsx";
 import { MovePicker } from "./MovePicker.tsx";
 
-/** `--pic` for a `.fit` box: the picture drawn whole over a blurred copy of itself. */
-export const fitPic = (src: string) => ({ "--pic": `url(${JSON.stringify(src)})` }) as CSSProperties;
-
 /**
- * The thing's cover picture (D-015), or its initial. Pictures are drawn whole; photos sit on a
- * blurred copy of themselves so non-square ones fill the box. Icons and sprites stay plain.
+ * The thing's cover picture (D-015), or its initial. Pictures are drawn whole; the gaps around a
+ * non-square photo take the colour of its edges (edge.ts). Transparent ones (icons, 2D art,
+ * 3D posters) sit on the plain background.
  */
 export function Thumb({
   thing,
@@ -25,16 +24,13 @@ export function Thumb({
   const src = big ? (c?.imageUrl ?? c?.thumbUrl) : (c?.thumbUrl ?? c?.imageUrl);
   const cls = `thumb${size ? ` ${size}` : ""}`;
   if (c && src)
-    return isOpaquePhoto(c.role) ? (
-      <span className={`${cls} fit`} style={fitPic(src)}>
-        <img src={src} alt="" loading="lazy" />
-      </span>
-    ) : (
+    return (
       <img
         className={`${cls}${c.role === "icon" || c.role === "sprite" ? " contain" : ""}`}
         src={src}
         alt=""
         loading="lazy"
+        {...(isOpaquePhoto(c.role) ? edgeFill(src) : {})}
       />
     );
   return (

@@ -13,7 +13,7 @@ import {
 import { useAction, useDebounced, useRefresh } from "../lib/hooks.ts";
 import { useToast } from "../lib/toast.tsx";
 import { isOpaquePhoto, ROLE_LABEL } from "../lib/roles.ts";
-import { fitPic } from "../ui/thing.tsx";
+import { edgeFill } from "../ui/edge.ts";
 
 const ModelViewer = lazy(() => import("./ModelViewer.tsx"));
 
@@ -110,8 +110,7 @@ export function Assets({
             <figure key={a.id} className={`asset${a.id === shownId ? " shown" : ""}`}>
               <button
                 type="button"
-                className={`asset-pic${a.thumbUrl && isOpaquePhoto(a.role) ? " fit" : ""}`}
-                style={a.thumbUrl && isOpaquePhoto(a.role) ? fitPic(a.thumbUrl) : undefined}
+                className="asset-pic"
                 onClick={() => setOpen(a)}
                 aria-label={`Open ${ROLE_LABEL[a.role]}`}
                 title={`${ROLE_LABEL[a.role]}${a.id === shownId ? (a.id === coverId ? " · cover" : " · cover (automatic)") : ""}${typeof a.data.view === "string" ? ` · ${a.data.view} side` : ""}`}
@@ -122,6 +121,7 @@ export function Assets({
                     alt=""
                     loading="lazy"
                     className={a.role === "icon" || a.role === "sprite" ? "contain" : ""}
+                    {...(isOpaquePhoto(a.role) ? edgeFill(a.thumbUrl) : {})}
                   />
                 ) : (
                   <span className="asset-ph">{a.role === "model" ? "3D" : "?"}</span>
