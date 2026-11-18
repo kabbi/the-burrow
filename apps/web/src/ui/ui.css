@@ -896,7 +896,7 @@ textarea.input {
   border-radius: var(--radius-s);
   flex: none;
   background: var(--sunk);
-  object-fit: cover;
+  object-fit: contain;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -936,7 +936,7 @@ textarea.input {
   border-radius: 9px;
   border: 2px solid var(--panel);
   background: var(--sunk);
-  object-fit: cover;
+  object-fit: contain;
 }
 .stackpic > :nth-child(1) {
   left: 12px;
