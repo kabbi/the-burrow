@@ -13,6 +13,7 @@ import {
 import { useAction, useDebounced, useRefresh } from "../lib/hooks.ts";
 import { useToast } from "../lib/toast.tsx";
 import { ROLE_LABEL } from "../lib/roles.ts";
+import { fitPic } from "../ui/thing.tsx";
 
 const ModelViewer = lazy(() => import("./ModelViewer.tsx"));
 
@@ -109,7 +110,10 @@ export function Assets({
             <figure key={a.id} className={`asset${a.id === shownId ? " shown" : ""}`}>
               <button
                 type="button"
-                className="asset-pic"
+                className={`asset-pic${a.thumbUrl && a.role !== "icon" && a.role !== "sprite" ? " fit" : ""}`}
+                style={
+                  a.thumbUrl && a.role !== "icon" && a.role !== "sprite" ? fitPic(a.thumbUrl) : undefined
+                }
                 onClick={() => setOpen(a)}
                 aria-label={`Open ${ROLE_LABEL[a.role]}`}
                 title={`${ROLE_LABEL[a.role]}${a.id === shownId ? (a.id === coverId ? " · cover" : " · cover (automatic)") : ""}${typeof a.data.view === "string" ? ` · ${a.data.view} side` : ""}`}
