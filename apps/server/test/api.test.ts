@@ -353,7 +353,7 @@ describe("schema, tags and relations API", () => {
   it("sets tags by name and links things with typed relations", async () => {
     const a = await call<{ thing: { id: string } }>("POST", "/things", {
       name: "Pixel 9",
-      kind: "electronics",
+      kind: "device",
     });
     const b = await call<{ thing: { id: string } }>("POST", "/things", { name: "Pixel 9 case" });
     const t = await call<{ thing: { tags: { name: string }[] } }>("PUT", `/things/${a.body.thing.id}/tags`, {
@@ -535,7 +535,7 @@ describe("places tree and spots", () => {
     const room = await mk("Tree room", "room");
     const ivar = await mk("Tree IVAR", "furniture", room);
     const crate = await mk("Tree crate", "container", ivar);
-    await mk("Tree LEDs", "electronics", crate);
+    await mk("Tree LEDs", "component", crate);
     const mv = await call<Record<string, any>>("POST", `/things/${crate}/move`, {
       to: ivar,
       position: "shelf 3",

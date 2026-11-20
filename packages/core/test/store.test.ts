@@ -149,7 +149,7 @@ describe("Store", () => {
   it("lists gaps for Needs details", () => {
     const s = store();
     const k = s.createThing({ name: "Kitchen", kind: "room" });
-    const dw = s.createThing({ name: "LAGAN dishwasher", kind: "appliance", data: { maker: "IKEA" } });
+    const dw = s.createThing({ name: "LAGAN dishwasher", kind: "device", data: { maker: "IKEA" } });
     expect(dw.gaps).toEqual(["where", "model", "serial"]);
     s.move(dw.id, k.id);
     s.change(dw.id, { data: { model: "LAGAN", serial: "123" } });
@@ -176,7 +176,7 @@ describe("Store", () => {
     const s = store();
     const room = s.createThing({ name: "Office", kind: "room" });
     const drawer = s.createThing({ name: "Alex drawer 3", kind: "furniture", parentId: room.id });
-    const esp = s.createThing({ name: "ESP32 DevKit", kind: "electronics", data: { tags: ["wifi"] } });
+    const esp = s.createThing({ name: "ESP32 DevKit", kind: "device", data: { tags: ["wifi"] } });
     s.move(esp.id, drawer.id);
     s.change(esp.id, { data: { maker: "Espressif" } }, "ai");
     s.confirm(esp.id, ["maker"]);
@@ -239,9 +239,38 @@ describe("schema as data", () => {
     expect(s.createThing({ name: "Taxes 2025", kind: "document" }).gaps).toEqual([]);
   });
 
+  it("removes only unused kinds; a removed seed kind stays gone (D-039)", () => {
+    const s = store();
+    const iron = s.createThing({ name: "Soldering iron", kind: "component" });
+    expect(() => s.removeKind("component")).toThrow(/still of kind/);
+    expect(() => s.removeKind("thing")).toThrow(/used by Burrow/);
+    s.defineKind({ id: "led", name: "LED", parent: "component", isPlace: false, physical: true, fields: [] });
+    s.change(iron.id, { kind: "device" });
+    expect(() => s.removeKind("component")).toThrow(/extends/);
+    s.defineKind({ id: "led", name: "LED", parent: "thing", isPlace: false, physical: true, fields: [] });
+    s.removeKind("component");
+    expect(s.kind("component")).toBeNull();
+    // the seed doesn't bring it back, and a rebuild agrees
+    const again = new Store(s.db);
+    expect(again.kind("component")).toBeNull();
+    const before = snapshot(s);
+    s.rebuild();
+    expect(snapshot(s)).toEqual(before);
+    // defining it again makes it the person's own
+    s.defineKind({
+      id: "component",
+      name: "Part",
+      parent: "thing",
+      isPlace: false,
+      physical: true,
+      fields: [],
+    });
+    expect(new Store(s.db).kind("component")).toMatchObject({ name: "Part", builtin: false });
+  });
+
   it("validates relations: kinds, cardinality, symmetry", () => {
     const s = store();
-    const phone = s.createThing({ name: "Pixel 9", kind: "electronics" });
+    const phone = s.createThing({ name: "Pixel 9", kind: "device" });
     const caseT = s.createThing({ name: "Pixel 9 case" });
     const old = s.createThing({ name: "Pixel 7" });
     const older = s.createThing({ name: "Pixel 5" });
@@ -269,7 +298,7 @@ describe("schema as data", () => {
 
   it("merges tags: things, nested tags and names move to one tag; undo restores all", () => {
     const s = store();
-    const a = s.createThing({ name: "Glue gun", kind: "tool" });
+    const a = s.createThing({ name: "Glue gun", kind: "device" });
     const b = s.createThing({ name: "Mug", kind: "thing" });
     s.setTags(a.id, ["crafts", "workshop"], "ai");
     s.setTags(b.id, ["craft"]);
@@ -306,7 +335,7 @@ describe("schema as data", () => {
 
   it("tags are things: nesting, aliases, search through parents, undo", () => {
     const s = store();
-    const esp = s.createThing({ name: "ESP32 DevKit", kind: "electronics" });
+    const esp = s.createThing({ name: "ESP32 DevKit", kind: "device" });
     s.setTags(esp.id, ["sensors", "WiFi"], "ai");
     const wifi = s.findTag("wifi")!;
     expect(s.mustGet(esp.id).tags.map((t) => t.name)).toEqual(["sensors", "WiFi"]);
@@ -372,7 +401,7 @@ describe("list filters", () => {
   it("physical: only real things, no tags, documents or places", () => {
     const s = store();
     const room = s.createThing({ name: "Office", kind: "room" });
-    const t = s.createThing({ name: "Calipers", kind: "tool", parentId: room.id });
+    const t = s.createThing({ name: "Calipers", kind: "thing", parentId: room.id });
     s.setTags(t.id, ["measuring"]);
     s.createThing({ name: "Invoice", kind: "document" });
     expect(s.list({ physical: true }).map((x) => x.name)).toEqual(["Calipers"]);
@@ -384,7 +413,7 @@ describe("assets", () => {
 
   it("adds, picks a cover automatically, and lets you choose one", () => {
     const s = store();
-    const t = s.createThing({ name: "Soldering iron", kind: "tool" });
+    const t = s.createThing({ name: "Soldering iron", kind: "device" });
     expect(s.mustGet(t.id).cover).toBeNull();
     const icon = s.addAsset(t.id, { role: "icon", file: "aaa.svg", mime: "image/svg+xml", bytes: 300 });
     expect(icon.id).toBe("A-0001");
@@ -431,7 +460,7 @@ describe("assets", () => {
 
   it("every asset change undoes, redoes and survives a rebuild", () => {
     const s = store();
-    const t = s.createThing({ name: "Kettle", kind: "appliance" });
+    const t = s.createThing({ name: "Kettle", kind: "device" });
     const p = s.addAsset(t.id, {
       role: "product",
       file: "p.jpg",
@@ -480,7 +509,7 @@ describe("places: positions and tree", () => {
     const box = s.createThing({ name: "Modubox", kind: "container", parentId: crate.id });
     const leds = s.createThing({
       name: "LEDs 5 mm",
-      kind: "electronics",
+      kind: "device",
       parentId: box.id,
       data: { quantity: 10 },
     });
@@ -518,7 +547,7 @@ describe("places: positions and tree", () => {
     expect(n(room.id)).toMatchObject({ items: 0, total: 1 });
     expect(n(box.id)).toMatchObject({ items: 1, total: 1, position: "front left" });
     expect(n(crate.id)).toMatchObject({ items: 0, total: 1, parentId: ivar.id, position: "shelf 3" });
-    s.createThing({ name: "Loose screwdriver", kind: "tool" });
+    s.createThing({ name: "Loose screwdriver", kind: "thing" });
     expect(s.placeTree().unplaced).toBe(1);
   });
 });
@@ -527,7 +556,7 @@ describe("no fixed place (D-026)", () => {
   it("is not a gap, survives undo and rebuild, and clears when placed", () => {
     const s = store();
     const room = s.createThing({ name: "Office", kind: "room" });
-    const laptop = s.createThing({ name: "MacBook Air", kind: "electronics", parentId: room.id });
+    const laptop = s.createThing({ name: "MacBook Air", kind: "device", parentId: room.id });
     s.move(laptop.id, null, "you", undefined, undefined, true);
     let t = s.mustGet(laptop.id);
     expect([t.parentId, t.roams, t.gaps.includes("where")]).toEqual([null, true, false]);
@@ -564,7 +593,7 @@ describe("thingsOfTheDay (D-028)", () => {
     const s = store();
     const room = s.createThing({ name: "Cellar", kind: "room" });
     for (let i = 0; i < 6; i++) s.createThing({ name: `Box ${i}`, kind: "thing", parentId: room.id });
-    s.createThing({ name: "Fridge", kind: "appliance", parentId: room.id });
+    s.createThing({ name: "Fridge", kind: "device", parentId: room.id });
     s.createThing({ name: "Tag", kind: "tag" });
     const a = s.thingsOfTheDay("2027-01-01");
     expect(a.map((p) => p.why).toSorted()).toEqual(["check", "field", "photo"]);
@@ -594,7 +623,7 @@ describe("aiUnchecked", () => {
 describe("asset originals, keys and file replacement", () => {
   it("replaces a processed file in place, keeps the original, undoes", () => {
     const s = store();
-    const t = s.createThing({ name: "Pi Zero", kind: "electronics" });
+    const t = s.createThing({ name: "Pi Zero", kind: "device" });
     const a = s.addAsset(t.id, {
       role: "photo",
       file: "proc1.jpg",
@@ -756,7 +785,7 @@ describe("stock: split and combine (D-036)", () => {
     expect(s.stockFamily(third.id).map((t) => t.id)).toEqual([two.id]);
     expect(s.mustGet(third.id).data.quantity).toBe(2);
 
-    const lamp = s.createThing({ name: "Lamp", kind: "electronics" });
+    const lamp = s.createThing({ name: "Lamp", kind: "device" });
     expect(() => s.combine([lamp.id], third.id)).toThrow(/not the same stock/);
   });
 });

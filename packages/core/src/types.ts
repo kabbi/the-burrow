@@ -314,6 +314,8 @@ export type EventBody =
   | { type: "asset.removed"; thingId: ThingId; assetId: string; undo?: boolean }
   | { type: "asset.cover"; thingId: ThingId; from: string | null; to: string | null }
   | { type: "kind.defined"; kind: Omit<Kind, "builtin"> }
+  /** Only an unused kind: no things (archived too), no child kinds, no link types (D-039). */
+  | { type: "kind.removed"; kindId: string }
   | { type: "relation.defined"; relation: Omit<RelationType, "builtin"> };
 
 /** Editable asset fields; null clears. */

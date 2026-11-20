@@ -126,9 +126,8 @@ const SOURCE: FieldSource = "homebox";
 function kindFor(e: HbEntitySummary, hasParent: boolean): string {
   if (e.entityType.isLocation) return hasParent ? "container" : "room";
   const n = e.entityType.name.toLowerCase();
-  if (n === "pcb" || n.includes("electronic")) return "electronics";
-  if (n.includes("appliance")) return "appliance";
-  if (n.includes("tool")) return "tool";
+  if (n === "pcb" || n.includes("electronic")) return "component";
+  if (n.includes("appliance")) return "device";
   return "thing";
 }
 

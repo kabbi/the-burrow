@@ -35,7 +35,7 @@ class FakeVision implements Provider {
     this.calls.push({ task: "photo", images: p.imageData?.length ?? 0, noThinking: Boolean(p.noThinking) });
     const output = {
       name: "Hot glue gun",
-      kind: "tool",
+      kind: "device",
       description: "Melts glue sticks for quick bonding.",
       maker: null,
       model: null,
@@ -174,7 +174,7 @@ beforeEach(async () => {
     },
   );
   garage = store.createThing({ name: "Garage", kind: "room" }).id;
-  glue = store.createThing({ name: "Glue gun", kind: "tool", parentId: garage }).id;
+  glue = store.createThing({ name: "Glue gun", kind: "device", parentId: garage }).id;
   const pic = await media.ingest(await new FakeTelegram().download(), "a.jpg");
   store.addAsset(glue, { role: "photo", file: pic.file, mime: pic.mime, bytes: pic.bytes });
   const wood = store.createThing({ name: "Wood glue", kind: "thing" }).id;
@@ -215,7 +215,7 @@ describe("telegram photo bot", () => {
     const sid = sessionId();
     await send(press(`${sid}:n`));
     const t = deps.store.list({ limit: 50 }).find((x) => x.name === "Hot glue gun")!;
-    expect(t.kind).toBe("tool");
+    expect(t.kind).toBe("device");
     expect(t.meta.name?.source).toBe("ai");
     expect(t.tags).toEqual([]); // AI suggests no tags (D-030)
     expect(t.cover).not.toBeNull();
@@ -239,7 +239,7 @@ describe("telegram photo bot", () => {
     expect(made).toHaveLength(3);
     for (const t of made) {
       expect(t.meta.name?.source).toBe("ai"); // violet until you say it's right
-      expect(t.kind).toBe("tool");
+      expect(t.kind).toBe("device");
       expect(t.cover).not.toBeNull();
     }
     const summary = String(tg.last("editMessageText")!.text);
@@ -308,7 +308,7 @@ describe("telegram photo bot", () => {
     await send(text("My glue gun", tg.promptId()));
     const t = deps.store.list({ limit: 50 }).find((x) => x.name === "My glue gun")!;
     expect(t.meta.name?.source).toBe("you");
-    expect(t.kind).toBe("tool");
+    expect(t.kind).toBe("device");
   });
 
   it("asks before using Claude when the local model is away, and shows the price", async () => {

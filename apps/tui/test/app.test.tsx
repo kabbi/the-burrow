@@ -10,7 +10,7 @@ import { DARK, ThemeCtx } from "../src/app/theme.ts";
 const thing = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
   id,
   seq: Number(id.slice(2)),
-  kind: "tool",
+  kind: "device",
   name,
   data: {},
   meta: {},

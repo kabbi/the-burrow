@@ -1,5 +1,5 @@
 // One-off, idempotent backfill from pcb-photo-maker's library (D-018), read-only on its side:
-//  1. defines the "pcb" kind (extends electronics: slug, revision, width/height in mm)
+//  1. defines the "pcb" kind (extends thing: slug, revision, width/height in mm)
 //  2. every processed top/bottom capture → a photo asset with its camera original, side, scale and size
 //     (key "pcbphoto:<capture id>"; the top photo HomeBox gave us is upgraded in place, so it stays the cover)
 //  3. things that were HomeBox "PCB" entities → kind pcb; hb_slug/hb_revision/hb_*_mm → proper fields
@@ -42,7 +42,7 @@ if (!store.kind("pcb") && !DRY)
     {
       id: "pcb",
       name: "PCB",
-      parent: "electronics",
+      parent: "thing",
       isPlace: false,
       physical: true,
       fields: [

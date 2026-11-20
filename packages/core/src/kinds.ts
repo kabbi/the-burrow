@@ -39,19 +39,13 @@ export const builtinKinds: Kind[] = [
       f("notes", "Notes", "longtext"),
     ],
   },
+  // Kinds are for what changes a thing's fields or behaviour; subject categories (tools,
+  // kitchen, electronics) are tags, which can overlap (D-039).
   {
-    id: "electronics",
-    name: "Electronics / PCB",
-    parent: "thing",
-    isPlace: false,
-    physical: true,
-    builtin: true,
-    fields: [],
-  },
-  { id: "tool", name: "Tool", parent: "thing", isPlace: false, physical: true, builtin: true, fields: [] },
-  {
-    id: "appliance",
-    name: "Appliance",
+    // Anything with a plug or a battery, a serial and a warranty: kettle, laptop, printer,
+    // soldering iron. Its manual and receipt live in paperless.
+    id: "device",
+    name: "Device",
     parent: "thing",
     isPlace: false,
     physical: true,
@@ -62,6 +56,16 @@ export const builtinKinds: Kind[] = [
       f("serial", "Serial no.", "text", { wanted: true }),
       f("warrantyUntil", "Warranty until", "date"),
     ],
+  },
+  {
+    // Parts kept as stock: LEDs, resistors, chips, connectors (counted with quantity).
+    id: "component",
+    name: "Component",
+    parent: "thing",
+    isPlace: false,
+    physical: true,
+    builtin: true,
+    fields: [f("value", "Value", "text"), f("package", "Package", "text")],
   },
   {
     id: "room",

@@ -81,7 +81,7 @@ const ThingCreate = z
     examples: [
       {
         name: "Hot glue gun",
-        kind: "tool",
+        kind: "device",
         data: { maker: "Bosch", description: "Melts 7 mm glue sticks" },
         parentPath: "Workshop / Shelf 2",
         position: "top",

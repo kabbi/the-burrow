@@ -64,6 +64,9 @@ export interface StoreOptions {
   now?: () => string;
 }
 
+/** Kinds the code relies on (defaults, tags, people, papers, places from paths): never removed. */
+const CORE_KINDS = new Set(["thing", "tag", "person", "document", "room", "container"]);
+
 /** Actors that write imported data: a move by them is provenance "import", not a person's. */
 const IMPORT_ACTORS = new Set([
   "import",
@@ -309,6 +312,11 @@ export class Store {
 
   defineKind(kind: Omit<Kind, "builtin">, actor = this.currentActor()): void {
     this.append({ type: "kind.defined", kind }, actor);
+  }
+
+  /** Remove a kind nothing uses any more (D-039). A removed seed kind isn't seeded again. */
+  removeKind(id: string, actor = this.currentActor()): void {
+    this.append({ type: "kind.removed", kindId: id }, actor);
   }
 
   defineRelation(relation: Omit<RelationType, "builtin">, actor = this.currentActor()): void {
@@ -1364,8 +1372,22 @@ export class Store {
        on conflict(id) do update set name = excluded.name, parent = excluded.parent, is_place = excluded.is_place,
          physical = excluded.physical, fields = excluded.fields where kinds.builtin = 1`,
     );
+    // A seed kind someone removed (kind.removed) stays gone, unless it was defined again since.
+    const removed = new Set(
+      (
+        this.db
+          .prepare("select body from events where type in ('kind.removed', 'kind.defined') order by seq")
+          .all() as Row[]
+      ).reduce<string[]>((acc, r) => {
+        const b = JSON.parse(String(r.body)) as EventBody;
+        if (b.type === "kind.removed") acc.push(b.kindId);
+        else if (b.type === "kind.defined") return acc.filter((id) => id !== b.kind.id);
+        return acc;
+      }, []),
+    );
     for (const k of builtinKinds)
-      ins.run(k.id, k.name, k.parent, k.isPlace ? 1 : 0, k.physical ? 1 : 0, JSON.stringify(k.fields));
+      if (!removed.has(k.id))
+        ins.run(k.id, k.name, k.parent, k.isPlace ? 1 : 0, k.physical ? 1 : 0, JSON.stringify(k.fields));
     const rel = this.db.prepare(
       `insert into relation_types (id, name, inverse, from_kinds, to_kinds, cardinality, symmetric, builtin)
        values (?, ?, ?, ?, ?, ?, ?, 1)
@@ -1570,6 +1592,18 @@ export class Store {
         if (new Set(keys).size !== keys.length) throw new BurrowError("Field keys must be unique");
         break;
       }
+      case "kind.removed": {
+        const id = b.kindId;
+        if (!this.kind(id)) throw new BurrowError(`Unknown kind "${id}"`, 404);
+        if (CORE_KINDS.has(id)) throw new BurrowError(`"${id}" is used by Burrow itself`);
+        const used = this.db.prepare("select count(*) n from things where kind = ?").get(id) as Row;
+        if (Number(used.n)) throw new BurrowError(`${used.n} things are still of kind "${id}"`, 409);
+        const child = this.kinds().find((k) => k.parent === id);
+        if (child) throw new BurrowError(`"${child.id}" extends "${id}"`, 409);
+        const rel = this.relationTypes().find((r) => [...r.fromKinds, ...r.toKinds].includes(id));
+        if (rel) throw new BurrowError(`Link type "${rel.id}" uses "${id}"`, 409);
+        break;
+      }
       case "relation.defined": {
         const r = b.relation;
         if (!/^[a-z][a-z0-9_]{0,40}$/.test(r.id)) throw new BurrowError(`Bad relation id "${r.id}"`);
@@ -1761,6 +1795,9 @@ export class Store {
             b.kind.physical === false ? 0 : 1,
             JSON.stringify(b.kind.fields),
           );
+        break;
+      case "kind.removed":
+        this.db.prepare("delete from kinds where id = ?").run(b.kindId);
         break;
       case "relation.defined": {
         const r = b.relation;

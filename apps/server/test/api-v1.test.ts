@@ -93,7 +93,7 @@ describe("API v1", () => {
       created: boolean;
     }>(rig, "PUT", "/refs/pcbphoto/board-17", {
       name: "ESP32 dev board",
-      kind: "electronics",
+      kind: "device",
       data: { maker: "Espressif", model: "DevKitC" },
       parentPath: "Workshop / Drawer 3",
       createPlaces: true,
