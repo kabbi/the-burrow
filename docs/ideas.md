@@ -119,7 +119,7 @@ Loosely ordered. ✓ = done in some form.
 
 ## Core / platform
 
-- Delete / retire kinds and link types (with a check that nothing uses them), and rename field keys.
+- Remove kinds from the Schema page (the Store can since D-039), delete link types, and rename field keys.
 - Show HomeBox's extra fields (`hb_slug`, `hb_width_mm`…) as declared fields on Electronics, or
   migrate them to proper keys.
 - A dev/test DB (`BURROW_DB`) for mock-paperless UI tests, so they never touch the real data.

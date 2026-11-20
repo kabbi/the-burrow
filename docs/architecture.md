@@ -42,7 +42,7 @@ with inheritance and typed fields, relation types, tags as things (D-013).
   - `external_refs`: thing ↔ service + remote id (HomeBox uuid + asset id, …).
   - `assets` (D-015): photos, shop pictures, icons, 2D art, 3D models per thing, with role, file,
     thumb, provenance; `things.cover_id` is the chosen cover (else derived).
-  - `kinds`: parent kind, `isPlace`, `physical`, typed fields (add "plant" without code).
+  - `kinds`: parent kind, `isPlace`, `physical`, typed fields (add "plant" without code; kinds are for fields and traits, categories are tags, D-039).
     Built-in `person` (D-032): people, with or without an account; linked by `owned_by`,
     `bought_by`, `authored_by`.
   - `things_fts`: FTS5 over name / body (every text field, tag names with their parent tags, refs,

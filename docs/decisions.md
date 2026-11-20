@@ -778,3 +778,25 @@ a box is one thing that holds things.
 
 Considered: copying the contents too (a kit box with its parts). Not the case at hand, and it'd
 mean duplicating many things; it can be an option later.
+
+## D-039 · Kinds are for fields and behaviour; categories are tags (2026-11-20)
+
+The seed kinds Appliance, Tool and "Electronics / PCB" came from HomeBox's entity types, not a
+rule, and it showed in prod: a MacBook was an appliance, a printer "electronics", a 3D printer a
+tool, and a soldering iron could be any of them. Two of the three had no fields at all.
+
+- **A kind earns its place** by changing what a thing is in Burrow: its fields (Plant: watering),
+  or its traits (`isPlace`, `physical`). A subject ("tools", "kitchen", "electronics") is a tag,
+  because tags can overlap and a thing has one kind.
+- **Device** (`device`, replaces `appliance`, same fields: maker, model, serial wanted; warranty):
+  anything with a plug or a battery. Kettle, laptop, printer, soldering iron, 3D printer.
+- **Component** (`component`, replaces `electronics`; value, package): parts kept as stock, counted
+  with quantity. **PCB** now extends Thing directly: a board isn't a part from a drawer.
+- **Tool** is gone: former tools are plain things tagged `tool` (or devices, when they plug in).
+- **Furniture vs Container**: furniture stays put in a room; a container can be carried, even full.
+- **Removing kinds**: `Store.removeKind` / `kind.removed`, only when no thing (archived ones too),
+  child kind or link type uses it; thing, tag, person, document, room and container are kept. A
+  removed seed kind isn't seeded again (unless defined again, which makes it the person's own).
+- **Migration** `migrate-0006-kinds.ts` (`pnpm prod:migrate-kinds`, `--dry-run`, `--as device=IDs`
+  to override per thing): re-kinds through `Store.change` keeping the kind's provenance, tags
+  former tools, re-parents PCB, then removes the three kinds. Idempotent; backs up first.

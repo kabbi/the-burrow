@@ -11,6 +11,7 @@
     "import:homebox": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/import-homebox.ts",
     "migrate:0002": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/migrate-0002.ts",
     "migrate:0004": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/migrate-0004-assets.ts",
+    "migrate:0006": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/migrate-0006-kinds.ts",
     "import:pcbphoto": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/import-pcbphoto.ts",
     "token": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/token.ts",
     "account": "node --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/scripts/account.ts"

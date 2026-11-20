@@ -296,3 +296,12 @@ matches your own shell's command line.
   fills with their per-channel median. If the inter-quartile spread is over 48 (busy edges: a
   hand, a table) it keeps the plain background. Synthetic white/off-white shots blend
   seamlessly; the dev DB's hand-held photos are all "busy" and stay grey.
+
+## 2026-11-20 · Taxonomy cleanup (D-039) on dev
+
+- Dry run, then the migration on the dev DB: calipers and the test axe → thing +#tool, the two LED
+  things → component, pcb re-parented, appliance/electronics/tool removed. A second run is a no-op.
+- A copy of the migrated DB rebuilt from the log gives the same kinds and per-kind counts (the old
+  `thing.created kind: tool` events replay fine: apply doesn't check kinds, only append does).
+- Prod, by reading it: 10 appliances, 6 tools, 2 electronics. The Brother printer (electronics) and
+  the Bambu A1 mini (tool) want `--as device=…`; the LEDs are a component.
