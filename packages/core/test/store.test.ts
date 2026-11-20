@@ -268,6 +268,33 @@ describe("schema as data", () => {
     expect(new Store(s.db).kind("component")).toMatchObject({ name: "Part", builtin: false });
   });
 
+  it("tells apart tags that share a name under different parents", () => {
+    const s = store();
+    const pcb = s.ensureTag("PCB");
+    const nested = s.createThing({ name: "led", kind: "tag", parentId: pcb }).id;
+    const top = s.createThing({ name: "LED", kind: "tag" }).id;
+    const lamp = s.createThing({ name: "Lamp" }).id;
+    const ids = () => s.tagsOf(lamp).map((t) => t.id);
+    // a bare name means the top-level one; a path or an ID picks the other
+    expect(s.resolveTag("led")).toBe(top);
+    expect(s.resolveTag("pcb › LED")).toBe(nested);
+    expect(s.resolveTag("PCB/led")).toBe(nested);
+    expect(s.resolveTag("other/led")).toBeNull();
+    s.setTags(lamp, [nested]);
+    expect(ids()).toEqual([nested]);
+    // editing by name later keeps the one it has instead of swapping it for the top-level one
+    s.setTags(lamp, ["led", "warm"]);
+    expect(ids()).toContain(nested);
+    expect(ids()).not.toContain(top);
+    // both at once, by ID; removing one leaves the other
+    s.setTags(lamp, [nested, top]);
+    expect(ids().toSorted()).toEqual([nested, top].toSorted());
+    s.setTags(lamp, [top]);
+    expect(ids()).toEqual([top]);
+    // an ID that isn't a tag is just a name
+    expect(s.resolveTag(lamp)).toBeNull();
+  });
+
   it("validates relations: kinds, cardinality, symmetry", () => {
     const s = store();
     const phone = s.createThing({ name: "Pixel 9", kind: "device" });

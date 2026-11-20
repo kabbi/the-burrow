@@ -800,3 +800,17 @@ tool, and a soldering iron could be any of them. Two of the three had no fields 
 - **Migration** `migrate-0006-kinds.ts` (`pnpm prod:migrate-kinds`, `--dry-run`, `--as device=IDs`
   to override per thing): re-kinds through `Store.change` keeping the kind's provenance, tags
   former tools, re-parents PCB, then removes the three kinds. Idempotent; backs up first.
+
+## D-040 · Tags are picked by ID; names can repeat under different parents (2026-11-20)
+
+Tags nest, so two can share a name ("PCB › led" and a top-level "led"; prod has exactly that). Tags
+used to travel as names, and `findTag` took the first match: picking the second attached the
+first, any later tag edit silently swapped it, and removing one removed both.
+
+- `setTags` (and `PUT /things/:id/tags`, the v1 `tags` / `addTags`) take **tag IDs, names or
+  paths**. `Store.resolveTag(ref, prefer)`: an ID of a live tag; else an exact name; else a path,
+  matched from the bottom up (`PCB › led`, `PCB/led`); else an alias. Several hits: one the thing
+  already has wins, then the one with the fewest parents, then the oldest. So a bare name means the
+  top-level tag, and re-saving names never swaps a tag for its namesake.
+- The web picker and the TUI send IDs for existing tags and a name only for a new one. The picker no
+  longer hides a tag because the thing has another one with the same name; its hint shows the path.

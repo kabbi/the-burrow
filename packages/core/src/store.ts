@@ -323,7 +323,7 @@ export class Store {
     this.append({ type: "relation.defined", relation }, actor);
   }
 
-  /** Find a tag by name or alias (case-insensitive), or create it. */
+  /** Find a tag (see `resolveTag`), or create one with that name. */
   ensureTag(
     name: string,
     actor = this.currentActor(),
@@ -332,32 +332,73 @@ export class Store {
   ): ThingId {
     const clean = name.trim().replace(/\s+/g, " ");
     if (!clean) throw new BurrowError("A tag needs a name");
-    const found = this.findTag(clean);
+    const found = this.resolveTag(clean);
     if (found) return found;
     return this.createThing({ name: clean, kind: "tag", parentId, source }, actor).id;
   }
 
   findTag(name: string): ThingId | null {
-    const n = name.trim().toLowerCase();
-    const rows = this.db
-      .prepare(
-        `select id, name, data from things where archived_at is null and kind in (${this.kindAndDescendantsSql("tag")})`,
-      )
-      .all() as { id: string; name: string; data: string }[];
-    const hit =
-      rows.find((r) => r.name.toLowerCase() === n) ??
-      rows.find((r) =>
-        ((parse(r.data, {}) as { aliases?: string[] }).aliases ?? []).some((a) => a.toLowerCase() === n),
-      );
-    return hit?.id ?? null;
+    return this.resolveTag(name);
   }
 
-  /** Make a thing's tags exactly `names` (created if new). Returns the thing. */
-  setTags(id: ThingId, names: string[], source: FieldSource = "you", actor = this.currentActor()): ThingView {
+  /**
+   * A tag by ID ("B-0003"), name, path ("PCB › led" or "PCB/led", from the bottom up) or alias,
+   * case-insensitive. Tags can share a name under different parents; then one in `prefer` (the
+   * thing's current tags) wins, else the one with the fewest parents, else the oldest.
+   */
+  resolveTag(ref: string, prefer: ReadonlySet<ThingId> = new Set()): ThingId | null {
+    const r = ref.trim();
+    const rows = this.db
+      .prepare(
+        `select id, seq, name, data from things where archived_at is null and kind in (${this.kindAndDescendantsSql("tag")})`,
+      )
+      .all() as { id: string; seq: number; name: string; data: string }[];
+    if (/^B-\d{4,}$/.test(r)) {
+      const hit = rows.find((x) => x.id === r);
+      if (hit) return hit.id;
+    }
+    const n = r.toLowerCase();
+    const lc = (xs: string[]) => xs.map((x) => x.toLowerCase());
+    const ancestors = (id: string) => lc(this.path(id).map((p) => p.name));
+    const pick = (hits: typeof rows) => {
+      if (hits.length <= 1) return hits[0]?.id ?? null;
+      const mine = hits.filter((x) => prefer.has(x.id));
+      const pool = mine.length ? mine : hits;
+      return pool
+        .map((x) => ({ x, depth: this.path(x.id).length }))
+        .toSorted((a, b) => a.depth - b.depth || Number(a.x.seq) - Number(b.x.seq))[0]!.x.id;
+    };
+    const byName = rows.filter((x) => x.name.toLowerCase() === n);
+    if (byName.length) return pick(byName);
+    const parts = lc(r.split(/\s*(?:›|\/)\s*/).filter(Boolean));
+    if (parts.length > 1) {
+      const last = parts.at(-1)!;
+      const up = parts.slice(0, -1);
+      const byPath = rows.filter(
+        (x) =>
+          x.name.toLowerCase() === last && ancestors(x.id).slice(-up.length).join("\0") === up.join("\0"),
+      );
+      if (byPath.length) return pick(byPath);
+    }
+    return pick(
+      rows.filter((x) => lc((parse(x.data, {}) as { aliases?: string[] }).aliases ?? []).includes(n)),
+    );
+  }
+
+  /**
+   * Make a thing's tags exactly these (tag IDs, names or paths; see `resolveTag`). Unknown names
+   * become new tags. A name shared by several tags keeps the one the thing already has.
+   */
+  setTags(id: ThingId, tags: string[], source: FieldSource = "you", actor = this.currentActor()): ThingView {
     return tx(this.db, () => {
       const t = this.mustGetRaw(id);
-      const want = new Set(names.filter((n) => n.trim()).map((n) => this.ensureTag(n, actor, null, source)));
       const have = this.edges({ type: "tagged", fromId: t.id });
+      const current = new Set(have.map((e) => e.toId));
+      const want = new Set(
+        tags
+          .filter((n) => n.trim())
+          .map((n) => this.resolveTag(n, current) ?? this.ensureTag(n, actor, null, source)),
+      );
       for (const e of have) if (!want.has(e.toId)) this.unrelate("tagged", t.id, e.toId, actor);
       for (const tagId of want)
         if (!have.some((e) => e.toId === tagId)) this.relate("tagged", t.id, tagId, { source }, actor);

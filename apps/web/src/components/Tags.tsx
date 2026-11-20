@@ -13,14 +13,15 @@ export function TagEditor({ thing }: { thing: ThingView }) {
   const { data } = useQuery({ queryKey: ["tags"], queryFn: () => get<{ tags: TagInfo[] }>("/tags") });
   const [q, setQ] = useState("");
   const [hi, setHi] = useState(0);
-  const names = thing.tags.map((t) => t.name);
+  // Tags are sent by ID: two tags can share a name under different parents (PCB › led, led).
+  const ids = thing.tags.map((t) => t.id);
 
   const options = useMemo(() => {
     const n = q.trim().toLowerCase();
     if (!n) return [];
-    const have = new Set(names.map((x) => x.toLowerCase()));
+    const have = new Set(ids);
     const hits = (data?.tags ?? [])
-      .filter((t) => !have.has(t.name.toLowerCase()))
+      .filter((t) => !have.has(t.id))
       .filter((t) => t.name.toLowerCase().includes(n) || t.aliases.some((a) => a.toLowerCase().includes(n)))
       .toSorted(
         (a, b) =>
@@ -29,9 +30,12 @@ export function TagEditor({ thing }: { thing: ThingView }) {
       )
       .slice(0, 8)
       .map((t) => ({ key: t.id, name: t.name, hint: [...t.path, `${t.uses}×`].join(" › ") }));
-    const exact = (data?.tags ?? []).some((t) => t.name.toLowerCase() === n) || have.has(n);
+    const exact = (data?.tags ?? []).some((t) => t.name.toLowerCase() === n);
     return exact ? hits : [...hits, { key: "new", name: q.trim(), hint: "new tag" }];
-  }, [q, data, names]);
+  }, [q, data, ids]);
+  // A new tag goes by name; for an existing one, its ID.
+  const add = (o: { key: string; name: string }) =>
+    void setTags([...ids, o.key === "new" ? o.name : o.key], `Tagged “${o.name}”`);
 
   const setTags = (next: string[], text: string) =>
     act(() => put<{ event?: never }>(`/things/${thing.id}/tags`, { names: next }), text);
@@ -73,7 +77,7 @@ export function TagEditor({ thing }: { thing: ThingView }) {
               aria-label={`Remove tag ${t.name}`}
               onClick={() =>
                 setTags(
-                  names.filter((x) => x !== t.name),
+                  ids.filter((x) => x !== t.id),
                   `Removed “${t.name}”`,
                 )
               }
@@ -105,7 +109,7 @@ export function TagEditor({ thing }: { thing: ThingView }) {
               e.preventDefault();
               const o = options[hi]!;
               setQ("");
-              void setTags([...names, o.name], `Tagged “${o.name}”`);
+              add(o);
             } else if (e.key === "Escape") setQ("");
           }}
         />
@@ -120,7 +124,7 @@ export function TagEditor({ thing }: { thing: ThingView }) {
                 onMouseDown={(e) => {
                   e.preventDefault();
                   setQ("");
-                  void setTags([...names, o.name], `Tagged “${o.name}”`);
+                  add(o);
                 }}
               >
                 <span>{o.key === "new" ? `+ “${o.name}”` : o.name}</span>

@@ -166,7 +166,7 @@ function ThingView({ d }: { d: ThingDetail }) {
     if (r?.r === "tags" && aiTags.length)
       return void app.act(
         () =>
-          put(`/things/${t.id}/tags`, { names: t.tags.filter((g) => g.source !== "ai").map((g) => g.name) }),
+          put(`/things/${t.id}/tags`, { names: t.tags.filter((g) => g.source !== "ai").map((g) => g.id) }),
         `Removed tags ${aiTags.map((g) => g.name).join(", ")}`,
         { group },
       );
@@ -218,7 +218,7 @@ function ThingView({ d }: { d: ThingDetail }) {
       return app.prompt({
         title: "Tags (comma-separated)",
         initial: t.tags.map((g) => g.name).join(", "),
-        hint: "new names become new tags",
+        hint: "new names become new tags; parent › name picks one of two with the same name",
         onSubmit: (v) =>
           void app.act(
             () =>

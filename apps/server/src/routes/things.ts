@@ -78,7 +78,7 @@ export function thingRoutes({ store, ai, vision }: Deps): Router {
     });
   });
 
-  /** Replace a thing's tags with these names (new ones are created). */
+  /** Replace a thing's tags with these: tag IDs, names or paths (unknown names become new tags). */
   r.put("/things/:id/tags", (req, res) => {
     const b = z.object({ names: z.array(z.string().min(1).max(80)).max(100) }).parse(req.body);
     res.json({ thing: store.setTags(req.params.id, b.names, "you") });

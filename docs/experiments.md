@@ -305,3 +305,10 @@ matches your own shell's command line.
   `thing.created kind: tool` events replay fine: apply doesn't check kinds, only append does).
 - Prod, by reading it: 10 appliances, 6 tools, 2 electronics. The Brother printer (electronics) and
   the Bambu A1 mini (tool) want `--as device=…`; the LEDs are a component.
+
+## 2026-11-20 · Same-named tags in the picker (D-040), dev
+
+- Throwaway thing plus a top-level "led" next to "PCB › led": typing "led" listed both (hints
+  "PCB › 13×" and "0×"). Picking the top-level one attached it (before: the PCB one); the PCB one
+  stayed offered and could be added too; × on one left the other; adding "warm" kept both right.
+  Test thing and tags archived afterwards.

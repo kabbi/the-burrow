@@ -56,12 +56,18 @@ const Placement = {
 
 const Writing = {
   source: S.Source.default("app").describe('Provenance of the values written. Default "app".'),
-  tags: z.array(z.string().min(1).max(80)).max(100).optional().describe("Replace the tags with these names."),
+  tags: z
+    .array(z.string().min(1).max(80))
+    .max(100)
+    .optional()
+    .describe(
+      'Replace the tags with these: tag IDs, names, or paths ("PCB › led") when names repeat under different parents. Unknown names become new tags.',
+    ),
   addTags: z
     .array(z.string().min(1).max(80))
     .max(100)
     .optional()
-    .describe("Add these tags, keep the others."),
+    .describe("Add these tags (IDs, names or paths, as for `tags`), keep the others."),
 };
 
 const ThingCreate = z
@@ -222,8 +228,9 @@ export function v1Ops({ store, media }: Deps): AnyOp[] {
     actor: string,
   ) => {
     if (b.tags) store.setTags(thingId, b.tags, b.source, actor);
+    const current = new Set(store.tagsOf(thingId).map((t) => t.id));
     for (const name of b.addTags ?? []) {
-      const tagId = store.ensureTag(name, actor, null, b.source);
+      const tagId = store.resolveTag(name, current) ?? store.ensureTag(name, actor, null, b.source);
       if (!store.edges({ type: "tagged", fromId: thingId, toId: tagId }).length)
         store.relate("tagged", thingId, tagId, { source: b.source }, actor);
     }
